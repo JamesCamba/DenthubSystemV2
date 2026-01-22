@@ -1,0 +1,20 @@
+{
+    "name": "james-jason/denthub-system",
+    "description": "DentHub Online Appointment System",
+    "type": "project",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "JamesJason\\DenthubSystem\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "James Camba"
+        }
+    ],
+    "minimum-stability": "stable",
+    "require": {
+        "phpmailer/phpmailer": "^7.0"
+    }
+}

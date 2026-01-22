@@ -1,0 +1,117 @@
+-- Database Migration for Denthub System Enhancements
+-- Run these queries to add new features
+
+-- 1. Email Verification Codes Table
+CREATE TABLE IF NOT EXISTS `email_verification_codes` (
+  `code_id` int(11) NOT NULL AUTO_INCREMENT,
+  `email` varchar(100) NOT NULL,
+  `verification_code` varchar(6) NOT NULL,
+  `purpose` enum('registration','password_reset') DEFAULT 'registration',
+  `expires_at` timestamp NOT NULL,
+  `is_used` tinyint(1) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`code_id`),
+  KEY `idx_email_code` (`email`, `verification_code`),
+  KEY `idx_expires` (`expires_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 2. Dentist Service Mastery (Many-to-Many relationship)
+CREATE TABLE IF NOT EXISTS `dentist_service_mastery` (
+  `mastery_id` int(11) NOT NULL AUTO_INCREMENT,
+  `dentist_id` int(11) NOT NULL,
+  `service_id` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`mastery_id`),
+  UNIQUE KEY `unique_dentist_service` (`dentist_id`, `service_id`),
+  KEY `dentist_id` (`dentist_id`),
+  KEY `service_id` (`service_id`),
+  CONSTRAINT `dentist_service_mastery_ibfk_1` FOREIGN KEY (`dentist_id`) REFERENCES `dentists` (`dentist_id`) ON DELETE CASCADE,
+  CONSTRAINT `dentist_service_mastery_ibfk_2` FOREIGN KEY (`service_id`) REFERENCES `services` (`service_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- 3. Insert Dummy Dentist Data
+-- First, create user accounts for dentists
+INSERT INTO `users` (`username`, `email`, `password_hash`, `full_name`, `role`, `branch_id`, `is_active`, `created_at`) VALUES
+('dr.almendral', 'dr.almendral@denthub.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Dr. Jan Charina Almendral DMD', 'dentist', 1, 1, NOW()),
+('dr.bastilaon', 'dr.bastilaon@denthub.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Dr. Alyssa Ann Bastila-on DMD', 'dentist', 1, 1, NOW()),
+('dr.iatube', 'dr.iatube@denthub.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Dr. Abegail Iatube DMD', 'dentist', 1, 1, NOW()),
+('dr.cinco', 'dr.cinco@denthub.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Dr. John Patrick Cinco DMD', 'dentist', 1, 1, NOW())
+ON DUPLICATE KEY UPDATE `username`=`username`;
+
+-- Then create dentist records
+INSERT INTO `dentists` (`user_id`, `license_number`, `specialization`, `branch_id`, `is_active`) VALUES
+((SELECT user_id FROM users WHERE username = 'dr.almendral'), 'DENT-001', 'General Dentistry, Orthodontics', 1, 1),
+((SELECT user_id FROM users WHERE username = 'dr.bastilaon'), 'DENT-002', 'Oral Surgery, Implantology', 1, 1),
+((SELECT user_id FROM users WHERE username = 'dr.iatube'), 'DENT-003', 'Periodontics, Cosmetic Dentistry', 1, 1),
+((SELECT user_id FROM users WHERE username = 'dr.cinco'), 'DENT-004', 'Endodontics, Prosthodontics', 1, 1)
+ON DUPLICATE KEY UPDATE `user_id`=`user_id`;
+
+-- Assign service mastery to dentists (random assignments for now)
+-- Dr. Almendral: General services (Consultation, Cleaning, Whitening, Orthodontics)
+INSERT INTO `dentist_service_mastery` (`dentist_id`, `service_id`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 6), -- Consultation
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 3), -- Cleaning
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 7), -- Whitening
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 9)  -- Orthodontics
+ON DUPLICATE KEY UPDATE `dentist_id`=`dentist_id`;
+
+-- Dr. Bastila-on: Surgical services (Wisdom Tooth, Implant, Root Canal)
+INSERT INTO `dentist_service_mastery` (`dentist_id`, `service_id`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 2), -- Wisdom Tooth
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 4), -- Root Canal
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 8)  -- Implant
+ON DUPLICATE KEY UPDATE `dentist_id`=`dentist_id`;
+
+-- Dr. Iatube: Cosmetic and Gum services (Whitening, Gum Treatment, Restoration)
+INSERT INTO `dentist_service_mastery` (`dentist_id`, `service_id`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 1), -- Restoration
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 7), -- Whitening
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 10)  -- Gum Treatment
+ON DUPLICATE KEY UPDATE `dentist_id`=`dentist_id`;
+
+-- Dr. Cinco: Prosthodontics and Endodontics (Dentures, Root Canal, Restoration)
+INSERT INTO `dentist_service_mastery` (`dentist_id`, `service_id`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 1), -- Restoration
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 4), -- Root Canal
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 5)  -- Dentures
+ON DUPLICATE KEY UPDATE `dentist_id`=`dentist_id`;
+
+-- 4. Add default schedules for all dentists (Monday to Friday, 9 AM to 5 PM)
+-- Dr. Almendral Schedule
+INSERT INTO `dentist_schedules` (`dentist_id`, `day_of_week`, `start_time`, `end_time`, `is_available`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 1, '09:00:00', '17:00:00', 1), -- Monday
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 2, '09:00:00', '17:00:00', 1), -- Tuesday
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 3, '09:00:00', '17:00:00', 1), -- Wednesday
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 4, '09:00:00', '17:00:00', 1), -- Thursday
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-001'), 5, '09:00:00', '17:00:00', 1)  -- Friday
+ON DUPLICATE KEY UPDATE `is_available`=1;
+
+-- Dr. Bastila-on Schedule
+INSERT INTO `dentist_schedules` (`dentist_id`, `day_of_week`, `start_time`, `end_time`, `is_available`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 1, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 2, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 3, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 4, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-002'), 5, '09:00:00', '17:00:00', 1)
+ON DUPLICATE KEY UPDATE `is_available`=1;
+
+-- Dr. Iatube Schedule
+INSERT INTO `dentist_schedules` (`dentist_id`, `day_of_week`, `start_time`, `end_time`, `is_available`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 1, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 2, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 3, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 4, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-003'), 5, '09:00:00', '17:00:00', 1)
+ON DUPLICATE KEY UPDATE `is_available`=1;
+
+-- Dr. Cinco Schedule
+INSERT INTO `dentist_schedules` (`dentist_id`, `day_of_week`, `start_time`, `end_time`, `is_available`) VALUES
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 1, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 2, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 3, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 4, '09:00:00', '17:00:00', 1),
+((SELECT dentist_id FROM dentists WHERE license_number = 'DENT-004'), 5, '09:00:00', '17:00:00', 1)
+ON DUPLICATE KEY UPDATE `is_available`=1;
+
+-- Note: Default password for all dummy dentists is 'password'
+-- They should change it on first login

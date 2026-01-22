@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Denthub</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #0d6efd;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Denthub Dental Clinic</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 40px 20px; background-color: #ffffff;">
+                <table role="presentation" style="width: 100%; max-width: 600px; margin: 0 auto;">
+                    <tr>
+                        <td>
+                            <h2 style="color: #333333; margin-top: 0;">Welcome to Denthub Dental Clinic!</h2>
+                            <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                                Hello {{NAME}},
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                                Your dentist account has been created successfully. You can now access the clinic management system.
+                            </p>
+                            <div style="background-color: #f8f9fa; border-left: 4px solid #0d6efd; padding: 20px; margin: 20px 0;">
+                                <p style="margin: 0 0 10px 0; color: #333333; font-weight: bold;">Your Login Credentials:</p>
+                                <p style="margin: 5px 0; color: #666666;"><strong>Username:</strong> {{USERNAME}}</p>
+                                <p style="margin: 5px 0; color: #666666;"><strong>Temporary Password:</strong> {{PASSWORD}}</p>
+                                <p style="margin: 5px 0; color: #666666;"><strong>Email:</strong> {{EMAIL}}</p>
+                            </div>
+                            <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0;">
+                                <p style="margin: 0; color: #856404; font-size: 14px;">
+                                    <strong>⚠️ Security Notice:</strong> Please login immediately and change your temporary password to ensure account security.
+                                </p>
+                            </div>
+                            <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                                To login, visit: <a href="{{LOGIN_URL}}" style="color: #0d6efd;">{{LOGIN_URL}}</a>
+                            </p>
+                            <p style="color: #666666; font-size: 14px; line-height: 1.6;">
+                                If you have any questions or need assistance, please contact us at <a href="mailto:dentalclinicdenthub@gmail.com" style="color: #0d6efd;">dentalclinicdenthub@gmail.com</a>
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 1.6; margin-top: 30px;">
+                                Best regards,<br>
+                                <strong>Denthub Dental Clinic Team</strong>
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 20px; text-align: center; background-color: #f8f9fa; color: #666666; font-size: 12px;">
+                <p style="margin: 0;">© <?php echo date('Y'); ?> Denthub Dental Clinic. All rights reserved.</p>
+                <p style="margin: 5px 0 0 0;">Block 5, Lot 3 & 4, Sabalo Street, Sangandaan, Caloocan City, Philippines 1400</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

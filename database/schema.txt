@@ -1,0 +1,287 @@
+-- ============================================
+-- DENTHUB DENTAL CLINIC - DATABASE SCHEMA
+-- ============================================
+-- Database: denthub_clinic
+-- Created for: Online Appointment System
+-- ============================================
+
+-- Create Database
+CREATE DATABASE IF NOT EXISTS denthub_clinic;
+USE denthub_clinic;
+
+-- ============================================
+-- TABLE: users (Clinic Staff, Dentists, Admin)
+-- ============================================
+CREATE TABLE IF NOT EXISTS users (
+    user_id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    full_name VARCHAR(100) NOT NULL,
+    role ENUM('admin', 'dentist', 'staff') NOT NULL DEFAULT 'staff',
+    branch_id INT DEFAULT 1,
+    phone VARCHAR(20),
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: branches (Clinic Branches)
+-- ============================================
+CREATE TABLE IF NOT EXISTS branches (
+    branch_id INT AUTO_INCREMENT PRIMARY KEY,
+    branch_name VARCHAR(100) NOT NULL,
+    address TEXT NOT NULL,
+    phone VARCHAR(20),
+    email VARCHAR(100),
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: patients (Patient Information)
+-- ============================================
+CREATE TABLE IF NOT EXISTS patients (
+    patient_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_number VARCHAR(20) UNIQUE NOT NULL,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    middle_name VARCHAR(50),
+    email VARCHAR(100),
+    phone VARCHAR(20) NOT NULL,
+    birthdate DATE,
+    gender ENUM('Male', 'Female', 'Other'),
+    address TEXT,
+    emergency_contact_name VARCHAR(100),
+    emergency_contact_phone VARCHAR(20),
+    medical_history TEXT,
+    allergies TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    INDEX idx_phone (phone),
+    INDEX idx_email (email),
+    INDEX idx_patient_number (patient_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: services (Dental Services)
+-- ============================================
+CREATE TABLE IF NOT EXISTS services (
+    service_id INT AUTO_INCREMENT PRIMARY KEY,
+    service_name VARCHAR(100) NOT NULL,
+    service_code VARCHAR(20) UNIQUE,
+    description TEXT,
+    duration_minutes INT DEFAULT 30,
+    price DECIMAL(10, 2),
+    is_active TINYINT(1) DEFAULT 1,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: dentists (Dentist Information)
+-- ============================================
+CREATE TABLE IF NOT EXISTS dentists (
+    dentist_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT,
+    license_number VARCHAR(50),
+    specialization VARCHAR(100),
+    branch_id INT,
+    is_active TINYINT(1) DEFAULT 1,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: dentist_schedules (Dentist Availability)
+-- ============================================
+CREATE TABLE IF NOT EXISTS dentist_schedules (
+    schedule_id INT AUTO_INCREMENT PRIMARY KEY,
+    dentist_id INT NOT NULL,
+    day_of_week TINYINT NOT NULL COMMENT '0=Sunday, 1=Monday, ..., 6=Saturday',
+    start_time TIME NOT NULL,
+    end_time TIME NOT NULL,
+    is_available TINYINT(1) DEFAULT 1,
+    FOREIGN KEY (dentist_id) REFERENCES dentists(dentist_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: time_slots (Available Time Slots)
+-- ============================================
+CREATE TABLE IF NOT EXISTS time_slots (
+    slot_id INT AUTO_INCREMENT PRIMARY KEY,
+    slot_time TIME NOT NULL,
+    is_active TINYINT(1) DEFAULT 1,
+    UNIQUE KEY unique_slot_time (slot_time)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: appointments (Patient Appointments)
+-- ============================================
+CREATE TABLE IF NOT EXISTS appointments (
+    appointment_id INT AUTO_INCREMENT PRIMARY KEY,
+    appointment_number VARCHAR(20) UNIQUE NOT NULL,
+    patient_id INT NOT NULL,
+    dentist_id INT,
+    service_id INT NOT NULL,
+    branch_id INT NOT NULL,
+    appointment_date DATE NOT NULL,
+    appointment_time TIME NOT NULL,
+    status ENUM('pending', 'confirmed', 'completed', 'cancelled', 'no_show') DEFAULT 'pending',
+    reason_for_visit TEXT,
+    notes TEXT,
+    created_by INT COMMENT 'User who created the appointment',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE,
+    FOREIGN KEY (dentist_id) REFERENCES dentists(dentist_id) ON DELETE SET NULL,
+    FOREIGN KEY (service_id) REFERENCES services(service_id) ON DELETE RESTRICT,
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id) ON DELETE RESTRICT,
+    FOREIGN KEY (created_by) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_appointment_date (appointment_date),
+    INDEX idx_status (status),
+    INDEX idx_appointment_number (appointment_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: lab_cases (Laboratory Cases - Dentures, Prosthetics)
+-- ============================================
+CREATE TABLE IF NOT EXISTS lab_cases (
+    case_id INT AUTO_INCREMENT PRIMARY KEY,
+    case_number VARCHAR(20) UNIQUE NOT NULL,
+    patient_id INT NOT NULL,
+    appointment_id INT,
+    dentist_id INT,
+    case_type VARCHAR(100) NOT NULL COMMENT 'Dentures, Prosthetics, Crown, etc.',
+    description TEXT,
+    status ENUM('pending', 'in_progress', 'ready_for_pickup', 'completed', 'cancelled') DEFAULT 'pending',
+    date_received DATE,
+    expected_completion_date DATE,
+    actual_completion_date DATE,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE,
+    FOREIGN KEY (appointment_id) REFERENCES appointments(appointment_id) ON DELETE SET NULL,
+    FOREIGN KEY (dentist_id) REFERENCES dentists(dentist_id) ON DELETE SET NULL,
+    INDEX idx_status (status),
+    INDEX idx_case_number (case_number)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: blocked_dates (Holidays, Clinic Closures)
+-- ============================================
+CREATE TABLE IF NOT EXISTS blocked_dates (
+    block_id INT AUTO_INCREMENT PRIMARY KEY,
+    block_date DATE NOT NULL,
+    reason VARCHAR(255),
+    branch_id INT,
+    is_active TINYINT(1) DEFAULT 1,
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id) ON DELETE CASCADE,
+    UNIQUE KEY unique_block_date_branch (block_date, branch_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- TABLE: patient_accounts (Patient Login Accounts)
+-- ============================================
+CREATE TABLE IF NOT EXISTS patient_accounts (
+    account_id INT AUTO_INCREMENT PRIMARY KEY,
+    patient_id INT UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    is_verified TINYINT(1) DEFAULT 0,
+    verification_token VARCHAR(100),
+    last_login TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (patient_id) REFERENCES patients(patient_id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- ============================================
+-- INSERT DEFAULT DATA
+-- ============================================
+
+-- Insert Default Branch
+INSERT INTO branches (branch_id, branch_name, address, phone, email) VALUES
+(1, 'Denthub Dental Clinic - Main Branch', 'Block 5, Lot 3 & 4, Sabalo Street, Sangandaan, Caloocan City, Philippines 1400', '0916 607 0999', 'denthubcenter.sdc1@gmail.com');
+
+-- Insert Default Admin User (password: admin123 - CHANGE THIS IN PRODUCTION!)
+INSERT INTO users (username, email, password_hash, full_name, role, branch_id) VALUES
+('admin', 'admin@denthub.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'System Administrator', 'admin', 1);
+
+-- Insert Default Services
+INSERT INTO services (service_name, service_code, description, duration_minutes, price) VALUES
+('Tooth Restoration', 'TR001', 'Restoration of damaged or decayed teeth using fillings, crowns, or other materials', 60, 2500.00),
+('Wisdom Tooth Removal', 'WTR001', 'Surgical extraction of wisdom teeth', 90, 5000.00),
+('Dental Cleaning', 'DC001', 'Professional teeth cleaning and polishing', 45, 1500.00),
+('Root Canal Treatment', 'RCT001', 'Treatment of infected tooth root', 120, 8000.00),
+('Dentures', 'DEN001', 'Custom-made removable dentures', 60, 15000.00),
+('Dental Consultation', 'CON001', 'General dental examination and consultation', 30, 500.00),
+('Teeth Whitening', 'TW001', 'Professional teeth whitening procedure', 60, 6000.00),
+('Dental Implant', 'DI001', 'Surgical placement of dental implant', 120, 50000.00),
+('Orthodontic Treatment', 'ORT001', 'Braces and orthodontic correction', 60, 3000.00),
+('Gum Treatment', 'GT001', 'Treatment for gum diseases', 60, 4000.00);
+
+-- Insert Default Time Slots (9 AM to 5 PM, 30-minute intervals)
+INSERT INTO time_slots (slot_time) VALUES
+('09:00:00'), ('09:30:00'), ('10:00:00'), ('10:30:00'), ('11:00:00'), ('11:30:00'),
+('12:00:00'), ('12:30:00'), ('13:00:00'), ('13:30:00'), ('14:00:00'), ('14:30:00'),
+('15:00:00'), ('15:30:00'), ('16:00:00'), ('16:30:00'), ('17:00:00');
+
+-- ============================================
+-- HELPER FUNCTIONS / PROCEDURES (Optional)
+-- ============================================
+
+-- Function to generate patient number
+DELIMITER //
+CREATE FUNCTION IF NOT EXISTS generate_patient_number() 
+RETURNS VARCHAR(20)
+READS SQL DATA
+DETERMINISTIC
+BEGIN
+    DECLARE new_number VARCHAR(20);
+    DECLARE last_id INT;
+    SELECT COALESCE(MAX(CAST(SUBSTRING(patient_number, 4) AS UNSIGNED)), 0) + 1 INTO last_id FROM patients;
+    SET new_number = CONCAT('PAT', LPAD(last_id, 6, '0'));
+    RETURN new_number;
+END//
+DELIMITER ;
+
+-- Function to generate appointment number
+DELIMITER //
+CREATE FUNCTION IF NOT EXISTS generate_appointment_number() 
+RETURNS VARCHAR(20)
+READS SQL DATA
+DETERMINISTIC
+BEGIN
+    DECLARE new_number VARCHAR(20);
+    DECLARE last_id INT;
+    SELECT COALESCE(MAX(CAST(SUBSTRING(appointment_number, 4) AS UNSIGNED)), 0) + 1 INTO last_id FROM appointments;
+    SET new_number = CONCAT('APT', LPAD(last_id, 6, '0'));
+    RETURN new_number;
+END//
+DELIMITER ;
+
+-- Function to generate lab case number
+DELIMITER //
+CREATE FUNCTION IF NOT EXISTS generate_case_number() 
+RETURNS VARCHAR(20)
+READS SQL DATA
+DETERMINISTIC
+BEGIN
+    DECLARE new_number VARCHAR(20);
+    DECLARE last_id INT;
+    SELECT COALESCE(MAX(CAST(SUBSTRING(case_number, 4) AS UNSIGNED)), 0) + 1 INTO last_id FROM lab_cases;
+    SET new_number = CONCAT('LAB', LPAD(last_id, 6, '0'));
+    RETURN new_number;
+END//
+DELIMITER ;
+
+-- ============================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================
+-- Additional indexes are already defined in table creation above
+
+-- ============================================
+-- END OF SCHEMA
+-- ============================================
+

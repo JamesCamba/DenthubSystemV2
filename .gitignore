@@ -1,0 +1,17 @@
+# Dependencies
+/vendor/
+/node_modules/
+
+# Environment files
+.env
+
+# Database files
+denthub_clinic.sql
+admin/denthub_clinic.sql
+
+# Logs
+*.log
+
+# OS / Editor
+.DS_Store
+Thumbs.db
