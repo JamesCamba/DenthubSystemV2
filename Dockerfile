@@ -10,6 +10,7 @@ RUN apt-get update && \
     unzip \
     zip \
     libzip-dev \
+    zlib1g-dev \  # ADD THIS LINE - REQUIRED for PHP zip extension
     && docker-php-ext-install pdo pdo_pgsql zip \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
