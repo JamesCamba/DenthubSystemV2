@@ -15,6 +15,17 @@
     ],
     "minimum-stability": "stable",
     "require": {
+        "php": ">=8.0",
+        "ext-pdo": "*",
+        "ext-pdo_pgsql": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*",
+        "ext-curl": "*",
         "phpmailer/phpmailer": "^7.0"
+    },
+    "scripts": {
+        "post-install-cmd": [
+            "@php -r \"if (file_exists('vendor/heroku/heroku-buildpack-php/bin/heroku-php-apache2')) { echo 'Heroku buildpack available'; }\""
+        ]
     }
 }

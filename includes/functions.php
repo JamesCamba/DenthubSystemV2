@@ -8,7 +8,8 @@ require_once __DIR__ . '/database.php';
 // Generate patient number
 function generatePatientNumber() {
     $db = getDB();
-    $result = $db->query("SELECT COALESCE(MAX(CAST(SUBSTRING(patient_number, 4) AS UNSIGNED)), 0) + 1 AS next_num FROM patients");
+    // PostgreSQL syntax: SUBSTRING(string FROM start) and INTEGER instead of UNSIGNED
+    $result = $db->query("SELECT COALESCE(MAX(CAST(SUBSTRING(patient_number FROM 4) AS INTEGER)), 0) + 1 AS next_num FROM patients");
     $row = $result->fetch_assoc();
     return 'PAT' . str_pad($row['next_num'], 6, '0', STR_PAD_LEFT);
 }
@@ -16,7 +17,8 @@ function generatePatientNumber() {
 // Generate appointment number
 function generateAppointmentNumber() {
     $db = getDB();
-    $result = $db->query("SELECT COALESCE(MAX(CAST(SUBSTRING(appointment_number, 4) AS UNSIGNED)), 0) + 1 AS next_num FROM appointments");
+    // PostgreSQL syntax: SUBSTRING(string FROM start) and INTEGER instead of UNSIGNED
+    $result = $db->query("SELECT COALESCE(MAX(CAST(SUBSTRING(appointment_number FROM 4) AS INTEGER)), 0) + 1 AS next_num FROM appointments");
     $row = $result->fetch_assoc();
     return 'APT' . str_pad($row['next_num'], 6, '0', STR_PAD_LEFT);
 }
@@ -24,7 +26,8 @@ function generateAppointmentNumber() {
 // Generate lab case number
 function generateCaseNumber() {
     $db = getDB();
-    $result = $db->query("SELECT COALESCE(MAX(CAST(SUBSTRING(case_number, 4) AS UNSIGNED)), 0) + 1 AS next_num FROM lab_cases");
+    // PostgreSQL syntax: SUBSTRING(string FROM start) and INTEGER instead of UNSIGNED
+    $result = $db->query("SELECT COALESCE(MAX(CAST(SUBSTRING(case_number FROM 4) AS INTEGER)), 0) + 1 AS next_num FROM lab_cases");
     $row = $result->fetch_assoc();
     return 'LAB' . str_pad($row['next_num'], 6, '0', STR_PAD_LEFT);
 }
