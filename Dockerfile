@@ -2,6 +2,7 @@
 FROM php:8.2-cli
 
 # Install system dependencies and PHP extensions
+# libzip-dev and zlib1g-dev are required for PHP zip extension
 RUN apt-get update && \
     apt-get install -y \
     libpq-dev \
@@ -10,7 +11,7 @@ RUN apt-get update && \
     unzip \
     zip \
     libzip-dev \
-    zlib1g-dev \  # ADD THIS LINE - REQUIRED for PHP zip extension
+    zlib1g-dev \
     && docker-php-ext-install pdo pdo_pgsql zip \
     && apt-get clean && \
     rm -rf /var/lib/apt/lists/*
