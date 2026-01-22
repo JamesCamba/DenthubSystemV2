@@ -1,0 +1,10 @@
+vendor/
+node_modules/
+.git/
+.env
+*.log
+*.sql
+*.md
+resources/
+database/
+.gitignore
