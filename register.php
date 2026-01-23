@@ -120,14 +120,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                         header('Location: register.php?step=verify&email=' . urlencode($email));
                         exit;
                     } else {
-                        // Fallback for environments where SMTP is blocked (e.g., some PaaS platforms)
-                        // Automatically verify the account so registration is not blocked
-                        $autoVerifyStmt = $db->prepare("UPDATE patient_accounts SET is_verified = TRUE WHERE email = ?");
-                        $autoVerifyStmt->bind_param("s", $email);
-                        $autoVerifyStmt->execute();
-
-                        $success = 'Account created and automatically verified (email sending failed on the server). You can now login.';
-                        $step = 'complete';
+                        // If email sending fails, DO NOT auto-verify the account.
+                        // Require a working email setup for verification.
+                        $error = 'Failed to send verification email. Please try again later or contact the clinic.';
                     }
                 } else {
                     $error = 'Error creating account. Please try again.';
