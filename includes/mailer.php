@@ -24,22 +24,42 @@ class Mailer {
         $this->mail = new PHPMailer(true);
         
         // Decide how to send mail:
-        // - 'resend' (HTTP API, works on Railway free/hobby)
-        // - 'smtp'   (default, uses PHPMailer + SMTP)
+        // - 'maileroo' (HTTP API, works on free hosting; simple setup - RECOMMENDED for free tier)
+        // - 'sendgrid' (HTTP API, works on free hosting; student-friendly, no company required)
+        // - 'brevo'    (HTTP API, works on free hosting; supports sender verification)
+        // - 'resend'   (HTTP API, but requires verified domain to email others)
+        // - 'smtp'     (default, uses PHPMailer + SMTP - blocked on free hosting)
         $this->driver   = strtolower(getenv('MAIL_DRIVER') ?: 'smtp');
-        $this->apiKey   = getenv('RESEND_API_KEY') ?: '';
         
-        // For Resend, prioritize RESEND_FROM_EMAIL and avoid gmail.com addresses
-        // (gmail.com requires domain verification which you can't do)
-        $resendFromEmail = getenv('RESEND_FROM_EMAIL');
-        if ($this->driver === 'resend' && (empty($resendFromEmail) || strpos($resendFromEmail, '@gmail.com') !== false)) {
-            // Default to Resend's test sender for free tier
-            $this->fromEmail = 'onboarding@resend.dev';
+        // API key and settings depend on driver
+        if ($this->driver === 'maileroo') {
+            $this->apiKey = getenv('MAILEROO_API_KEY') ?: '';
+            $this->fromEmail = getenv('MAILEROO_FROM_EMAIL') ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+            $this->fromName = getenv('MAILEROO_FROM_NAME') ?: 'Denthub Dental Clinic';
+        } elseif ($this->driver === 'sendgrid') {
+            $this->apiKey = getenv('SENDGRID_API_KEY') ?: '';
+            $this->fromEmail = getenv('SENDGRID_FROM_EMAIL') ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+            $this->fromName = getenv('SENDGRID_FROM_NAME') ?: 'Denthub Dental Clinic';
+        } elseif ($this->driver === 'brevo') {
+            $this->apiKey = getenv('BREVO_API_KEY') ?: '';
+            $this->fromEmail = getenv('BREVO_FROM_EMAIL') ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+            $this->fromName = getenv('BREVO_FROM_NAME') ?: 'Denthub Dental Clinic';
+        } elseif ($this->driver === 'resend') {
+            $this->apiKey = getenv('RESEND_API_KEY') ?: '';
+            // For Resend, avoid gmail.com addresses (requires domain verification)
+            $resendFromEmail = getenv('RESEND_FROM_EMAIL');
+            if (empty($resendFromEmail) || strpos($resendFromEmail, '@gmail.com') !== false) {
+                $this->fromEmail = 'onboarding@resend.dev';
+            } else {
+                $this->fromEmail = $resendFromEmail ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+            }
+            $this->fromName = getenv('RESEND_FROM_NAME') ?: 'Denthub Dental Clinic';
         } else {
-            $this->fromEmail = $resendFromEmail ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+            // SMTP driver
+            $this->apiKey = '';
+            $this->fromEmail = getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com';
+            $this->fromName = 'Denthub Dental Clinic';
         }
-        
-        $this->fromName  = getenv('RESEND_FROM_NAME') ?: 'Denthub Dental Clinic';
 
         // Only configure SMTP when we are actually using it
         if ($this->driver === 'smtp') {
@@ -85,11 +105,20 @@ class Mailer {
         $html    = $this->getVerificationTemplate($code, $name);
         $text    = "Your verification code is: $code\n\nThis code will expire in 10 minutes.";
 
+        if ($this->driver === 'maileroo' && $this->apiKey) {
+            return $this->sendViaMaileroo($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'sendgrid' && $this->apiKey) {
+            return $this->sendViaSendGrid($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'brevo' && $this->apiKey) {
+            return $this->sendViaBrevo($to, $subject, $html, $text, $name);
+        }
         if ($this->driver === 'resend' && $this->apiKey) {
             return $this->sendViaResend($to, $subject, $html, $text, $name);
         }
 
-        // Fallback: SMTP/PHPMailer (works on local/dev or Railway Pro)
+        // Fallback: SMTP/PHPMailer (works on local/dev or paid hosting)
         try {
             $this->mail->clearAddresses();
             $this->mail->addAddress($to, $name);
@@ -114,6 +143,15 @@ class Mailer {
         $html    = $this->getDentistAccountTemplate($name, $username, $tempPassword, $email);
         $text    = "Welcome to Denthub Dental Clinic!\n\nYour account has been created.\nUsername: $username\nTemporary Password: $tempPassword\n\nPlease login and change your password immediately.\n\nContact: dentalclinicdenthub@gmail.com";
 
+        if ($this->driver === 'maileroo' && $this->apiKey) {
+            return $this->sendViaMaileroo($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'sendgrid' && $this->apiKey) {
+            return $this->sendViaSendGrid($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'brevo' && $this->apiKey) {
+            return $this->sendViaBrevo($to, $subject, $html, $text, $name);
+        }
         if ($this->driver === 'resend' && $this->apiKey) {
             return $this->sendViaResend($to, $subject, $html, $text, $name);
         }
@@ -142,6 +180,15 @@ class Mailer {
         $html    = $this->getAppointmentConfirmationTemplate($name, $appointmentData);
         $text    = "Your appointment has been confirmed.\n\nReference: {$appointmentData['appointment_number']}\nDate: {$appointmentData['date']}\nTime: {$appointmentData['time']}\nService: {$appointmentData['service']}";
 
+        if ($this->driver === 'maileroo' && $this->apiKey) {
+            return $this->sendViaMaileroo($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'sendgrid' && $this->apiKey) {
+            return $this->sendViaSendGrid($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'brevo' && $this->apiKey) {
+            return $this->sendViaBrevo($to, $subject, $html, $text, $name);
+        }
         if ($this->driver === 'resend' && $this->apiKey) {
             return $this->sendViaResend($to, $subject, $html, $text, $name);
         }
@@ -273,6 +320,178 @@ class Mailer {
         }
         curl_close($ch);
         return true;
+    }
+
+    /**
+     * Send email via Brevo HTTP API (works on free hosting; supports sender verification)
+     * Brevo allows you to verify your Gmail address and send FROM it to ANY recipient
+     */
+    private function sendViaBrevo($to, $subject, $html, $text, $name = '') {
+        if (empty($this->apiKey)) {
+            error_log('Brevo Error: BREVO_API_KEY not configured');
+            return false;
+        }
+
+        $fromEmail = trim($this->fromEmail);
+        $fromName  = $this->fromName ?: 'Denthub Dental Clinic';
+        
+        // Brevo API payload
+        $payload = [
+            'sender' => [
+                'name' => $fromName,
+                'email' => $fromEmail
+            ],
+            'to' => [
+                [
+                    'email' => $to,
+                    'name' => $name ?: ''
+                ]
+            ],
+            'subject' => $subject,
+            'htmlContent' => $html,
+            'textContent' => $text
+        ];
+
+        $ch = curl_init('https://api.brevo.com/v3/smtp/email');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'api-key: ' . $this->apiKey,
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($response === false || $httpCode >= 400) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            error_log("Brevo Error: HTTP $httpCode - $error - Response: $response");
+            return false;
+        }
+        curl_close($ch);
+        return true;
+    }
+
+    /**
+     * Send email via SendGrid HTTP API (works on free hosting; student-friendly, no company required)
+     * SendGrid free tier: 100 emails/day
+     */
+    private function sendViaSendGrid($to, $subject, $html, $text, $name = '') {
+        if (empty($this->apiKey)) {
+            error_log('SendGrid Error: SENDGRID_API_KEY not configured');
+            return false;
+        }
+
+        $fromEmail = trim($this->fromEmail);
+        $fromName  = $this->fromName ?: 'Denthub Dental Clinic';
+        
+        // SendGrid API payload
+        $payload = [
+            'personalizations' => [
+                [
+                    'to' => [
+                        [
+                            'email' => $to,
+                            'name' => $name ?: ''
+                        ]
+                    ],
+                    'subject' => $subject
+                ]
+            ],
+            'from' => [
+                'email' => $fromEmail,
+                'name' => $fromName
+            ],
+            'content' => [
+                [
+                    'type' => 'text/html',
+                    'value' => $html
+                ],
+                [
+                    'type' => 'text/plain',
+                    'value' => $text
+                ]
+            ]
+        ];
+
+        $ch = curl_init('https://api.sendgrid.com/v3/mail/send');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->apiKey,
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($response === false || $httpCode >= 400) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            error_log("SendGrid Error: HTTP $httpCode - $error - Response: $response");
+            return false;
+        }
+        curl_close($ch);
+        return true;
+    }
+
+    /**
+     * Send email via Maileroo HTTP API (works on free hosting; simple setup)
+     * Maileroo API: https://smtp.maileroo.com/api/v2/emails
+     */
+    private function sendViaMaileroo($to, $subject, $html, $text, $name = '') {
+        if (empty($this->apiKey)) {
+            error_log('Maileroo Error: MAILEROO_API_KEY not configured');
+            return false;
+        }
+
+        $fromEmail = trim($this->fromEmail);
+        $fromName  = $this->fromName ?: 'Denthub Dental Clinic';
+        
+        // Maileroo API payload
+        $payload = [
+            'from' => [
+                'email' => $fromEmail,
+                'name' => $fromName
+            ],
+            'to' => [
+                [
+                    'email' => $to,
+                    'name' => $name ?: ''
+                ]
+            ],
+            'subject' => $subject,
+            'html' => $html,
+            'text' => $text
+        ];
+
+        $ch = curl_init('https://smtp.maileroo.com/api/v2/emails');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'X-Api-Key: ' . $this->apiKey,
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($response === false || $httpCode >= 400) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            error_log("Maileroo Error: HTTP $httpCode - $error - Response: $response");
+            return false;
+        }
+        curl_close($ch);
+        
+        // Check response for success
+        $responseData = json_decode($response, true);
+        if (isset($responseData['success']) && $responseData['success'] === true) {
+            return true;
+        }
+        
+        return true; // Assume success if HTTP 200
     }
 }
 

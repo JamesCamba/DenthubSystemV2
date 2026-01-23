@@ -28,8 +28,9 @@ COPY . .
 # Install Composer dependencies
 RUN composer install --no-dev --optimize-autoloader
 
-# Expose port (Railway sets PORT automatically)
+# Expose port (Render/Railway sets PORT automatically)
 EXPOSE 8080
 
-# Start PHP built-in server (Railway sets PORT env var)
-CMD php -S 0.0.0.0:${PORT:-8080} -t .
+# Start PHP built-in server (Render/Railway sets PORT env var)
+# Use server.php as router for proper URL handling
+CMD php -S 0.0.0.0:${PORT:-8080} -t . server.php
