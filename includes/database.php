@@ -91,6 +91,24 @@ class MySQLiCompatibleResult {
         return count($this->rows);
     }
 
+    /**
+     * MySQLi-compatible pointer repositioning
+     * Allows calls like $result->data_seek(0)
+     */
+    public function data_seek($offset) {
+        $offset = (int)$offset;
+        if ($offset < 0) {
+            $offset = 0;
+        }
+        if ($offset >= count($this->rows)) {
+            // Position after last row – subsequent fetches will return null
+            $this->index = count($this->rows);
+        } else {
+            $this->index = $offset;
+        }
+        return true;
+    }
+
     public function __get($name) {
         if ($name === 'num_rows') {
             return count($this->rows);

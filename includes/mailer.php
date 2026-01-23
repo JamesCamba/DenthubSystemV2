@@ -15,10 +15,26 @@ use PHPMailer\PHPMailer\Exception;
 
 class Mailer {
     private $mail;
+    private $driver;
+    private $apiKey;
+    private $fromEmail;
+    private $fromName;
     
     public function __construct() {
         $this->mail = new PHPMailer(true);
-        $this->configure();
+        
+        // Decide how to send mail:
+        // - 'resend' (HTTP API, works on Railway free/hobby)
+        // - 'smtp'   (default, uses PHPMailer + SMTP)
+        $this->driver   = strtolower(getenv('MAIL_DRIVER') ?: 'smtp');
+        $this->apiKey   = getenv('RESEND_API_KEY') ?: '';
+        $this->fromEmail = getenv('RESEND_FROM_EMAIL') ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+        $this->fromName  = getenv('RESEND_FROM_NAME') ?: 'Denthub Dental Clinic';
+
+        // Only configure SMTP when we are actually using it
+        if ($this->driver === 'smtp') {
+            $this->configure();
+        }
     }
     
     private function configure() {
@@ -48,23 +64,30 @@ class Mailer {
         $this->mail->CharSet    = 'UTF-8';
         
         // Sender info
-        $this->mail->setFrom($username, 'Denthub Dental Clinic');
+        $this->mail->setFrom($username, $this->fromName ?: 'Denthub Dental Clinic');
     }
     
     /**
      * Send verification code email
      */
     public function sendVerificationCode($to, $code, $name = '') {
+        $subject = 'Email Verification Code - Denthub Dental Clinic';
+        $html    = $this->getVerificationTemplate($code, $name);
+        $text    = "Your verification code is: $code\n\nThis code will expire in 10 minutes.";
+
+        if ($this->driver === 'resend' && $this->apiKey) {
+            return $this->sendViaResend($to, $subject, $html, $text, $name);
+        }
+
+        // Fallback: SMTP/PHPMailer (works on local/dev or Railway Pro)
         try {
             $this->mail->clearAddresses();
             $this->mail->addAddress($to, $name);
             $this->mail->isHTML(true);
-            $this->mail->Subject = 'Email Verification Code - Denthub Dental Clinic';
-            
-            $template = $this->getVerificationTemplate($code, $name);
-            $this->mail->Body = $template;
-            $this->mail->AltBody = "Your verification code is: $code\n\nThis code will expire in 10 minutes.";
-            
+            $this->mail->Subject = $subject;
+            $this->mail->Body    = $html;
+            $this->mail->AltBody = $text;
+
             $this->mail->send();
             return true;
         } catch (Exception $e) {
@@ -77,16 +100,22 @@ class Mailer {
      * Send dentist account creation email
      */
     public function sendDentistAccountEmail($to, $name, $username, $tempPassword, $email) {
+        $subject = 'Your Denthub Dental Clinic Account - Welcome!';
+        $html    = $this->getDentistAccountTemplate($name, $username, $tempPassword, $email);
+        $text    = "Welcome to Denthub Dental Clinic!\n\nYour account has been created.\nUsername: $username\nTemporary Password: $tempPassword\n\nPlease login and change your password immediately.\n\nContact: dentalclinicdenthub@gmail.com";
+
+        if ($this->driver === 'resend' && $this->apiKey) {
+            return $this->sendViaResend($to, $subject, $html, $text, $name);
+        }
+
         try {
             $this->mail->clearAddresses();
             $this->mail->addAddress($to, $name);
             $this->mail->isHTML(true);
-            $this->mail->Subject = 'Your Denthub Dental Clinic Account - Welcome!';
-            
-            $template = $this->getDentistAccountTemplate($name, $username, $tempPassword, $email);
-            $this->mail->Body = $template;
-            $this->mail->AltBody = "Welcome to Denthub Dental Clinic!\n\nYour account has been created.\nUsername: $username\nTemporary Password: $tempPassword\n\nPlease login and change your password immediately.\n\nContact: dentalclinicdenthub@gmail.com";
-            
+            $this->mail->Subject = $subject;
+            $this->mail->Body    = $html;
+            $this->mail->AltBody = $text;
+
             $this->mail->send();
             return true;
         } catch (Exception $e) {
@@ -99,16 +128,22 @@ class Mailer {
      * Send appointment confirmation email
      */
     public function sendAppointmentConfirmation($to, $name, $appointmentData) {
+        $subject = 'Appointment Confirmation - Denthub Dental Clinic';
+        $html    = $this->getAppointmentConfirmationTemplate($name, $appointmentData);
+        $text    = "Your appointment has been confirmed.\n\nReference: {$appointmentData['appointment_number']}\nDate: {$appointmentData['date']}\nTime: {$appointmentData['time']}\nService: {$appointmentData['service']}";
+
+        if ($this->driver === 'resend' && $this->apiKey) {
+            return $this->sendViaResend($to, $subject, $html, $text, $name);
+        }
+
         try {
             $this->mail->clearAddresses();
             $this->mail->addAddress($to, $name);
             $this->mail->isHTML(true);
-            $this->mail->Subject = 'Appointment Confirmation - Denthub Dental Clinic';
-            
-            $template = $this->getAppointmentConfirmationTemplate($name, $appointmentData);
-            $this->mail->Body = $template;
-            $this->mail->AltBody = "Your appointment has been confirmed.\n\nReference: {$appointmentData['appointment_number']}\nDate: {$appointmentData['date']}\nTime: {$appointmentData['time']}\nService: {$appointmentData['service']}";
-            
+            $this->mail->Subject = $subject;
+            $this->mail->Body    = $html;
+            $this->mail->AltBody = $text;
+
             $this->mail->send();
             return true;
         } catch (Exception $e) {
@@ -175,6 +210,46 @@ class Mailer {
         $template = str_replace('{{DENTIST_ROW}}', $dentistRow, $template);
         
         return $template;
+    }
+
+    /**
+     * Send email via Resend HTTP API (works on Railway free/hobby)
+     */
+    private function sendViaResend($to, $subject, $html, $text, $name = '') {
+        if (empty($this->apiKey)) {
+            error_log('Resend Error: RESEND_API_KEY not configured');
+            return false;
+        }
+
+        $fromName  = $this->fromName ?: 'Denthub Dental Clinic';
+        $fromEmail = $this->fromEmail ?: 'no-reply@denthub.local';
+        $payload = [
+            'from' => sprintf('%s <%s>', $fromName, $fromEmail),
+            'to' => [$to],
+            'subject' => $subject,
+            'html' => $html,
+            'text' => $text,
+        ];
+
+        $ch = curl_init('https://api.resend.com/emails');
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, [
+            'Content-Type: application/json',
+            'Authorization: Bearer ' . $this->apiKey,
+        ]);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        if ($response === false || $httpCode >= 400) {
+            $error = curl_error($ch);
+            curl_close($ch);
+            error_log("Resend Error: HTTP $httpCode - $error - Response: $response");
+            return false;
+        }
+        curl_close($ch);
+        return true;
     }
 }
 
