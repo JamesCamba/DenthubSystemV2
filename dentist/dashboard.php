@@ -40,11 +40,12 @@ $stmt->bind_param("i", $dentist_id);
 $stmt->execute();
 $pending_appointments = $stmt->get_result()->fetch_assoc()['count'];
 
-// Completed appointments this month
+// Completed appointments this month (PostgreSQL-compatible date functions)
+// Use EXTRACT to match current month and year
 $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
                      WHERE dentist_id = ? AND status = 'completed' 
-                     AND MONTH(appointment_date) = MONTH(CURDATE()) 
-                     AND YEAR(appointment_date) = YEAR(CURDATE())");
+                     AND EXTRACT(MONTH FROM appointment_date) = EXTRACT(MONTH FROM CURRENT_DATE) 
+                     AND EXTRACT(YEAR FROM appointment_date) = EXTRACT(YEAR FROM CURRENT_DATE)");
 $stmt->bind_param("i", $dentist_id);
 $stmt->execute();
 $monthly_completed = $stmt->get_result()->fetch_assoc()['count'];

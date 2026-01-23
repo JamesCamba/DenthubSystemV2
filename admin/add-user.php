@@ -108,8 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Get branches
-$branches = $db->query("SELECT * FROM branches WHERE is_active = 1");
+// Get branches (PostgreSQL boolean is_active)
+$branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
 ?>
 <!DOCTYPE html>
 <html lang="en">
