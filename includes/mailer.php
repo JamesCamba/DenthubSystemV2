@@ -28,7 +28,17 @@ class Mailer {
         // - 'smtp'   (default, uses PHPMailer + SMTP)
         $this->driver   = strtolower(getenv('MAIL_DRIVER') ?: 'smtp');
         $this->apiKey   = getenv('RESEND_API_KEY') ?: '';
-        $this->fromEmail = getenv('RESEND_FROM_EMAIL') ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+        
+        // For Resend, prioritize RESEND_FROM_EMAIL and avoid gmail.com addresses
+        // (gmail.com requires domain verification which you can't do)
+        $resendFromEmail = getenv('RESEND_FROM_EMAIL');
+        if ($this->driver === 'resend' && (empty($resendFromEmail) || strpos($resendFromEmail, '@gmail.com') !== false)) {
+            // Default to Resend's test sender for free tier
+            $this->fromEmail = 'onboarding@resend.dev';
+        } else {
+            $this->fromEmail = $resendFromEmail ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+        }
+        
         $this->fromName  = getenv('RESEND_FROM_NAME') ?: 'Denthub Dental Clinic';
 
         // Only configure SMTP when we are actually using it
@@ -221,8 +231,18 @@ class Mailer {
             return false;
         }
 
+        // Force use of Resend's test sender if RESEND_FROM_EMAIL is not properly set
+        // This prevents fallback to gmail.com addresses which require domain verification
+        $resendFromEmail = getenv('RESEND_FROM_EMAIL');
+        if (empty($resendFromEmail) || strpos($resendFromEmail, '@gmail.com') !== false) {
+            // Use Resend's test sender which works without domain verification
+            $fromEmail = 'onboarding@resend.dev';
+            error_log('Resend Warning: RESEND_FROM_EMAIL not set or uses gmail.com, using onboarding@resend.dev');
+        } else {
+            $fromEmail = trim($resendFromEmail);
+        }
+
         $fromName  = $this->fromName ?: 'Denthub Dental Clinic';
-        $fromEmail = $this->fromEmail ?: 'no-reply@denthub.local';
         $payload = [
             'from' => sprintf('%s <%s>', $fromName, $fromEmail),
             'to' => [$to],
@@ -230,6 +250,9 @@ class Mailer {
             'html' => $html,
             'text' => $text,
         ];
+        
+        // Debug log (remove sensitive data in production)
+        error_log("Resend Debug: Sending from {$fromEmail} to {$to}");
 
         $ch = curl_init('https://api.resend.com/emails');
         curl_setopt($ch, CURLOPT_POST, true);
