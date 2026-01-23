@@ -34,7 +34,9 @@ class Mailer {
         // API key and settings depend on driver
         if ($this->driver === 'maileroo') {
             $this->apiKey = getenv('MAILEROO_API_KEY') ?: '';
-            $this->fromEmail = getenv('MAILEROO_FROM_EMAIL') ?: (getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com');
+            // Maileroo requires using their domain alias (e.g., denthub@93832b22d815d4ec.maileroo.org)
+            // DO NOT use Gmail addresses - Maileroo requires their domain
+            $this->fromEmail = getenv('MAILEROO_FROM_EMAIL') ?: 'denthub@93832b22d815d4ec.maileroo.org';
             $this->fromName = getenv('MAILEROO_FROM_NAME') ?: 'Denthub Dental Clinic';
         } elseif ($this->driver === 'sendgrid') {
             $this->apiKey = getenv('SENDGRID_API_KEY') ?: '';
@@ -446,28 +448,52 @@ class Mailer {
             return false;
         }
 
-        $fromEmail = trim($this->fromEmail);
-        $fromName  = $this->fromName ?: 'Denthub Dental Clinic';
+        // Get and validate from email
+        $fromEmail = is_string($this->fromEmail) ? trim($this->fromEmail) : '';
+        if (empty($fromEmail)) {
+            // Fallback to environment variable or default Maileroo domain
+            $fromEmail = trim(getenv('MAILEROO_FROM_EMAIL') ?: 'denthub@93832b22d815d4ec.maileroo.org');
+        }
         
-        // Maileroo API payload
+        $fromName = is_string($this->fromName) ? trim($this->fromName) : 'Denthub Dental Clinic';
+        if (empty($fromName)) {
+            $fromName = 'Denthub Dental Clinic';
+        }
+        
+        // Validate email addresses
+        if (empty($fromEmail) || !filter_var($fromEmail, FILTER_VALIDATE_EMAIL)) {
+            error_log("Maileroo Error: Invalid from email - value: " . var_export($this->fromEmail, true) . ", after trim: " . var_export($fromEmail, true));
+            return false;
+        }
+        
+        if (empty($to) || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+            error_log("Maileroo Error: Invalid to email: {$to}");
+            return false;
+        }
+        
+        // Maileroo API payload (correct format: address and display_name)
         $payload = [
             'from' => [
-                'email' => $fromEmail,
-                'name' => $fromName
+                'address' => (string)$fromEmail,
+                'display_name' => (string)$fromName
             ],
             'to' => [
                 [
-                    'email' => $to,
-                    'name' => $name ?: ''
+                    'address' => (string)$to,
+                    'display_name' => (string)($name ?: '')
                 ]
             ],
-            'subject' => $subject,
-            'html' => $html,
-            'text' => $text
+            'subject' => (string)$subject,
+            'html' => (string)$html,
+            'plain' => (string)$text  // Maileroo uses 'plain' not 'text'
         ];
 
         // Debug log
-        error_log("Maileroo Debug: Sending to {$to} from {$fromEmail}");
+        error_log("Maileroo Debug: Driver = {$this->driver}, API Key present = " . (!empty($this->apiKey) ? 'yes' : 'no'));
+        error_log("Maileroo Debug: From email = '{$fromEmail}' (type: " . gettype($fromEmail) . ")");
+        error_log("Maileroo Debug: From name = '{$fromName}'");
+        error_log("Maileroo Debug: To email = '{$to}'");
+        error_log("Maileroo Debug: Payload JSON: " . json_encode($payload, JSON_PRETTY_PRINT));
 
         $ch = curl_init('https://smtp.maileroo.com/api/v2/emails');
         curl_setopt($ch, CURLOPT_POST, true);
@@ -478,6 +504,7 @@ class Mailer {
         ]);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
