@@ -466,6 +466,9 @@ class Mailer {
             'text' => $text
         ];
 
+        // Debug log
+        error_log("Maileroo Debug: Sending to {$to} from {$fromEmail}");
+
         $ch = curl_init('https://smtp.maileroo.com/api/v2/emails');
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
@@ -474,24 +477,45 @@ class Mailer {
             'X-Api-Key: ' . $this->apiKey,
         ]);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
+        curl_setopt($ch, CURLOPT_TIMEOUT, 30);
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        if ($response === false || $httpCode >= 400) {
-            $error = curl_error($ch);
-            curl_close($ch);
-            error_log("Maileroo Error: HTTP $httpCode - $error - Response: $response");
+        $curlError = curl_error($ch);
+        curl_close($ch);
+        
+        if ($response === false) {
+            error_log("Maileroo Error: cURL failed - {$curlError}");
             return false;
         }
-        curl_close($ch);
+        
+        if ($httpCode >= 400) {
+            error_log("Maileroo Error: HTTP $httpCode - Response: $response");
+            return false;
+        }
         
         // Check response for success
         $responseData = json_decode($response, true);
-        if (isset($responseData['success']) && $responseData['success'] === true) {
+        if (is_array($responseData)) {
+            if (isset($responseData['success']) && $responseData['success'] === true) {
+                error_log("Maileroo Success: Email sent to {$to}");
+                return true;
+            }
+            if (isset($responseData['error']) || isset($responseData['message'])) {
+                $errorMsg = $responseData['error'] ?? $responseData['message'] ?? 'Unknown error';
+                error_log("Maileroo Error: {$errorMsg}");
+                return false;
+            }
+        }
+        
+        // If we got HTTP 200 and no error in response, assume success
+        if ($httpCode === 200) {
+            error_log("Maileroo Success: HTTP 200 - Email sent to {$to}");
             return true;
         }
         
-        return true; // Assume success if HTTP 200
+        error_log("Maileroo Warning: Unexpected response - HTTP $httpCode - Response: $response");
+        return false;
     }
 }
 

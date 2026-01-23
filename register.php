@@ -93,39 +93,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
             if ($stmt->execute()) {
                 $patient_id = $db->insert_id;
                 
-                // Create patient account
-                $password_hash = password_hash($password, PASSWORD_DEFAULT);
-                $verification_token = bin2hex(random_bytes(32));
+                // Generate 6-digit verification code BEFORE creating account
+                $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
                 
-                $stmt = $db->prepare("INSERT INTO patient_accounts (patient_id, email, password_hash, verification_token) 
-                                      VALUES (?, ?, ?, ?)");
-                $stmt->bind_param("isss", $patient_id, $email, $password_hash, $verification_token);
+                // Save verification code FIRST
+                $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
+                                          VALUES (?, ?, 'registration', ?)");
+                $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
                 
-                if ($stmt->execute()) {
-                    // Generate 6-digit verification code
-                    $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                    $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
-                    
-                    // Save verification code
-                    $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
-                                              VALUES (?, ?, 'registration', ?)");
-                    $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
-                    $codeStmt->execute();
-                    
-                    // Send verification email
+                if (!$codeStmt->execute()) {
+                    $error = 'Error generating verification code. Please try again.';
+                } else {
+                    // Send verification email BEFORE creating account
                     $mailer = getMailer();
                     $patient_name = $first_name . ' ' . $last_name;
+                    
                     if ($mailer->sendVerificationCode($email, $verification_code, $patient_name)) {
-                        // Normal flow: redirect to verification step
-                        header('Location: register.php?step=verify&email=' . urlencode($email));
-                        exit;
+                        // Email sent successfully - NOW create the account (unverified)
+                        $password_hash = password_hash($password, PASSWORD_DEFAULT);
+                        $verification_token = bin2hex(random_bytes(32));
+                        
+                        $stmt = $db->prepare("INSERT INTO patient_accounts (patient_id, email, password_hash, verification_token, is_verified) 
+                                              VALUES (?, ?, ?, ?, FALSE)");
+                        $stmt->bind_param("isss", $patient_id, $email, $password_hash, $verification_token);
+                        
+                        if ($stmt->execute()) {
+                            // Success! Redirect to verification step
+                            header('Location: register.php?step=verify&email=' . urlencode($email));
+                            exit;
+                        } else {
+                            // Account creation failed - delete verification code
+                            $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
+                            $deleteCodeStmt->bind_param("ss", $email, $verification_code);
+                            $deleteCodeStmt->execute();
+                            $error = 'Error creating account. Please try again.';
+                        }
                     } else {
-                        // If email sending fails, DO NOT auto-verify the account.
-                        // Require a working email setup for verification.
-                        $error = 'Failed to send verification email. Please try again later or contact the clinic.';
+                        // Email sending failed - delete verification code and don't create account
+                        $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
+                        $deleteCodeStmt->bind_param("ss", $email, $verification_code);
+                        $deleteCodeStmt->execute();
+                        $error = 'Failed to send verification email. Please check your email address and try again.';
                     }
-                } else {
-                    $error = 'Error creating account. Please try again.';
                 }
             } else {
                 $error = 'Error registering. Please try again.';

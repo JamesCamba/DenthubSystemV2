@@ -1,6 +1,6 @@
 <?php
 /**
- * Railway PHP Built-in Server Entry Point
+ * Render/Railway PHP Built-in Server Entry Point
  * This file is used when running PHP's built-in server
  */
 
@@ -12,9 +12,32 @@ $path = $parsedUrl['path'];
 // Remove query string for file checking
 $filePath = __DIR__ . $path;
 
-// If it's a file that exists, serve it directly
+// MIME type mapping for static files
+$mimeTypes = [
+    'css' => 'text/css',
+    'js' => 'application/javascript',
+    'json' => 'application/json',
+    'png' => 'image/png',
+    'jpg' => 'image/jpeg',
+    'jpeg' => 'image/jpeg',
+    'gif' => 'image/gif',
+    'svg' => 'image/svg+xml',
+    'ico' => 'image/x-icon',
+    'pdf' => 'application/pdf',
+];
+
+// If it's a static file that exists, serve it with proper MIME type
 if ($path !== '/' && file_exists($filePath) && is_file($filePath)) {
-    return false; // Let PHP serve the file
+    $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
+    
+    // Set proper MIME type
+    if (isset($mimeTypes[$extension])) {
+        header('Content-Type: ' . $mimeTypes[$extension]);
+    }
+    
+    // Serve the file
+    readfile($filePath);
+    return true;
 }
 
 // Otherwise, route to index.php
