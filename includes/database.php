@@ -164,6 +164,11 @@ class MySQLiCompatibleConnection {
         // Convert UNSIGNED to INTEGER (PostgreSQL doesn't have UNSIGNED)
         $sql = preg_replace('/\bUNSIGNED\b/i', '', $sql);
         
+        // Convert CURDATE() to CURRENT_DATE
+        // MySQL: CURDATE()
+        // PostgreSQL: CURRENT_DATE
+        $sql = preg_replace('/\bCURDATE\s*\(\s*\)/i', 'CURRENT_DATE', $sql);
+        
         // Convert SUBSTRING with CAST for number extraction
         // MySQL: CAST(SUBSTRING(patient_number, 4) AS UNSIGNED)
         // PostgreSQL: CAST(SUBSTRING(patient_number FROM 4) AS INTEGER)

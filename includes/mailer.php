@@ -22,18 +22,33 @@ class Mailer {
     }
     
     private function configure() {
+        // Read SMTP settings from environment (for Railway/hosting platforms)
+        $host       = getenv('MAIL_HOST') ?: 'smtp.gmail.com';
+        $username   = getenv('MAIL_USERNAME') ?: 'dentalclinicdenthub@gmail.com';
+        $password   = getenv('MAIL_PASSWORD') ?: 'hakp xtdl gksu ooxs';
+        $port       = getenv('MAIL_PORT') ?: 587;
+        $encryption = strtolower(getenv('MAIL_ENCRYPTION') ?: 'tls');
+
         // Server settings
         $this->mail->isSMTP();
-        $this->mail->Host       = 'smtp.gmail.com';
+        $this->mail->Host       = $host;
         $this->mail->SMTPAuth   = true;
-        $this->mail->Username   = 'dentalclinicdenthub@gmail.com';
-        $this->mail->Password   = 'hakp xtdl gksu ooxs';
-        $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-        $this->mail->Port       = 587;
+        $this->mail->Username   = $username;
+        $this->mail->Password   = $password;
+
+        // Map generic encryption string to PHPMailer constant
+        if ($encryption === 'ssl') {
+            $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS;
+        } else {
+            // 'tls' / 'starttls' / default
+            $this->mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
+        }
+
+        $this->mail->Port       = (int)$port;
         $this->mail->CharSet    = 'UTF-8';
         
         // Sender info
-        $this->mail->setFrom('dentalclinicdenthub@gmail.com', 'Denthub Dental Clinic');
+        $this->mail->setFrom($username, 'Denthub Dental Clinic');
     }
     
     /**
