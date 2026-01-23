@@ -12,7 +12,7 @@ $path = $parsedUrl['path'];
 // Remove query string for file checking
 $filePath = __DIR__ . $path;
 
-// MIME type mapping for static files
+// MIME type mapping for static files (non-PHP)
 $mimeTypes = [
     'css' => 'text/css',
     'js' => 'application/javascript',
@@ -26,11 +26,17 @@ $mimeTypes = [
     'pdf' => 'application/pdf',
 ];
 
-// If it's a static file that exists, serve it with proper MIME type
+// If it's a static file (not PHP) that exists, serve it with proper MIME type
 if ($path !== '/' && file_exists($filePath) && is_file($filePath)) {
     $extension = strtolower(pathinfo($filePath, PATHINFO_EXTENSION));
     
-    // Set proper MIME type
+    // PHP files should be executed, not served as static
+    if ($extension === 'php') {
+        // Let PHP built-in server handle PHP files
+        return false;
+    }
+    
+    // For other static files, set proper MIME type and serve
     if (isset($mimeTypes[$extension])) {
         header('Content-Type: ' . $mimeTypes[$extension]);
     }
