@@ -24,7 +24,7 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $db = getDB();
         $stmt = $db->prepare("SELECT * FROM email_verification_codes 
                               WHERE email = ? AND verification_code = ? 
-                              AND is_used = 0 AND expires_at > NOW() 
+                              AND is_used = FALSE AND expires_at > NOW() 
                               ORDER BY created_at DESC LIMIT 1");
         $stmt->bind_param("ss", $email, $code);
         $stmt->execute();

@@ -64,9 +64,10 @@ function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null) {
     while ($slot = $slots->fetch_assoc()) {
         // If dentist is specified, check their schedule
         if ($dentist_id) {
+            // PostgreSQL: is_available is a boolean
             $scheduleStmt = $db->prepare("SELECT COUNT(*) as count FROM dentist_schedules 
                                          WHERE dentist_id = ? AND day_of_week = ? 
-                                         AND start_time <= ? AND end_time > ? AND is_available = 1");
+                                         AND start_time <= ? AND end_time > ? AND is_available = TRUE");
             $scheduleStmt->bind_param("iiss", $dentist_id, $day_of_week, $slot['slot_time'], $slot['slot_time']);
             $scheduleStmt->execute();
             $scheduleResult = $scheduleStmt->get_result()->fetch_assoc();
