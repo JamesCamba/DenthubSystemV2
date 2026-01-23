@@ -231,15 +231,15 @@ class Mailer {
             return false;
         }
 
-        // Force use of Resend's test sender if RESEND_FROM_EMAIL is not properly set
-        // This prevents fallback to gmail.com addresses which require domain verification
-        $resendFromEmail = getenv('RESEND_FROM_EMAIL');
-        if (empty($resendFromEmail) || strpos($resendFromEmail, '@gmail.com') !== false) {
-            // Use Resend's test sender which works without domain verification
+        // Use the fromEmail set in constructor, but double-check it's not gmail.com
+        // If it is, force use of Resend's test sender
+        $fromEmail = $this->fromEmail;
+        if (empty($fromEmail) || strpos($fromEmail, '@gmail.com') !== false || strpos($fromEmail, '@gmail') !== false) {
+            // Force use of Resend's test sender which works without domain verification
             $fromEmail = 'onboarding@resend.dev';
-            error_log('Resend Warning: RESEND_FROM_EMAIL not set or uses gmail.com, using onboarding@resend.dev');
+            error_log('Resend Warning: Invalid from email detected, forcing onboarding@resend.dev');
         } else {
-            $fromEmail = trim($resendFromEmail);
+            $fromEmail = trim($fromEmail);
         }
 
         $fromName  = $this->fromName ?: 'Denthub Dental Clinic';
@@ -251,8 +251,8 @@ class Mailer {
             'text' => $text,
         ];
         
-        // Debug log (remove sensitive data in production)
-        error_log("Resend Debug: Sending from {$fromEmail} to {$to}");
+        // Debug log to help troubleshoot
+        error_log("Resend Debug: Driver={$this->driver}, From={$fromEmail}, To={$to}, API Key present=" . (!empty($this->apiKey) ? 'yes' : 'no'));
 
         $ch = curl_init('https://api.resend.com/emails');
         curl_setopt($ch, CURLOPT_POST, true);
