@@ -57,8 +57,8 @@ function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null) {
     // Get day of week (0=Sunday, 1=Monday, etc.)
     $day_of_week = date('w', strtotime($date));
     
-    // Get all time slots
-    $slots = $db->query("SELECT slot_id, slot_time FROM time_slots WHERE is_active = 1 ORDER BY slot_time");
+    // Get all active time slots
+    $slots = $db->query("SELECT slot_id, slot_time FROM time_slots WHERE is_active = TRUE ORDER BY slot_time");
     $availableSlots = [];
     
     while ($slot = $slots->fetch_assoc()) {
@@ -96,7 +96,8 @@ function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null) {
 // Check if date is blocked
 function isDateBlocked($date, $branch_id = 1) {
     $db = getDB();
-    $stmt = $db->prepare("SELECT COUNT(*) as count FROM blocked_dates WHERE block_date = ? AND branch_id = ? AND is_active = 1");
+    // PostgreSQL: is_active is a boolean
+    $stmt = $db->prepare("SELECT COUNT(*) as count FROM blocked_dates WHERE block_date = ? AND branch_id = ? AND is_active = TRUE");
     $stmt->bind_param("si", $date, $branch_id);
     $stmt->execute();
     $result = $stmt->get_result()->fetch_assoc();
@@ -108,7 +109,8 @@ function getServices($active_only = true) {
     $db = getDB();
     $sql = "SELECT * FROM services";
     if ($active_only) {
-        $sql .= " WHERE is_active = 1";
+        // PostgreSQL: is_active is a boolean
+        $sql .= " WHERE is_active = TRUE";
     }
     $sql .= " ORDER BY service_name";
     return $db->query($sql);
@@ -123,7 +125,8 @@ function getDentists($active_only = true, $service_id = null) {
     
     $where = [];
     if ($active_only) {
-        $where[] = "d.is_active = 1 AND u.is_active = 1";
+        // PostgreSQL: is_active is a boolean on both tables
+        $where[] = "d.is_active = TRUE AND u.is_active = TRUE";
     }
     
     // Filter by service mastery if service_id is provided

@@ -51,7 +51,8 @@ function requireRole($role) {
 function login($username_or_email, $password) {
     $db = getDB();
     // Try to find user by username or email
-    $stmt = $db->prepare("SELECT user_id, username, email, password_hash, full_name, role, branch_id FROM users WHERE (username = ? OR email = ?) AND is_active = 1");
+    // PostgreSQL: use boolean comparison with TRUE instead of integer 1
+    $stmt = $db->prepare("SELECT user_id, username, email, password_hash, full_name, role, branch_id FROM users WHERE (username = ? OR email = ?) AND is_active = TRUE");
     $stmt->bind_param("ss", $username_or_email, $username_or_email);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -76,7 +77,7 @@ function patientLogin($email, $password) {
     $stmt = $db->prepare("SELECT pa.account_id, pa.patient_id, pa.email, pa.password_hash, p.first_name, p.last_name 
                           FROM patient_accounts pa 
                           JOIN patients p ON pa.patient_id = p.patient_id 
-                          WHERE pa.email = ? AND pa.is_verified = 1");
+                          WHERE pa.email = ? AND pa.is_verified = TRUE");
     $stmt->bind_param("s", $email);
     $stmt->execute();
     $result = $stmt->get_result();

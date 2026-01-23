@@ -33,13 +33,13 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($result->num_rows === 1) {
             $verification = $result->fetch_assoc();
             
-            // Mark code as used
-            $updateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = 1 WHERE code_id = ?");
+            // Mark code as used (PostgreSQL boolean)
+            $updateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE code_id = ?");
             $updateStmt->bind_param("i", $verification['code_id']);
             $updateStmt->execute();
             
-            // Verify patient account
-            $verifyStmt = $db->prepare("UPDATE patient_accounts SET is_verified = 1 WHERE email = ?");
+            // Verify patient account (PostgreSQL boolean)
+            $verifyStmt = $db->prepare("UPDATE patient_accounts SET is_verified = TRUE WHERE email = ?");
             $verifyStmt->bind_param("s", $email);
             $verifyStmt->execute();
             
