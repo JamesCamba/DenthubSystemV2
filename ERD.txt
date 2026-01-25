@@ -1,0 +1,588 @@
+================================================================================
+DENTHUB DENTAL CLINIC SYSTEM - ENTITY RELATIONSHIP DIAGRAM (ERD)
+================================================================================
+
+Database: PostgreSQL (Neon)
+Generated: January 23, 2026
+
+================================================================================
+LEGEND
+================================================================================
+PK = Primary Key
+FK = Foreign Key
+1:1 = One-to-One relationship
+1:N = One-to-Many relationship
+N:M = Many-to-Many relationship
+→ = References (Foreign Key)
+
+================================================================================
+1. BRANCHES TABLE
+================================================================================
+
+Table: branches
+Type: Master/Reference Table
+
+Attributes:
+- branch_id (SERIAL, PK) - Auto-incrementing primary key
+- branch_name (VARCHAR(100), NOT NULL) - Name of the branch
+- address (TEXT, NOT NULL) - Physical address
+- phone (VARCHAR(20)) - Contact phone number
+- email (VARCHAR(100)) - Contact email
+- is_active (BOOLEAN, DEFAULT true) - Branch status
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Creation timestamp
+
+Relationships:
+- 1:N → users (users.branch_id → branches.branch_id)
+- 1:N → dentists (dentists.branch_id → branches.branch_id)
+- 1:N → appointments (appointments.branch_id → branches.branch_id)
+- 1:N → blocked_dates (blocked_dates.branch_id → branches.branch_id)
+
+Cardinality:
+- One branch can have many users
+- One branch can have many dentists
+- One branch can have many appointments
+- One branch can have many blocked dates
+
+================================================================================
+2. USERS TABLE
+================================================================================
+
+Table: users
+Type: Core Entity (Staff/Dentist/Admin accounts)
+
+Attributes:
+- user_id (SERIAL, PK) - Auto-incrementing primary key
+- username (VARCHAR(50), UNIQUE, NOT NULL) - Login username
+- email (VARCHAR(100), UNIQUE, NOT NULL) - Email address
+- password_hash (VARCHAR(255), NOT NULL) - Bcrypt hashed password
+- full_name (VARCHAR(100), NOT NULL) - Full name
+- role (VARCHAR(20), NOT NULL, DEFAULT 'staff') - User role: 'admin', 'dentist', 'staff'
+- branch_id (INTEGER, DEFAULT 1, FK) - References branches.branch_id
+- phone (VARCHAR(20)) - Contact phone
+- is_active (BOOLEAN, DEFAULT true) - Account status
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Account creation
+- updated_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Last update (auto-updated via trigger)
+
+Relationships:
+- 1:1 → dentists (dentists.user_id → users.user_id) - One user can be one dentist
+- 1:N → appointments (appointments.created_by → users.user_id) - User who created appointment
+- N:1 → branches (users.branch_id → branches.branch_id) - User belongs to one branch
+
+Cardinality:
+- One user can be linked to one dentist profile (optional)
+- One user can create many appointments
+- Many users belong to one branch
+
+Special Notes:
+- If role = 'dentist', there should be a corresponding record in dentists table
+- If role = 'admin' or 'staff', no dentist record exists
+
+================================================================================
+3. DENTISTS TABLE
+================================================================================
+
+Table: dentists
+Type: Core Entity (Dentist-specific information)
+
+Attributes:
+- dentist_id (SERIAL, PK) - Auto-incrementing primary key
+- user_id (INTEGER, FK) - References users.user_id (1:1 relationship)
+- license_number (VARCHAR(50)) - Professional license number
+- specialization (VARCHAR(100)) - Areas of expertise
+- branch_id (INTEGER, FK) - References branches.branch_id
+- is_active (BOOLEAN, DEFAULT true) - Dentist status
+
+Relationships:
+- 1:1 → users (dentists.user_id → users.user_id) - Each dentist has one user account
+- 1:N → appointments (appointments.dentist_id → dentists.dentist_id) - Dentist's appointments
+- 1:N → dentist_schedules (dentist_schedules.dentist_id → dentists.dentist_id) - Availability schedule
+- 1:N → lab_cases (lab_cases.dentist_id → dentists.dentist_id) - Lab cases assigned
+- N:M → services (via dentist_service_mastery) - Services dentist can perform
+- N:1 → branches (dentists.branch_id → branches.branch_id) - Dentist belongs to one branch
+
+Cardinality:
+- One dentist has exactly one user account
+- One dentist can have many appointments
+- One dentist has many schedule entries (one per day of week)
+- One dentist can have many lab cases
+- One dentist can perform many services (many-to-many)
+- Many dentists belong to one branch
+
+Special Notes:
+- user_id is optional (NULL allowed) but typically should exist for active dentists
+- When dentist is deleted, appointments.dentist_id is set to NULL (ON DELETE SET NULL)
+
+================================================================================
+4. SERVICES TABLE
+================================================================================
+
+Table: services
+Type: Master/Reference Table (Available dental services)
+
+Attributes:
+- service_id (SERIAL, PK) - Auto-incrementing primary key
+- service_name (VARCHAR(100), NOT NULL) - Name of service
+- service_code (VARCHAR(20), UNIQUE) - Service code (e.g., 'TR001')
+- description (TEXT) - Service description
+- duration_minutes (INTEGER, DEFAULT 30) - Appointment duration
+- price (DECIMAL(10,2)) - Service price
+- is_active (BOOLEAN, DEFAULT true) - Service availability
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Creation timestamp
+
+Relationships:
+- 1:N → appointments (appointments.service_id → services.service_id) - Service in appointment
+- N:M → dentists (via dentist_service_mastery) - Dentists who can perform this service
+
+Cardinality:
+- One service can be in many appointments
+- One service can be performed by many dentists (many-to-many)
+- One dentist can perform many services (many-to-many)
+
+================================================================================
+5. PATIENTS TABLE
+================================================================================
+
+Table: patients
+Type: Core Entity (Patient personal information)
+
+Attributes:
+- patient_id (SERIAL, PK) - Auto-incrementing primary key
+- patient_number (VARCHAR(20), UNIQUE, NOT NULL) - Format: 'PAT000001'
+- first_name (VARCHAR(50), NOT NULL) - First name
+- last_name (VARCHAR(50), NOT NULL) - Last name
+- middle_name (VARCHAR(50)) - Middle name (optional)
+- email (VARCHAR(100)) - Email address
+- phone (VARCHAR(20), NOT NULL) - Phone number
+- birthdate (DATE) - Date of birth
+- gender (VARCHAR(10)) - 'Male', 'Female', 'Other', or NULL
+  * Constraint: CHECK (gender IN ('Male', 'Female', 'Other') OR gender IS NULL)
+- address (TEXT) - Physical address
+- emergency_contact_name (VARCHAR(100)) - Emergency contact
+- emergency_contact_phone (VARCHAR(20)) - Emergency phone
+- medical_history (TEXT) - Medical history notes
+- allergies (TEXT) - Known allergies
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Registration date
+- updated_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Last update (auto-updated via trigger)
+
+Relationships:
+- 1:1 → patient_accounts (patient_accounts.patient_id → patients.patient_id) - Login account
+- 1:N → appointments (appointments.patient_id → patients.patient_id) - Patient's appointments
+- 1:N → lab_cases (lab_cases.patient_id → patients.patient_id) - Patient's lab cases
+
+Cardinality:
+- One patient has exactly one login account
+- One patient can have many appointments
+- One patient can have many lab cases
+
+Special Notes:
+- When patient is deleted, related appointments and lab_cases are CASCADE deleted
+- patient_number is auto-generated (PAT + 6-digit number)
+
+================================================================================
+6. PATIENT_ACCOUNTS TABLE
+================================================================================
+
+Table: patient_accounts
+Type: Core Entity (Patient login credentials)
+
+Attributes:
+- account_id (SERIAL, PK) - Auto-incrementing primary key
+- patient_id (INTEGER, UNIQUE, NOT NULL, FK) - References patients.patient_id (1:1)
+- email (VARCHAR(100), UNIQUE, NOT NULL) - Login email (must match patients.email)
+- password_hash (VARCHAR(255), NOT NULL) - Bcrypt hashed password
+- is_verified (BOOLEAN, DEFAULT false) - Email verification status
+- verification_token (VARCHAR(100)) - Token for email verification
+- last_login (TIMESTAMP) - Last login timestamp
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Account creation
+
+Relationships:
+- 1:1 → patients (patient_accounts.patient_id → patients.patient_id) - One account per patient
+- N:1 → email_verification_codes (linked by email, not FK) - Verification codes
+
+Cardinality:
+- One patient has exactly one account
+- One account belongs to exactly one patient
+
+Special Notes:
+- When patient is deleted, account is CASCADE deleted
+- is_verified must be TRUE for patient to login (checked in auth.php)
+- email should match patients.email but not enforced by FK
+
+================================================================================
+7. APPOINTMENTS TABLE
+================================================================================
+
+Table: appointments
+Type: Core Entity (Appointment records)
+
+Attributes:
+- appointment_id (SERIAL, PK) - Auto-incrementing primary key
+- appointment_number (VARCHAR(20), UNIQUE, NOT NULL) - Format: 'APT000001'
+- patient_id (INTEGER, NOT NULL, FK) - References patients.patient_id
+- dentist_id (INTEGER, FK) - References dentists.dentist_id (optional)
+- service_id (INTEGER, NOT NULL, FK) - References services.service_id
+- branch_id (INTEGER, NOT NULL, FK) - References branches.branch_id
+- appointment_date (DATE, NOT NULL) - Appointment date
+- appointment_time (TIME, NOT NULL) - Appointment time
+- status (VARCHAR(20), DEFAULT 'pending') - Appointment status
+  * Constraint: CHECK (status IN ('pending', 'confirmed', 'completed', 'cancelled', 'no_show'))
+- reason_for_visit (TEXT) - Patient's reason
+- notes (TEXT) - Staff notes
+- created_by (INTEGER, FK) - References users.user_id (who created the appointment)
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Creation timestamp
+- updated_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Last update (auto-updated via trigger)
+
+Relationships:
+- N:1 → patients (appointments.patient_id → patients.patient_id) - Appointment belongs to one patient
+- N:1 → dentists (appointments.dentist_id → dentists.dentist_id) - Optional assigned dentist
+- N:1 → services (appointments.service_id → services.service_id) - Service being provided
+- N:1 → branches (appointments.branch_id → branches.branch_id) - Branch location
+- N:1 → users (appointments.created_by → users.user_id) - User who created appointment
+- 1:N → lab_cases (lab_cases.appointment_id → appointments.appointment_id) - Related lab cases
+
+Cardinality:
+- Many appointments belong to one patient
+- Many appointments can be assigned to one dentist (or NULL)
+- Many appointments are for one service
+- Many appointments are at one branch
+- Many appointments created by one user
+- One appointment can have many lab cases
+
+Special Notes:
+- When patient is deleted, appointments are CASCADE deleted
+- When dentist is deleted, appointments.dentist_id is set to NULL (ON DELETE SET NULL)
+- When user is deleted, appointments.created_by is set to NULL (ON DELETE SET NULL)
+- dentist_id can be NULL (appointment without assigned dentist)
+
+================================================================================
+8. TIME_SLOTS TABLE
+================================================================================
+
+Table: time_slots
+Type: Master/Reference Table (Available time slots)
+
+Attributes:
+- slot_id (SERIAL, PK) - Auto-incrementing primary key
+- slot_time (TIME, UNIQUE, NOT NULL) - Time slot (e.g., '09:00:00')
+- is_active (BOOLEAN, DEFAULT true) - Slot availability
+
+Relationships:
+- Referenced by: appointments.appointment_time (not FK, but used for matching)
+- Used by: getAvailableTimeSlots() function to check availability
+
+Cardinality:
+- Many appointments can use the same time slot (different dates)
+- Time slots are referenced but not enforced by FK
+
+Special Notes:
+- No direct FK relationship, but appointments.appointment_time should match slot_time values
+- Used for availability checking logic
+
+================================================================================
+9. DENTIST_SCHEDULES TABLE
+================================================================================
+
+Table: dentist_schedules
+Type: Core Entity (Dentist availability)
+
+Attributes:
+- schedule_id (SERIAL, PK) - Auto-incrementing primary key
+- dentist_id (INTEGER, NOT NULL, FK) - References dentists.dentist_id
+- day_of_week (INTEGER, NOT NULL) - Day of week (0=Sunday, 1=Monday, ..., 6=Saturday)
+  * Constraint: CHECK (day_of_week >= 0 AND day_of_week <= 6)
+- start_time (TIME, NOT NULL) - Start time (e.g., '09:00:00')
+- end_time (TIME, NOT NULL) - End time (e.g., '17:00:00')
+- is_available (BOOLEAN, DEFAULT true) - Schedule entry status
+
+Relationships:
+- N:1 → dentists (dentist_schedules.dentist_id → dentists.dentist_id) - Schedule belongs to one dentist
+
+Cardinality:
+- One dentist has many schedule entries (one per day of week typically)
+- Many schedule entries belong to one dentist
+
+Special Notes:
+- When dentist is deleted, schedules are CASCADE deleted
+- Typically one entry per day of week per dentist (e.g., Monday-Friday, 9am-5pm)
+- Used by getAvailableTimeSlots() to check dentist availability
+
+================================================================================
+10. DENTIST_SERVICE_MASTERY TABLE
+================================================================================
+
+Table: dentist_service_mastery
+Type: Junction Table (Many-to-Many relationship)
+
+Attributes:
+- mastery_id (SERIAL, PK) - Auto-incrementing primary key
+- dentist_id (INTEGER, NOT NULL, FK) - References dentists.dentist_id
+- service_id (INTEGER, NOT NULL, FK) - References services.service_id
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - When mastery was added
+
+Relationships:
+- N:1 → dentists (dentist_service_mastery.dentist_id → dentists.dentist_id)
+- N:1 → services (dentist_service_mastery.service_id → services.service_id)
+- Constraint: UNIQUE (dentist_id, service_id) - Prevents duplicate entries
+
+Cardinality:
+- Many-to-Many: Dentists ↔ Services
+- One dentist can perform many services
+- One service can be performed by many dentists
+
+Special Notes:
+- Junction table for many-to-many relationship
+- When dentist is deleted, mastery records are CASCADE deleted
+- When service is deleted, mastery records are CASCADE deleted
+- Used by getDentists($service_id) to filter dentists by service capability
+
+================================================================================
+11. BLOCKED_DATES TABLE
+================================================================================
+
+Table: blocked_dates
+Type: Core Entity (Holidays/closures)
+
+Attributes:
+- block_id (SERIAL, PK) - Auto-incrementing primary key
+- block_date (DATE, NOT NULL) - Date that is blocked
+- reason (VARCHAR(255)) - Reason for blocking (e.g., 'Holiday', 'Maintenance')
+- branch_id (INTEGER, FK) - References branches.branch_id
+- is_active (BOOLEAN, DEFAULT true) - Block status
+- Constraint: UNIQUE (block_date, branch_id) - One block per date per branch
+
+Relationships:
+- N:1 → branches (blocked_dates.branch_id → branches.branch_id) - Block belongs to one branch
+
+Cardinality:
+- Many blocked dates belong to one branch
+- One branch can have many blocked dates
+
+Special Notes:
+- When branch is deleted, blocked dates are CASCADE deleted
+- Used by isDateBlocked() function to prevent booking on blocked dates
+- Can block specific dates (e.g., holidays, maintenance days)
+
+================================================================================
+12. EMAIL_VERIFICATION_CODES TABLE
+================================================================================
+
+Table: email_verification_codes
+Type: Core Entity (Email verification codes)
+
+Attributes:
+- code_id (SERIAL, PK) - Auto-incrementing primary key
+- email (VARCHAR(100), NOT NULL) - Email address to verify
+- verification_code (VARCHAR(6), NOT NULL) - 6-digit code
+- purpose (VARCHAR(20), DEFAULT 'registration') - Code purpose
+  * Constraint: CHECK (purpose IN ('registration', 'password_reset'))
+- expires_at (TIMESTAMP, NOT NULL) - Expiration time (typically +10 minutes)
+- is_used (BOOLEAN, DEFAULT false) - Whether code has been used
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Code generation time
+
+Relationships:
+- N:1 → patient_accounts (linked by email, not FK) - Codes for patient account verification
+
+Cardinality:
+- Many codes can be generated for one email (but only latest unused is valid)
+- One email can have many verification codes (historical)
+
+Special Notes:
+- No FK relationship, but email should match patient_accounts.email
+- Codes expire after 10 minutes
+- Once used (is_used=TRUE), code cannot be reused
+- Used in registration flow: generate → send email → verify → mark used
+
+================================================================================
+13. LAB_CASES TABLE
+================================================================================
+
+Table: lab_cases
+Type: Core Entity (Laboratory cases: dentures, prosthetics, etc.)
+
+Attributes:
+- case_id (SERIAL, PK) - Auto-incrementing primary key
+- case_number (VARCHAR(20), UNIQUE, NOT NULL) - Format: 'LAB000001'
+- patient_id (INTEGER, NOT NULL, FK) - References patients.patient_id
+- appointment_id (INTEGER, FK) - References appointments.appointment_id (optional)
+- dentist_id (INTEGER, FK) - References dentists.dentist_id (optional)
+- case_type (VARCHAR(100), NOT NULL) - Type of case (e.g., 'Dentures', 'Crown')
+- description (TEXT) - Case description
+- status (VARCHAR(20), DEFAULT 'pending') - Case status
+  * Constraint: CHECK (status IN ('pending', 'in_progress', 'ready_for_pickup', 'completed', 'cancelled'))
+- date_received (DATE) - When case was received
+- expected_completion_date (DATE) - Expected completion
+- actual_completion_date (DATE) - Actual completion
+- notes (TEXT) - Case notes
+- created_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Case creation
+- updated_at (TIMESTAMP, DEFAULT CURRENT_TIMESTAMP) - Last update (auto-updated via trigger)
+
+Relationships:
+- N:1 → patients (lab_cases.patient_id → patients.patient_id) - Case belongs to one patient
+- N:1 → appointments (lab_cases.appointment_id → appointments.appointment_id) - Related appointment
+- N:1 → dentists (lab_cases.dentist_id → dentists.dentist_id) - Assigned dentist
+
+Cardinality:
+- Many lab cases belong to one patient
+- Many lab cases can be related to one appointment (or NULL)
+- Many lab cases can be assigned to one dentist (or NULL)
+
+Special Notes:
+- When patient is deleted, lab cases are CASCADE deleted
+- When appointment is deleted, lab_cases.appointment_id is set to NULL (ON DELETE SET NULL)
+- When dentist is deleted, lab_cases.dentist_id is set to NULL (ON DELETE SET NULL)
+- Used for tracking dentures, prosthetics, and other lab work
+
+================================================================================
+14. RELATIONSHIP SUMMARY
+================================================================================
+
+One-to-One (1:1):
+- users ↔ dentists (via user_id)
+- patients ↔ patient_accounts (via patient_id)
+
+One-to-Many (1:N):
+- branches → users
+- branches → dentists
+- branches → appointments
+- branches → blocked_dates
+- users → appointments (created_by)
+- dentists → appointments
+- dentists → dentist_schedules
+- dentists → lab_cases
+- patients → appointments
+- patients → lab_cases
+- patients → patient_accounts
+- services → appointments
+- appointments → lab_cases
+
+Many-to-Many (N:M):
+- dentists ↔ services (via dentist_service_mastery)
+
+Referenced (No FK):
+- time_slots (referenced by appointments.appointment_time)
+- email_verification_codes (linked to patient_accounts by email)
+
+================================================================================
+15. KEY CONSTRAINTS AND INDEXES
+================================================================================
+
+Primary Keys:
+- All tables have SERIAL primary keys (auto-incrementing)
+
+Unique Constraints:
+- users.username (UNIQUE)
+- users.email (UNIQUE)
+- patients.patient_number (UNIQUE)
+- patient_accounts.email (UNIQUE)
+- patient_accounts.patient_id (UNIQUE)
+- appointments.appointment_number (UNIQUE)
+- services.service_code (UNIQUE)
+- lab_cases.case_number (UNIQUE)
+- time_slots.slot_time (UNIQUE)
+- blocked_dates (block_date, branch_id) - UNIQUE
+- dentist_service_mastery (dentist_id, service_id) - UNIQUE
+
+Check Constraints:
+- patients.gender: IN ('Male', 'Female', 'Other') OR NULL
+- appointments.status: IN ('pending', 'confirmed', 'completed', 'cancelled', 'no_show')
+- lab_cases.status: IN ('pending', 'in_progress', 'ready_for_pickup', 'completed', 'cancelled')
+- email_verification_codes.purpose: IN ('registration', 'password_reset')
+- dentist_schedules.day_of_week: BETWEEN 0 AND 6
+
+Foreign Key Constraints:
+- All FK relationships have appropriate ON DELETE actions:
+  * CASCADE: When parent deleted, child deleted
+  * SET NULL: When parent deleted, child FK set to NULL
+
+Indexes (from migration):
+- idx_appointments_date, idx_appointments_status, idx_appointments_number
+- idx_patients_email, idx_patients_phone, idx_patients_number
+- idx_email_verification_codes (email, verification_code)
+- idx_lab_cases_number, idx_lab_cases_status
+
+Triggers:
+- update_updated_at_column() - Auto-updates updated_at on:
+  * users
+  * patients
+  * appointments
+  * lab_cases
+
+================================================================================
+16. DATA FLOW EXAMPLES
+================================================================================
+
+Example 1: Patient Registration
+--------------------------------
+1. INSERT INTO patients (patient_number, first_name, ...)
+2. INSERT INTO email_verification_codes (email, verification_code, ...)
+3. Send email via Maileroo API
+4. INSERT INTO patient_accounts (patient_id, email, ..., is_verified=FALSE)
+5. User enters code → UPDATE email_verification_codes SET is_used=TRUE
+6. UPDATE patient_accounts SET is_verified=TRUE
+
+Example 2: Appointment Booking
+------------------------------
+1. SELECT from services WHERE is_active=TRUE
+2. SELECT from dentists JOIN dentist_service_mastery WHERE service_id=?
+3. SELECT from dentist_schedules WHERE dentist_id=? AND day_of_week=?
+4. SELECT from appointments WHERE date=? AND time=? AND status IN ('pending','confirmed')
+5. SELECT from blocked_dates WHERE block_date=? AND is_active=TRUE
+6. INSERT INTO appointments (appointment_number, patient_id, service_id, ...)
+
+Example 3: Dentist Schedule Check
+---------------------------------
+1. Get day_of_week from appointment_date
+2. SELECT from dentist_schedules WHERE dentist_id=? AND day_of_week=? AND is_available=TRUE
+3. Check if appointment_time is BETWEEN start_time AND end_time
+4. Check if slot is already booked in appointments table
+
+================================================================================
+17. ENTITY RELATIONSHIP DIAGRAM (Text Format)
+================================================================================
+
+                    ┌─────────────┐
+                    │   branches  │
+                    │  (branch_id)│
+                    └──────┬──────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        │                  │                  │
+        │ 1:N              │ 1:N              │ 1:N
+        │                  │                  │
+   ┌────▼────┐        ┌────▼────┐      ┌─────▼─────┐
+   │  users  │        │ dentists │      │appointments│
+   │(user_id)│        │(dentist_│      │(appointment│
+   └────┬────┘        │   id)   │      │    _id)   │
+        │             └────┬────┘      └─────┬─────┘
+        │ 1:1              │ N:1             │ N:1
+        │                  │                 │
+        └──────────────────┘                 │
+                                              │
+        ┌─────────────────────────────────────┼──────────────┐
+        │                                     │              │
+        │ N:1                                 │ N:1          │ N:1
+        │                                     │              │
+   ┌────▼────┐                          ┌─────▼─────┐  ┌────▼────┐
+   │patients │                          │ services  │  │branches │
+   │(patient_│                          │(service_ │  │(branch_ │
+   │  _id)   │                          │   id)    │  │   id)   │
+   └────┬────┘                          └─────┬─────┘  └─────────┘
+        │                                     │
+        │ 1:1                                 │ N:M
+        │                                     │ (via junction)
+   ┌────▼────────┐                    ┌──────▼──────────┐
+   │patient_     │                    │dentist_service_  │
+   │accounts     │                    │mastery           │
+   │(account_id) │                    │(mastery_id)      │
+   └─────────────┘                    └──────────────────┘
+
+Additional Tables:
+- time_slots (referenced, no FK)
+- dentist_schedules (N:1 → dentists)
+- blocked_dates (N:1 → branches)
+- email_verification_codes (linked by email)
+- lab_cases (N:1 → patients, appointments, dentists)
+
+================================================================================
+END OF ERD DOCUMENTATION
+================================================================================

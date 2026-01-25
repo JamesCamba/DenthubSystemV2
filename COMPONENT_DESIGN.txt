@@ -1,0 +1,653 @@
+================================================================================
+DENTHUB DENTAL CLINIC SYSTEM - COMPONENT DESIGN DOCUMENTATION
+================================================================================
+
+Date: January 23, 2026
+Database: PostgreSQL (Neon)
+Deployment: Render.com (Docker)
+
+================================================================================
+1. SYSTEM ARCHITECTURE OVERVIEW
+================================================================================
+
+The system follows a modular MVC-like architecture with clear separation of:
+- Core Infrastructure (includes/)
+- Business Logic (functions, API endpoints)
+- Presentation Layer (admin/, patient/, dentist/ directories)
+- Data Access Layer (database.php with MySQLi compatibility wrapper)
+
+================================================================================
+2. CORE COMPONENTS (includes/)
+================================================================================
+
+2.1 CONFIG.PHP
+----------------
+Purpose: Centralized configuration management
+Dependencies: None (base configuration file)
+
+Key Constants:
+- Database: DB_HOST, DB_USER, DB_PASS, DB_NAME, DB_PORT, DB_SSLMODE
+- Application: APP_NAME, APP_URL, TIMEZONE
+- Security: PASSWORD_MIN_LENGTH, SESSION_LIFETIME
+- Formatting: DATE_FORMAT, TIME_FORMAT, DISPLAY_DATE_FORMAT, DISPLAY_TIME_FORMAT
+
+Interface:
+- No functions exported
+- Provides constants via define()
+- Reads environment variables for cloud deployment (Railway/Render)
+
+Dependencies Used By:
+- database.php
+- auth.php
+- functions.php
+- mailer.php
+- All page files
+
+================================================================================
+
+2.2 DATABASE.PHP
+----------------
+Purpose: Database connection and MySQLi compatibility layer for PostgreSQL
+Dependencies: config.php
+
+Key Classes:
+1. MySQLiCompatibleConnection
+   - Methods: prepare($sql), query($sql), real_escape_string($string), 
+              getLastInsertId(), close()
+   - Converts MySQL syntax to PostgreSQL automatically
+   - Handles: CURDATE() → CURRENT_DATE, UNSIGNED removal, SUBSTRING syntax
+
+2. MySQLiCompatibleStatement
+   - Methods: bind_param($types, ...$params), execute(), get_result(), close()
+   - Wraps PDOStatement to provide MySQLi-like interface
+   - Handles parameter binding with type conversion
+
+3. MySQLiCompatibleResult
+   - Methods: fetch_assoc(), fetch_all($mode), num_rows(), data_seek($offset)
+   - Wraps PDO fetch results to provide MySQLi-like interface
+   - Maintains row index for sequential access
+
+4. Database (Singleton)
+   - Methods: getInstance(), getConnection(), query($sql), prepare($sql), 
+              escape($string), getLastInsertId()
+   - Provides global database access via getDB()
+
+Interface Specifications:
+- getDB(): MySQLiCompatibleConnection - Returns database connection
+- All queries use prepared statements via prepare()
+- PostgreSQL boolean values: TRUE/FALSE (not 1/0)
+
+Dependencies Used By:
+- functions.php
+- auth.php
+- All page files that need database access
+
+================================================================================
+
+2.3 AUTH.PHP
+----------------
+Purpose: Authentication and authorization functions
+Dependencies: database.php
+
+Key Functions:
+1. isLoggedIn(): bool
+   - Checks if staff/dentist/admin is logged in
+   - Returns: true if $_SESSION['user_id'] and $_SESSION['role'] exist
+
+2. isPatientLoggedIn(): bool
+   - Checks if patient is logged in
+   - Returns: true if $_SESSION['patient_id'] exists
+
+3. requireLogin(): void
+   - Redirects to /admin/login.php if not logged in
+   - Used by admin/dentist pages
+
+4. requirePatientLogin(): void
+   - Redirects to /login.php if patient not logged in
+   - Used by patient pages
+
+5. hasRole($role): bool
+   - Checks if logged-in user has specific role
+   - Parameters: $role (string) - 'admin', 'dentist', 'staff'
+   - Returns: true if user role matches
+
+6. requireRole($role): void
+   - Requires login AND specific role
+   - Redirects to dashboard if role doesn't match
+
+7. login($username_or_email, $password): bool
+   - Authenticates staff/dentist/admin
+   - Parameters: username or email, password
+   - Returns: true on success, false on failure
+   - Sets session: user_id, username, full_name, role, branch_id
+   - Query: SELECT from users WHERE (username=? OR email=?) AND is_active=TRUE
+
+8. patientLogin($email, $password): bool
+   - Authenticates patient
+   - Parameters: email, password
+   - Returns: true on success, false on failure
+   - Sets session: patient_id, patient_email, patient_name
+   - Updates last_login timestamp
+   - Query: SELECT from patient_accounts JOIN patients WHERE email=? AND is_verified=TRUE
+
+9. logout(): void
+   - Destroys session and logs out user
+
+10. getCurrentUser(): array|null
+    - Returns current logged-in staff/dentist/admin info
+    - Returns null if not logged in
+
+11. getCurrentPatient(): array|null
+    - Returns current logged-in patient info
+    - Returns null if not logged in
+
+Interface Specifications:
+- All functions are global (no class wrapper)
+- Session-based authentication
+- Role-based access control
+
+Dependencies Used By:
+- All admin/*.php files
+- All dentist/*.php files
+- All patient/*.php files
+- login.php, login-unified.php
+
+================================================================================
+
+2.4 FUNCTIONS.PHP
+----------------
+Purpose: Business logic helper functions
+Dependencies: database.php
+
+Key Functions:
+
+1. Number Generation:
+   - generatePatientNumber(): string - Returns "PAT000001" format
+   - generateAppointmentNumber(): string - Returns "APT000001" format
+   - generateCaseNumber(): string - Returns "LAB000001" format
+
+2. Formatting:
+   - formatDate($date, $format): string - Formats date for display
+   - formatTime($time, $format): string - Formats time for display
+   - formatDateTime($datetime): string - Formats datetime for display
+
+3. Appointment Logic:
+   - getAvailableTimeSlots($date, $dentist_id, $service_id): array
+     * Parameters: date (Y-m-d), dentist_id (optional), service_id (optional)
+     * Returns: Array of available time slots
+     * Logic: Checks dentist schedules, existing appointments, blocked dates
+     * Query: Complex JOIN with dentist_schedules, appointments, time_slots
+
+   - isDateBlocked($date, $branch_id): bool
+     * Parameters: date (Y-m-d), branch_id (default: 1)
+     * Returns: true if date is blocked
+     * Query: SELECT from blocked_dates WHERE block_date=? AND is_active=TRUE
+
+4. Data Retrieval:
+   - getServices($active_only): MySQLiCompatibleResult
+     * Parameters: active_only (bool, default: true)
+     * Returns: Result set of services
+     * Query: SELECT from services WHERE is_active=TRUE
+
+   - getDentists($active_only, $service_id): MySQLiCompatibleResult
+     * Parameters: active_only (bool), service_id (optional int)
+     * Returns: Result set of dentists (filtered by service mastery if provided)
+     * Query: JOIN dentists, users, dentist_service_mastery (if service_id provided)
+
+5. Status Helpers:
+   - getStatusBadge($status): string - Returns Bootstrap badge class
+   - getLabStatusBadge($status): string - Returns Bootstrap badge class
+   - getAvailableStatusOptions($current_status, $appointment_date): array
+     * Returns available status transitions based on current status and date
+
+6. Validation:
+   - sanitize($data): string - Sanitizes input (trim, stripslashes, htmlspecialchars)
+   - validateEmail($email): bool - Validates email format
+   - validatePhone($phone): bool - Validates phone format
+
+Interface Specifications:
+- All functions are global (no class wrapper)
+- Database queries use PostgreSQL syntax (TRUE/FALSE for booleans)
+- Functions return arrays or result sets
+
+Dependencies Used By:
+- All page files
+- API endpoints
+- register.php, book-appointment.php
+
+================================================================================
+
+2.5 MAILER.PHP
+----------------
+Purpose: Email sending service with multiple driver support
+Dependencies: config.php, PHPMailer library
+
+Key Class: Mailer
+
+Constructor:
+- Reads MAIL_DRIVER environment variable
+- Supports: 'maileroo', 'sendgrid', 'brevo', 'resend', 'smtp'
+- Configures appropriate driver based on environment
+
+Public Methods:
+
+1. sendVerificationCode($to, $code, $name): bool
+   - Parameters: recipient email, 6-digit code, patient name
+   - Returns: true on success, false on failure
+   - Sends HTML email with verification code
+   - Uses template: templates/email_verification.html
+
+2. sendDentistAccountEmail($to, $name, $username, $tempPassword, $email): bool
+   - Parameters: recipient email, dentist name, username, temp password, email
+   - Returns: true on success, false on failure
+   - Sends welcome email with account credentials
+   - Uses template: templates/dentist_account.html
+
+3. sendAppointmentConfirmation($to, $name, $appointmentData): bool
+   - Parameters: recipient email, patient name, appointment data array
+   - Returns: true on success, false on failure
+   - Sends appointment confirmation email
+   - Uses template: templates/appointment_confirmation.html
+
+Private Methods (Driver-specific):
+- sendViaMaileroo($to, $subject, $html, $text, $name): bool
+  * API: https://smtp.maileroo.com/api/v2/emails
+  * Headers: X-Api-Key
+  * Payload: {from: {address, display_name}, to: [{address, display_name}], subject, html, plain}
+
+- sendViaSendGrid($to, $subject, $html, $text, $name): bool
+  * API: https://api.sendgrid.com/v3/mail/send
+  * Headers: Authorization: Bearer {api_key}
+
+- sendViaBrevo($to, $subject, $html, $text, $name): bool
+  * API: https://api.brevo.com/v3/smtp/email
+  * Headers: api-key
+
+- sendViaResend($to, $subject, $html, $text, $name): bool
+  * API: https://api.resend.com/emails
+  * Headers: Authorization: Bearer {api_key}
+
+- configure() (for SMTP driver)
+  * Configures PHPMailer with SMTP settings
+  * Only used when MAIL_DRIVER=smtp
+
+Helper Function:
+- getMailer(): Mailer - Returns new Mailer instance
+
+Interface Specifications:
+- All email methods return boolean (success/failure)
+- Errors logged via error_log()
+- Supports multiple email providers via driver pattern
+
+Dependencies Used By:
+- register.php (verification emails)
+- admin/add-user.php (dentist account emails)
+- Future: appointment confirmation emails
+
+================================================================================
+3. API ENDPOINTS (api/)
+================================================================================
+
+3.1 GET-DENTISTS-BY-SERVICE.PHP
+--------------------------------
+Purpose: Returns list of dentists who can perform a specific service
+Dependencies: config.php, database.php, functions.php
+
+Interface:
+- Method: GET
+- Parameter: service_id (integer, required)
+- Response: JSON
+  {
+    "success": boolean,
+    "dentists": [
+      {
+        "dentist_id": integer,
+        "full_name": string,
+        "email": string,
+        "phone": string
+      }
+    ]
+  }
+
+Logic:
+- Validates service_id > 0
+- Calls getDentists(true, $service_id) which filters by dentist_service_mastery
+- Returns JSON array of dentist objects
+
+Used By:
+- book-appointment.php (JavaScript fetch)
+
+================================================================================
+
+3.2 GET-AVAILABLE-SLOTS.PHP
+----------------------------
+Purpose: Returns available time slots for a given date and optional dentist
+Dependencies: config.php, functions.php
+
+Interface:
+- Method: GET
+- Parameters: 
+  * date (string, required) - Format: YYYY-MM-DD
+  * dentist_id (integer, optional)
+- Response: JSON
+  {
+    "success": boolean,
+    "message": string (if error),
+    "slots": [
+      {
+        "slot_id": integer,
+        "slot_time": string (HH:MM:SS),
+        "display_time": string (formatted)
+      }
+    ]
+  }
+
+Logic:
+- Validates date format and ensures not in past
+- Checks if date is blocked via isDateBlocked()
+- Calls getAvailableTimeSlots($date, $dentist_id)
+- Formats slots with display times
+
+Used By:
+- book-appointment.php (JavaScript fetch)
+
+================================================================================
+4. PRESENTATION LAYER COMPONENTS
+================================================================================
+
+4.1 ADMIN MODULE (admin/)
+--------------------------
+Purpose: Administrative interface for staff and admins
+
+Key Files:
+- login.php - Admin/staff login page
+- dashboard.php - Admin dashboard with statistics
+- appointments.php - Appointment management (view, filter, update status)
+- patients.php - Patient records search and management
+- add-appointment.php - Manual appointment creation
+- view-appointment.php - Appointment details and status update
+- lab-cases.php - Laboratory case tracking
+- users.php - User management (admin only)
+- add-user.php - Create staff/dentist accounts
+- reports.php - Statistics and reports (admin only)
+- profile.php - Admin profile management
+- reset-password.php - Password reset functionality
+
+Dependencies:
+- includes/auth.php (requireLogin(), requireRole())
+- includes/functions.php (all helper functions)
+- includes/database.php (via getDB())
+
+Interface Pattern:
+- All pages require authentication
+- Role-based access control via requireRole()
+- Use Bootstrap 5.3 for UI
+- Include admin/navbar.php for navigation
+
+================================================================================
+
+4.2 PATIENT MODULE (patient/)
+------------------------------
+Purpose: Patient-facing interface
+
+Key Files:
+- dashboard.php - Patient dashboard with upcoming appointments and history
+  * Queries: Upcoming (appointment_date >= CURRENT_DATE), 
+            History (appointment_date < CURRENT_DATE)
+  * Uses CURDATE() → CURRENT_DATE conversion in database.php
+
+- profile.php - Patient profile management
+- view-appointment.php - View appointment details
+
+Dependencies:
+- includes/auth.php (requirePatientLogin())
+- includes/functions.php
+- includes/database.php
+
+Interface Pattern:
+- All pages require patient authentication
+- Use Bootstrap 5.3 for UI
+- Shared navigation with main site
+
+================================================================================
+
+4.3 DENTIST MODULE (dentist/)
+------------------------------
+Purpose: Dentist-specific interface
+
+Key Files:
+- dashboard.php - Dentist dashboard with their appointments
+- appointments.php - View and update appointment status
+- view-appointment.php - Appointment details
+- profile.php - Dentist profile management
+
+Dependencies:
+- includes/auth.php (requireLogin(), requireRole('dentist'))
+- includes/functions.php
+- includes/database.php
+
+Interface Pattern:
+- Requires dentist role
+- Focused on appointment management
+- Can update appointment statuses
+
+================================================================================
+
+4.4 PUBLIC PAGES (root/)
+------------------------
+Purpose: Public-facing and authentication pages
+
+Key Files:
+- index.php - Landing page
+- register.php - Patient registration with email verification
+  * Flow: Form → Create patient → Generate code → Send email → Create account (unverified) 
+         → Verify code → Mark verified
+  * Dependencies: mailer.php, database.php, functions.php, auth.php
+
+- login.php - Patient login
+- login-unified.php - Unified login (patient/staff)
+- logout.php - Session destruction
+- book-appointment.php - Appointment booking form
+  * Uses: getServices(), getDentists(), getAvailableTimeSlots()
+  * AJAX calls: get-dentists-by-service.php, get-available-slots.php
+
+- services.php - Services listing page
+- contact.php - Contact information
+- appointment-confirmation.php - Appointment confirmation page
+
+Dependencies:
+- includes/config.php
+- includes/database.php
+- includes/functions.php
+- includes/auth.php (for protected pages)
+
+================================================================================
+5. DEPENDENCY MANAGEMENT
+================================================================================
+
+5.1 Dependency Hierarchy
+-------------------------
+
+Level 1 (Base):
+- config.php (no dependencies)
+
+Level 2 (Core):
+- database.php → config.php
+- auth.php → database.php → config.php
+
+Level 3 (Business Logic):
+- functions.php → database.php → config.php
+- mailer.php → config.php, PHPMailer library
+
+Level 4 (Presentation):
+- All page files → auth.php, functions.php, database.php, config.php
+- API endpoints → functions.php, database.php, config.php
+
+5.2 External Dependencies
+--------------------------
+- PHPMailer (via Composer)
+  * Location: vendor/phpmailer/phpmailer/
+  * Used by: mailer.php
+  * Purpose: SMTP email sending (fallback driver)
+
+- Bootstrap 5.3 (CDN)
+  * Used by: All HTML pages
+  * Purpose: UI framework
+
+- Bootstrap Icons (CDN)
+  * Used by: All HTML pages
+  * Purpose: Icon library
+
+5.3 Database Dependencies
+--------------------------
+- PostgreSQL (Neon)
+- Connection: Via DATABASE_URL environment variable
+- Compatibility: MySQLi wrapper for PostgreSQL
+- Key conversions: CURDATE()→CURRENT_DATE, boolean TRUE/FALSE
+
+================================================================================
+6. COMPONENT INTERACTION FLOW
+================================================================================
+
+6.1 Registration Flow
+-----------------------
+register.php
+  → includes/config.php (constants)
+  → includes/database.php (getDB())
+  → includes/functions.php (generatePatientNumber(), sanitize(), validateEmail())
+  → includes/mailer.php (getMailer()->sendVerificationCode())
+    → mailer.php → Maileroo API (HTTP)
+  → database.php (INSERT patient, INSERT verification_code, INSERT patient_accounts)
+  → Redirect to verification step
+
+6.2 Appointment Booking Flow
+-----------------------------
+book-appointment.php
+  → includes/auth.php (requirePatientLogin())
+  → includes/functions.php (getServices(), getDentists(), isDateBlocked())
+  → JavaScript: fetch('api/get-dentists-by-service.php?service_id=X')
+    → api/get-dentists-by-service.php
+      → includes/functions.php (getDentists())
+      → Returns JSON
+  → JavaScript: fetch('api/get-available-slots.php?date=X&dentist_id=Y')
+    → api/get-available-slots.php
+      → includes/functions.php (getAvailableTimeSlots(), isDateBlocked())
+      → Returns JSON
+  → Form submission → INSERT appointment
+
+6.3 Authentication Flow
+-----------------------
+login.php / login-unified.php
+  → includes/auth.php (login() or patientLogin())
+    → database.php (SELECT from users/patient_accounts)
+    → Sets $_SESSION variables
+  → Redirect to appropriate dashboard
+
+================================================================================
+7. INTERFACE SPECIFICATIONS
+================================================================================
+
+7.1 Database Interface
+----------------------
+All database access goes through:
+- getDB(): MySQLiCompatibleConnection
+- Methods: prepare($sql), query($sql), escape($string), getLastInsertId()
+
+Query Pattern:
+```php
+$db = getDB();
+$stmt = $db->prepare("SELECT ... WHERE column = ?");
+$stmt->bind_param("s", $value);
+$stmt->execute();
+$result = $stmt->get_result();
+$row = $result->fetch_assoc();
+```
+
+7.2 Email Interface
+-------------------
+All email sending goes through:
+- getMailer(): Mailer
+- Methods: sendVerificationCode(), sendDentistAccountEmail(), sendAppointmentConfirmation()
+
+Usage Pattern:
+```php
+$mailer = getMailer();
+if ($mailer->sendVerificationCode($email, $code, $name)) {
+    // Success
+} else {
+    // Failure (check error_log)
+}
+```
+
+7.3 Authentication Interface
+------------------------------
+All authentication checks:
+- requireLogin() - For admin/dentist pages
+- requirePatientLogin() - For patient pages
+- requireRole($role) - For role-specific pages
+
+Usage Pattern:
+```php
+require_once 'includes/auth.php';
+requireLogin(); // or requirePatientLogin()
+```
+
+7.4 API Interface
+-----------------
+All API endpoints:
+- Return JSON: {"success": boolean, "data": ..., "message": ...}
+- Use GET parameters for input
+- Set Content-Type: application/json header
+
+================================================================================
+8. DATA FLOW DIAGRAM (Text Representation)
+================================================================================
+
+User Request
+    ↓
+Page File (e.g., register.php)
+    ↓
+includes/auth.php (authentication check)
+    ↓
+includes/functions.php (business logic)
+    ↓
+includes/database.php (data access)
+    ↓
+PostgreSQL Database (Neon)
+    ↓
+Response (HTML/JSON)
+
+Email Flow:
+register.php
+    ↓
+includes/mailer.php
+    ↓
+Maileroo API (HTTPS)
+    ↓
+Email Delivered
+
+================================================================================
+9. ERROR HANDLING
+================================================================================
+
+- Database errors: Caught by PDO, logged via error_log()
+- Email errors: Logged in mailer.php methods, returns false
+- Authentication errors: Redirect to login page
+- Validation errors: Displayed to user via $error variable
+- API errors: Return JSON with success=false and message
+
+================================================================================
+10. SECURITY CONSIDERATIONS
+================================================================================
+
+- All SQL queries use prepared statements (prevents SQL injection)
+- All output uses htmlspecialchars() (prevents XSS)
+- Passwords hashed with password_hash() (bcrypt)
+- Session-based authentication
+- Role-based access control
+- Email verification required for patient accounts
+- PostgreSQL boolean comparisons use TRUE/FALSE (not 1/0)
+
+================================================================================
+END OF COMPONENT DESIGN DOCUMENTATION
+================================================================================

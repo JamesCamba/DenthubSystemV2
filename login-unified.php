@@ -106,7 +106,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             
                             <div class="mb-3">
                                 <label class="form-label">Password</label>
-                                <input type="password" class="form-control" name="password" required>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="password" id="password" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
+                                        <i class="bi bi-eye" id="password-icon"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="mb-3 text-end">
+                                <a href="forgot-password.php" class="text-muted small">Forgot Password?</a>
                             </div>
                             
                             <div class="d-grid">
@@ -131,5 +139,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '-icon');
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.classList.remove('bi-eye');
+                icon.classList.add('bi-eye-slash');
+            } else {
+                field.type = 'password';
+                icon.classList.remove('bi-eye-slash');
+                icon.classList.add('bi-eye');
+            }
+        }
+    </script>
 </body>
 </html>

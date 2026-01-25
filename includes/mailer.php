@@ -101,11 +101,20 @@ class Mailer {
     
     /**
      * Send verification code email
+     * @param string $to Recipient email
+     * @param string $code 6-digit verification code
+     * @param string $name Recipient name
+     * @param string $purpose 'registration' or 'password_reset' (optional, for subject customization)
      */
-    public function sendVerificationCode($to, $code, $name = '') {
-        $subject = 'Email Verification Code - Denthub Dental Clinic';
+    public function sendVerificationCode($to, $code, $name = '', $purpose = 'registration') {
+        if ($purpose === 'password_reset') {
+            $subject = 'Password Reset Verification Code - Denthub Dental Clinic';
+            $text    = "Your password reset verification code is: $code\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, please ignore this email.";
+        } else {
+            $subject = 'Email Verification Code - Denthub Dental Clinic';
+            $text    = "Your verification code is: $code\n\nThis code will expire in 10 minutes.";
+        }
         $html    = $this->getVerificationTemplate($code, $name);
-        $text    = "Your verification code is: $code\n\nThis code will expire in 10 minutes.";
 
         if ($this->driver === 'maileroo' && $this->apiKey) {
             return $this->sendViaMaileroo($to, $subject, $html, $text, $name);

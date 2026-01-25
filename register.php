@@ -13,8 +13,52 @@ $error = '';
 $success = '';
 $step = $_GET['step'] ?? 'register'; // register, verify
 
+// Handle resend code request
+if ($step === 'verify' && isset($_POST['resend_code'])) {
+    $email = sanitize($_POST['email'] ?? '');
+    
+    if (empty($email)) {
+        $error = 'Email address is required.';
+    } else {
+        // Check if there's pending registration data in session
+        if (isset($_SESSION['pending_registration']) && $_SESSION['pending_registration']['email'] === $email) {
+            $db = getDB();
+            
+            // Generate new verification code
+            $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+            
+            // Invalidate old codes for this email
+            $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'registration'");
+            $invalidateStmt->bind_param("s", $email);
+            $invalidateStmt->execute();
+            
+            // Save new verification code
+            $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
+                                      VALUES (?, ?, 'registration', ?)");
+            $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
+            
+            if ($codeStmt->execute()) {
+                // Send verification email
+                $mailer = getMailer();
+                $patient_name = $_SESSION['pending_registration']['first_name'] . ' ' . $_SESSION['pending_registration']['last_name'];
+                
+                if ($mailer->sendVerificationCode($email, $verification_code, $patient_name)) {
+                    $success = 'Verification code has been resent to your email.';
+                } else {
+                    $error = 'Failed to resend verification email. Please try again.';
+                }
+            } else {
+                $error = 'Error generating verification code. Please try again.';
+            }
+        } else {
+            $error = 'No pending registration found. Please register again.';
+        }
+    }
+}
+
 // Handle verification code submission
-if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST['resend_code'])) {
     $email = sanitize($_POST['email'] ?? '');
     $code = sanitize($_POST['verification_code'] ?? '');
     
@@ -25,6 +69,7 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt = $db->prepare("SELECT * FROM email_verification_codes 
                               WHERE email = ? AND verification_code = ? 
                               AND is_used = FALSE AND expires_at > NOW() 
+                              AND purpose = 'registration'
                               ORDER BY created_at DESC LIMIT 1");
         $stmt->bind_param("ss", $email, $code);
         $stmt->execute();
@@ -33,18 +78,53 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($result->num_rows === 1) {
             $verification = $result->fetch_assoc();
             
-            // Mark code as used (PostgreSQL boolean)
-            $updateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE code_id = ?");
-            $updateStmt->bind_param("i", $verification['code_id']);
-            $updateStmt->execute();
-            
-            // Verify patient account (PostgreSQL boolean)
-            $verifyStmt = $db->prepare("UPDATE patient_accounts SET is_verified = TRUE WHERE email = ?");
-            $verifyStmt->bind_param("s", $email);
-            $verifyStmt->execute();
-            
-                            $success = 'Email verified successfully! You can now <a href="login-unified.php">login</a>.';
-            $step = 'complete';
+            // Check if we have pending registration data
+            if (!isset($_SESSION['pending_registration']) || $_SESSION['pending_registration']['email'] !== $email) {
+                $error = 'Registration session expired. Please register again.';
+            } else {
+                $reg_data = $_SESSION['pending_registration'];
+                
+                // Mark code as used (PostgreSQL boolean)
+                $updateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE code_id = ?");
+                $updateStmt->bind_param("i", $verification['code_id']);
+                $updateStmt->execute();
+                
+                // NOW create patient record (only after verification)
+                $patient_number = generatePatientNumber();
+                $stmt = $db->prepare("INSERT INTO patients (patient_number, first_name, last_name, middle_name, email, phone, birthdate, gender, address) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param("sssssssss", $patient_number, $reg_data['first_name'], $reg_data['last_name'], 
+                                 $reg_data['middle_name'], $reg_data['email'], $reg_data['phone'], 
+                                 $reg_data['birthdate'], $reg_data['gender'], $reg_data['address']);
+                
+                if ($stmt->execute()) {
+                    $patient_id = $db->getLastInsertId();
+                    
+                    // Create patient account (verified)
+                    $password_hash = password_hash($reg_data['password'], PASSWORD_DEFAULT);
+                    $verification_token = bin2hex(random_bytes(32));
+                    
+                    $accountStmt = $db->prepare("INSERT INTO patient_accounts (patient_id, email, password_hash, verification_token, is_verified) 
+                                                  VALUES (?, ?, ?, ?, TRUE)");
+                    $accountStmt->bind_param("isss", $patient_id, $reg_data['email'], $password_hash, $verification_token);
+                    
+                    if ($accountStmt->execute()) {
+                        // Clear pending registration data
+                        unset($_SESSION['pending_registration']);
+                        
+                        $success = 'Email verified successfully! You can now <a href="login-unified.php">login</a>.';
+                        $step = 'complete';
+                    } else {
+                        // Rollback: delete patient record if account creation fails
+                        $deleteStmt = $db->prepare("DELETE FROM patients WHERE patient_id = ?");
+                        $deleteStmt->bind_param("i", $patient_id);
+                        $deleteStmt->execute();
+                        $error = 'Error creating account. Please try again.';
+                    }
+                } else {
+                    $error = 'Error creating patient record. Please try again.';
+                }
+            }
         } else {
             $error = 'Invalid or expired verification code. Please try again.';
         }
@@ -74,71 +154,66 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
         $error = 'Password must be at least ' . PASSWORD_MIN_LENGTH . ' characters long.';
     } elseif ($password !== $confirm_password) {
         $error = 'Passwords do not match.';
+    } elseif (!empty($birthdate) && strtotime($birthdate) > strtotime('today')) {
+        $error = 'Birthdate cannot be in the future.';
+    } elseif (!empty($birthdate) && (int)date('Y', strtotime($birthdate)) > (int)date('Y')) {
+        $error = 'Birthdate year cannot exceed current year.';
     } else {
         $db = getDB();
         
-        // Check if email already exists
-        $stmt = $db->prepare("SELECT patient_id FROM patients WHERE email = ?");
+        // Check if email already exists in patient_accounts (verified accounts)
+        $stmt = $db->prepare("SELECT account_id FROM patient_accounts WHERE email = ? AND is_verified = TRUE");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         if ($stmt->get_result()->num_rows > 0) {
             $error = 'Email already registered. Please login instead.';
         } else {
-            // Create patient record
-            $patient_number = generatePatientNumber();
-            $stmt = $db->prepare("INSERT INTO patients (patient_number, first_name, last_name, middle_name, email, phone, birthdate, gender, address) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->bind_param("sssssssss", $patient_number, $first_name, $last_name, $middle_name, $email, $phone, $birthdate, $gender, $address);
+            // Store registration data in session (NOT in database yet)
+            $_SESSION['pending_registration'] = [
+                'first_name' => $first_name,
+                'last_name' => $last_name,
+                'middle_name' => $middle_name,
+                'email' => $email,
+                'phone' => $phone,
+                'birthdate' => $birthdate ?: null,
+                'gender' => $gender ?: null,
+                'address' => $address ?: null,
+                'password' => $password
+            ];
             
-            if ($stmt->execute()) {
-                $patient_id = $db->insert_id;
-                
-                // Generate 6-digit verification code BEFORE creating account
-                $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
-                
-                // Save verification code FIRST
-                $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
-                                          VALUES (?, ?, 'registration', ?)");
-                $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
-                
-                if (!$codeStmt->execute()) {
-                    $error = 'Error generating verification code. Please try again.';
-                } else {
-                    // Send verification email BEFORE creating account
-                    $mailer = getMailer();
-                    $patient_name = $first_name . ' ' . $last_name;
-                    
-                    if ($mailer->sendVerificationCode($email, $verification_code, $patient_name)) {
-                        // Email sent successfully - NOW create the account (unverified)
-                        $password_hash = password_hash($password, PASSWORD_DEFAULT);
-                        $verification_token = bin2hex(random_bytes(32));
-                        
-                        $stmt = $db->prepare("INSERT INTO patient_accounts (patient_id, email, password_hash, verification_token, is_verified) 
-                                              VALUES (?, ?, ?, ?, FALSE)");
-                        $stmt->bind_param("isss", $patient_id, $email, $password_hash, $verification_token);
-                        
-                        if ($stmt->execute()) {
-                            // Success! Redirect to verification step
-                            header('Location: register.php?step=verify&email=' . urlencode($email));
-                            exit;
-                        } else {
-                            // Account creation failed - delete verification code
-                            $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
-                            $deleteCodeStmt->bind_param("ss", $email, $verification_code);
-                            $deleteCodeStmt->execute();
-                            $error = 'Error creating account. Please try again.';
-                        }
-                    } else {
-                        // Email sending failed - delete verification code and don't create account
-                        $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
-                        $deleteCodeStmt->bind_param("ss", $email, $verification_code);
-                        $deleteCodeStmt->execute();
-                        $error = 'Failed to send verification email. Please check your email address and try again.';
-                    }
-                }
+            // Generate 6-digit verification code
+            $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+            $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+            
+            // Invalidate any old codes for this email
+            $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'registration'");
+            $invalidateStmt->bind_param("s", $email);
+            $invalidateStmt->execute();
+            
+            // Save verification code
+            $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
+                                      VALUES (?, ?, 'registration', ?)");
+            $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
+            
+            if (!$codeStmt->execute()) {
+                $error = 'Error generating verification code. Please try again.';
             } else {
-                $error = 'Error registering. Please try again.';
+                // Send verification email
+                $mailer = getMailer();
+                $patient_name = $first_name . ' ' . $last_name;
+                
+                if ($mailer->sendVerificationCode($email, $verification_code, $patient_name)) {
+                    // Email sent successfully - Redirect to verification step
+                    header('Location: register.php?step=verify&email=' . urlencode($email));
+                    exit;
+                } else {
+                    // Email sending failed - delete verification code
+                    $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
+                    $deleteCodeStmt->bind_param("ss", $email, $verification_code);
+                    $deleteCodeStmt->execute();
+                    unset($_SESSION['pending_registration']);
+                    $error = 'Failed to send verification email. Please check your email address and try again.';
+                }
             }
         }
     }
@@ -178,7 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             <div class="alert alert-info">
                                 <i class="bi bi-envelope-check"></i> A verification code has been sent to <strong><?php echo htmlspecialchars($_GET['email'] ?? ''); ?></strong>
                             </div>
-                            <form method="POST" action="">
+                            <form method="POST" action="" id="verifyForm">
                                 <input type="hidden" name="email" value="<?php echo htmlspecialchars($_GET['email'] ?? ''); ?>">
                                 <div class="mb-3">
                                     <label class="form-label">Verification Code <span class="text-danger">*</span></label>
@@ -187,13 +262,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                            placeholder="000000" style="font-size: 24px; letter-spacing: 8px; font-family: monospace;">
                                     <small class="text-muted">Enter the 6-digit code sent to your email</small>
                                 </div>
-                                <div class="d-grid">
+                                <div class="d-grid gap-2">
                                     <button type="submit" class="btn btn-primary btn-lg">Verify Email</button>
+                                    <button type="submit" name="resend_code" class="btn btn-outline-secondary" onclick="event.preventDefault(); document.getElementById('resendForm').submit();">
+                                        <i class="bi bi-arrow-clockwise"></i> Resend Code
+                                    </button>
                                 </div>
                             </form>
-                            <div class="text-center mt-3">
-                                <p class="text-muted small">Didn't receive the code? <a href="register.php">Register again</a></p>
-                            </div>
+                            <form method="POST" action="" id="resendForm" style="display:none;">
+                                <input type="hidden" name="email" value="<?php echo htmlspecialchars($_GET['email'] ?? ''); ?>">
+                                <input type="hidden" name="resend_code" value="1">
+                            </form>
                         <?php elseif ($step === 'complete'): ?>
                             <div class="text-center">
                                 <i class="bi bi-check-circle text-success" style="font-size: 64px;"></i>
@@ -228,7 +307,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Birthdate</label>
-                                    <input type="date" class="form-control" name="birthdate" value="<?php echo $_POST['birthdate'] ?? ''; ?>">
+                                    <input type="date" class="form-control" name="birthdate" 
+                                           max="<?php echo date('Y-m-d'); ?>" 
+                                           value="<?php echo $_POST['birthdate'] ?? ''; ?>">
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Gender</label>
@@ -246,12 +327,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Password <span class="text-danger">*</span></label>
-                                <input type="password" class="form-control" name="password" required minlength="<?php echo PASSWORD_MIN_LENGTH; ?>">
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="password" id="password" required minlength="<?php echo PASSWORD_MIN_LENGTH; ?>">
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
+                                        <i class="bi bi-eye" id="password-icon"></i>
+                                    </button>
+                                </div>
                                 <small class="text-muted">Minimum <?php echo PASSWORD_MIN_LENGTH; ?> characters</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
-                                <input type="password" class="form-control" name="confirm_password" required>
+                                <div class="input-group">
+                                    <input type="password" class="form-control" name="confirm_password" id="confirm_password" required>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('confirm_password')">
+                                        <i class="bi bi-eye" id="confirm_password-icon"></i>
+                                    </button>
+                                </div>
                             </div>
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-primary btn-lg">Register</button>
@@ -270,6 +361,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function togglePassword(fieldId) {
+            const field = document.getElementById(fieldId);
+            const icon = document.getElementById(fieldId + '-icon');
+            if (field.type === 'password') {
+                field.type = 'text';
+                icon.classList.remove('bi-eye');
+                icon.classList.add('bi-eye-slash');
+            } else {
+                field.type = 'password';
+                icon.classList.remove('bi-eye-slash');
+                icon.classList.add('bi-eye');
+            }
+        }
+        
+        // Prevent date input from accepting future dates or invalid years
+        document.addEventListener('DOMContentLoaded', function() {
+            const birthdateInput = document.querySelector('input[name="birthdate"]');
+            if (birthdateInput) {
+                const currentYear = new Date().getFullYear();
+                const maxDate = new Date().toISOString().split('T')[0];
+                birthdateInput.setAttribute('max', maxDate);
+                
+                birthdateInput.addEventListener('input', function() {
+                    const selectedDate = new Date(this.value);
+                    const selectedYear = selectedDate.getFullYear();
+                    
+                    if (selectedYear > currentYear) {
+                        this.setCustomValidity('Birthdate year cannot exceed current year');
+                    } else if (selectedDate > new Date()) {
+                        this.setCustomValidity('Birthdate cannot be in the future');
+                    } else {
+                        this.setCustomValidity('');
+                    }
+                });
+            }
+        });
+    </script>
 </body>
 </html>
 
