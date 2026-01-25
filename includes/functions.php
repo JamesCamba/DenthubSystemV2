@@ -50,47 +50,85 @@ function formatDateTime($datetime) {
     return date(DISPLAY_DATE_FORMAT . ' ' . DISPLAY_TIME_FORMAT, strtotime($datetime));
 }
 
-// Get available time slots for a date
+// Get available time slots for a date ////////////////////////////////////////
 function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null) {
     $db = getDB();
-    
-    // Get day of week (0=Sunday, 1=Monday, etc.)
+
+    // Get day of week (0 = Sunday)
     $day_of_week = date('w', strtotime($date));
-    
+
     // Get all active time slots
-    $slots = $db->query("SELECT slot_id, slot_time FROM time_slots WHERE is_active = TRUE ORDER BY slot_time");
+    $slots = $db->query("
+        SELECT slot_id, slot_time
+        FROM time_slots
+        WHERE is_active = TRUE
+        ORDER BY slot_time
+    ");
+
     $availableSlots = [];
-    
+
     while ($slot = $slots->fetch_assoc()) {
-        // If dentist is specified, check their schedule
-        if ($dentist_id) {
-            // PostgreSQL: is_available is a boolean
-            $scheduleStmt = $db->prepare("SELECT COUNT(*) as count FROM dentist_schedules 
-                                         WHERE dentist_id = ? AND day_of_week = ? 
-                                         AND start_time <= ? AND end_time > ? AND is_available = TRUE");
-            $scheduleStmt->bind_param("iiss", $dentist_id, $day_of_week, $slot['slot_time'], $slot['slot_time']);
+
+        /* ============================
+           Check dentist availability
+        ============================ */
+        if ($dentist_id !== null) {
+            $scheduleSql = "
+                SELECT COUNT(*) AS count
+                FROM dentist_schedules
+                WHERE dentist_id = ?
+                  AND day_of_week = ?
+                  AND start_time <= ?
+                  AND end_time > ?
+                  AND is_available = TRUE
+            ";
+
+            $scheduleStmt = $db->prepare($scheduleSql);
+            $scheduleStmt->bind_param(
+                "iiss",
+                $dentist_id,
+                $day_of_week,
+                $slot['slot_time'],
+                $slot['slot_time']
+            );
             $scheduleStmt->execute();
             $scheduleResult = $scheduleStmt->get_result()->fetch_assoc();
-            
+
             if ($scheduleResult['count'] == 0) {
-                continue; // Dentist not available at this time
+                continue; // Dentist not working at this time
             }
         }
-        
-        // Check if slot is already booked
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                             WHERE appointment_date = ? AND appointment_time = ? 
-                             AND status IN ('pending', 'confirmed') 
-                             AND (dentist_id = ? OR ? IS NULL)");
-        $stmt->bind_param("ssii", $date, $slot['slot_time'], $dentist_id, $dentist_id);
+
+        /* ============================
+           Check if slot is booked
+        ============================ */
+        $sql = "
+            SELECT COUNT(*) AS count
+            FROM appointments
+            WHERE appointment_date = ?
+              AND appointment_time = ?
+              AND status IN ('pending', 'confirmed')
+        ";
+
+        $params = [$date, $slot['slot_time']];
+        $types  = "ss";
+
+        if ($dentist_id !== null) {
+            $sql .= " AND dentist_id = ?";
+            $params[] = $dentist_id;
+            $types   .= "i";
+        }
+
+        $stmt = $db->prepare($sql);
+        $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
-        
+
         if ($result['count'] == 0) {
             $availableSlots[] = $slot;
         }
     }
-    
+
     return $availableSlots;
 }
 
