@@ -504,7 +504,10 @@ class Mailer {
         error_log("Maileroo Debug: To email = '{$to}'");
         error_log("Maileroo Debug: Payload JSON: " . json_encode($payload, JSON_PRETTY_PRINT));
 
-        $ch = curl_init('https://smtp.maileroo.com/api/v2/emails');
+        // Maileroo API endpoint
+        $apiUrl = 'https://smtp.maileroo.com/api/v2/emails';
+        
+        $ch = curl_init($apiUrl);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
@@ -514,43 +517,75 @@ class Mailer {
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
         curl_setopt($ch, CURLOPT_TIMEOUT, 30);
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($ch, CURLOPT_VERBOSE, false); // Set to true for detailed curl info if needed
 
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $curlError = curl_error($ch);
         curl_close($ch);
         
+        // Always log the full response for debugging
+        error_log("Maileroo API Response: HTTP $httpCode - Body: " . ($response ?: '(empty)'));
+        
         if ($response === false) {
             error_log("Maileroo Error: cURL failed - {$curlError}");
             return false;
         }
         
+        // Parse response
+        $responseData = json_decode($response, true);
+        
+        // Check for HTTP errors
         if ($httpCode >= 400) {
-            error_log("Maileroo Error: HTTP $httpCode - Response: $response");
+            $errorMsg = 'Unknown error';
+            if (is_array($responseData)) {
+                $errorMsg = $responseData['message'] ?? $responseData['error'] ?? json_encode($responseData);
+            } else {
+                $errorMsg = $response ?: 'Empty response';
+            }
+            error_log("Maileroo Error: HTTP $httpCode - {$errorMsg}");
             return false;
         }
         
-        // Check response for success
-        $responseData = json_decode($response, true);
+        // Check response data for success/error indicators
         if (is_array($responseData)) {
+            // Maileroo might return success: true or a data object
             if (isset($responseData['success']) && $responseData['success'] === true) {
-                error_log("Maileroo Success: Email sent to {$to}");
+                error_log("Maileroo Success: Email sent to {$to} - Response: " . json_encode($responseData));
                 return true;
             }
+            
+            // Check for error messages
             if (isset($responseData['error']) || isset($responseData['message'])) {
                 $errorMsg = $responseData['error'] ?? $responseData['message'] ?? 'Unknown error';
-                error_log("Maileroo Error: {$errorMsg}");
+                error_log("Maileroo Error in response: {$errorMsg} - Full response: " . json_encode($responseData));
                 return false;
+            }
+            
+            // If response has data field, might be success
+            if (isset($responseData['data']) && $httpCode === 200) {
+                error_log("Maileroo Success: Email sent to {$to} - Response data: " . json_encode($responseData['data']));
+                return true;
             }
         }
         
-        // If we got HTTP 200 and no error in response, assume success
-        if ($httpCode === 200) {
-            error_log("Maileroo Success: HTTP 200 - Email sent to {$to}");
-            return true;
+        // If we got HTTP 200-299 and no explicit error, check if response is empty or has content
+        if ($httpCode >= 200 && $httpCode < 300) {
+            // Empty response on 200 might indicate success for some APIs
+            if (empty($response) || trim($response) === '') {
+                error_log("Maileroo Success: HTTP $httpCode with empty response (assuming success) - Email sent to {$to}");
+                return true;
+            }
+            
+            // If response is not JSON or doesn't have error, assume success
+            if (!is_array($responseData) || (!isset($responseData['error']) && !isset($responseData['message']))) {
+                error_log("Maileroo Success: HTTP $httpCode - Email sent to {$to} - Response: " . substr($response, 0, 200));
+                return true;
+            }
         }
         
-        error_log("Maileroo Warning: Unexpected response - HTTP $httpCode - Response: $response");
+        // Unexpected response
+        error_log("Maileroo Warning: Unexpected response - HTTP $httpCode - Response: " . substr($response, 0, 500));
         return false;
     }
 }
