@@ -551,7 +551,12 @@ class Mailer {
         if (is_array($responseData)) {
             // Maileroo might return success: true or a data object
             if (isset($responseData['success']) && $responseData['success'] === true) {
-                error_log("Maileroo Success: Email sent to {$to} - Response: " . json_encode($responseData));
+                $referenceId = $responseData['data']['reference_id'] ?? 'N/A';
+                $message = $responseData['message'] ?? 'Email queued';
+                error_log("Maileroo Success: Email queued for delivery to {$to}");
+                error_log("Maileroo Reference ID: {$referenceId}");
+                error_log("Maileroo Message: {$message}");
+                error_log("Maileroo Note: If email not received, check: 1) Spam folder, 2) Maileroo dashboard (reference_id: {$referenceId}), 3) Gmail filters");
                 return true;
             }
             
