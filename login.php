@@ -33,16 +33,33 @@ if (isLoggedIn()) {
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = sanitize($_POST['email'] ?? '');
+    // Allow login for patients, dentists, staff, and admins
+    $identifier = sanitize($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
 
-    if (empty($email) || empty($password)) {
-        $error = 'Please enter email and password.';
-    } elseif (patientLogin($email, $password)) {
-        header('Location: patient/dashboard.php');
-        exit;
+    if (empty($identifier) || empty($password)) {
+        $error = 'Please enter email/username and password.';
     } else {
-        $error = 'Invalid email or password.';
+        // Try patient login first (uses email)
+        if (patientLogin($identifier, $password)) {
+            header('Location: patient/dashboard.php');
+            exit;
+        }
+
+        // Then try staff/dentist/admin login (email or username)
+        if (login($identifier, $password)) {
+            $role = $_SESSION['role'] ?? '';
+            if ($role === 'admin' || $role === 'staff') {
+                header('Location: admin/dashboard.php');
+            } elseif ($role === 'dentist') {
+                header('Location: dentist/dashboard.php');
+            } else {
+                header('Location: admin/dashboard.php');
+            }
+            exit;
+        }
+
+        $error = 'Invalid email/username or password.';
     }
 }
 ?>
@@ -64,8 +81,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     <div class="card-body p-5">
                         <div class="text-center mb-4">
                             <i class="bi bi-box-arrow-in-right text-primary" style="font-size: 48px;"></i>
-                            <h2 class="mt-3">Patient Login</h2>
-                            <p class="text-muted">Login to manage your appointments</p>
+                            <h2 class="mt-3">Login</h2>
+                            <p class="text-muted">Login to access your account</p>
                         </div>
 
                         <?php if ($error): ?>
@@ -74,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <form method="POST" action="">
                             <div class="mb-3">
-                                <label class="form-label">Email</label>
+                                <label class="form-label">Email or Username</label>
                                 <input type="email" class="form-control" name="email" required autofocus>
                             </div>
                             <div class="mb-3">
@@ -97,7 +114,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="text-center mt-4">
                             <p>Don't have an account? <a href="register.php">Register here</a></p>
                             <hr class="my-3">
-                            <p class="text-muted small">Staff/Admin/Doctor? <a href="login-unified.php?type=staff">Unified Login</a></p>
+                            <!-- <p class="text-muted small">Staff/Admin/Doctor? <a href="login-unified.php?type=staff">Unified Login</a></p> -->
                             <a href="index.php" class="text-muted">Back to Home</a>
                         </div>
                     </div>

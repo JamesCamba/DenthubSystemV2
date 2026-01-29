@@ -22,7 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = sanitize($_POST['username'] ?? '');
     $email = sanitize($_POST['email'] ?? '');
     $full_name = sanitize($_POST['full_name'] ?? '');
-    $role = sanitize($_POST['role'] ?? 'staff');
+$role = sanitize($_POST['role'] ?? 'admin');
     $phone = sanitize($_POST['phone'] ?? '');
     $branch_id = intval($_POST['branch_id'] ?? 1);
     $license_number = sanitize($_POST['license_number'] ?? '');
@@ -166,7 +166,7 @@ $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Role <span class="text-danger">*</span></label>
                             <select class="form-select" name="role" id="role" required>
-                                <option value="staff" <?php echo (($_POST['role'] ?? '') === 'staff') ? 'selected' : ''; ?>>Staff</option>
+                                <option value="admin" <?php echo (($_POST['role'] ?? '') === 'admin') ? 'selected' : ''; ?>>Admin</option>
                                 <option value="dentist" <?php echo (($_POST['role'] ?? '') === 'dentist') ? 'selected' : ''; ?>>Dentist</option>
                             </select>
                         </div>

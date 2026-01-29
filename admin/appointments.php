@@ -105,7 +105,7 @@ $appointments = $stmt->get_result();
         <!-- Filters -->
         <div class="card mb-4">
             <div class="card-body">
-                <form method="GET" action="">
+                <form method="GET" action="" id="filterForm">
                     <div class="row g-3">
                         <div class="col-md-3">
                             <label class="form-label">Search</label>
@@ -207,6 +207,30 @@ $appointments = $stmt->get_result();
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-submit filters for real-time updates
+        (function() {
+            const form = document.getElementById('filterForm');
+            if (!form) return;
+
+            const inputs = form.querySelectorAll('input, select');
+            let timer = null;
+
+            function triggerFilter() {
+                if (timer) {
+                    clearTimeout(timer);
+                }
+                timer = setTimeout(function() {
+                    form.submit();
+                }, 400); // simple debounce
+            }
+
+            inputs.forEach(function(el) {
+                el.addEventListener('input', triggerFilter);
+                el.addEventListener('change', triggerFilter);
+            });
+        })();
+    </script>
 </body>
 </html>
 

@@ -27,6 +27,9 @@ if (!isset($user)) {
                 </li>
                 <?php if (hasRole('admin')): ?>
                 <li class="nav-item">
+                    <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'schedule.php' ? 'active' : ''; ?>" href="schedule.php">Schedule</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'reports.php' ? 'active' : ''; ?>" href="reports.php">Reports</a>
                 </li>
                 <li class="nav-item">
