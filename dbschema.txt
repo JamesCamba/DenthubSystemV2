@@ -1,0 +1,195 @@
+CREATE SCHEMA "public";
+CREATE TABLE "appointments" (
+	"appointment_id" serial PRIMARY KEY,
+	"appointment_number" varchar(20) NOT NULL CONSTRAINT "appointments_appointment_number_key" UNIQUE,
+	"patient_id" integer NOT NULL,
+	"dentist_id" integer,
+	"service_id" integer NOT NULL,
+	"branch_id" integer NOT NULL,
+	"appointment_date" date NOT NULL,
+	"appointment_time" time NOT NULL,
+	"status" varchar(20) DEFAULT 'pending',
+	"reason_for_visit" text,
+	"notes" text,
+	"created_by" integer,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "appointments_status_check" CHECK (CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'no_show'::character varying])::text[]))))
+);
+CREATE TABLE "blocked_dates" (
+	"block_id" serial PRIMARY KEY,
+	"block_date" date NOT NULL UNIQUE,
+	"reason" varchar(255),
+	"branch_id" integer UNIQUE,
+	"is_active" boolean DEFAULT true,
+	CONSTRAINT "unique_block_date_branch" UNIQUE("block_date","branch_id")
+);
+CREATE TABLE "branches" (
+	"branch_id" serial PRIMARY KEY,
+	"branch_name" varchar(100) NOT NULL,
+	"address" text NOT NULL,
+	"phone" varchar(20),
+	"email" varchar(100),
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "dentist_schedules" (
+	"schedule_id" serial PRIMARY KEY,
+	"dentist_id" integer NOT NULL,
+	"day_of_week" integer NOT NULL,
+	"start_time" time NOT NULL,
+	"end_time" time NOT NULL,
+	"is_available" boolean DEFAULT true,
+	CONSTRAINT "day_of_week_check" CHECK (CHECK (((day_of_week >= 0) AND (day_of_week <= 6))))
+);
+CREATE TABLE "dentist_service_mastery" (
+	"mastery_id" serial PRIMARY KEY,
+	"dentist_id" integer NOT NULL UNIQUE,
+	"service_id" integer NOT NULL UNIQUE,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "unique_dentist_service" UNIQUE("dentist_id","service_id")
+);
+CREATE TABLE "dentists" (
+	"dentist_id" serial PRIMARY KEY,
+	"user_id" integer,
+	"license_number" varchar(50),
+	"specialization" varchar(100),
+	"branch_id" integer,
+	"is_active" boolean DEFAULT true
+);
+CREATE TABLE "email_verification_codes" (
+	"code_id" serial PRIMARY KEY,
+	"email" varchar(100) NOT NULL,
+	"verification_code" varchar(6) NOT NULL,
+	"purpose" varchar(20) DEFAULT 'registration',
+	"expires_at" timestamp NOT NULL,
+	"is_used" boolean DEFAULT false,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying])::text[]))))
+);
+CREATE TABLE "lab_cases" (
+	"case_id" serial PRIMARY KEY,
+	"case_number" varchar(20) NOT NULL CONSTRAINT "lab_cases_case_number_key" UNIQUE,
+	"patient_id" integer NOT NULL,
+	"appointment_id" integer,
+	"dentist_id" integer,
+	"case_type" varchar(100) NOT NULL,
+	"description" text,
+	"status" varchar(20) DEFAULT 'pending',
+	"date_received" date,
+	"expected_completion_date" date,
+	"actual_completion_date" date,
+	"notes" text,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "lab_cases_status_check" CHECK (CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'in_progress'::character varying, 'ready_for_pickup'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[]))))
+);
+CREATE TABLE "patient_accounts" (
+	"account_id" serial PRIMARY KEY,
+	"patient_id" integer NOT NULL CONSTRAINT "patient_accounts_patient_id_key" UNIQUE,
+	"email" varchar(100) NOT NULL CONSTRAINT "patient_accounts_email_key" UNIQUE,
+	"password_hash" varchar(255) NOT NULL,
+	"is_verified" boolean DEFAULT false,
+	"verification_token" varchar(100),
+	"last_login" timestamp,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "patients" (
+	"patient_id" serial PRIMARY KEY,
+	"patient_number" varchar(20) NOT NULL CONSTRAINT "patients_patient_number_key" UNIQUE,
+	"first_name" varchar(50) NOT NULL,
+	"last_name" varchar(50) NOT NULL,
+	"middle_name" varchar(50),
+	"email" varchar(100),
+	"phone" varchar(20) NOT NULL,
+	"birthdate" date,
+	"gender" varchar(10),
+	"address" text,
+	"emergency_contact_name" varchar(100),
+	"emergency_contact_phone" varchar(20),
+	"medical_history" text,
+	"allergies" text,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "patients_gender_check" CHECK (CHECK ((((gender)::text = ANY ((ARRAY['Male'::character varying, 'Female'::character varying, 'Other'::character varying])::text[])) OR (gender IS NULL))))
+);
+CREATE TABLE "services" (
+	"service_id" serial PRIMARY KEY,
+	"service_name" varchar(100) NOT NULL,
+	"service_code" varchar(20) CONSTRAINT "services_service_code_key" UNIQUE,
+	"description" text,
+	"duration_minutes" integer DEFAULT 30,
+	"price" numeric(10, 2),
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "time_slots" (
+	"slot_id" serial PRIMARY KEY,
+	"slot_time" time NOT NULL CONSTRAINT "time_slots_slot_time_key" UNIQUE,
+	"is_active" boolean DEFAULT true
+);
+CREATE TABLE "users" (
+	"user_id" serial PRIMARY KEY,
+	"username" varchar(50) NOT NULL CONSTRAINT "users_username_key" UNIQUE,
+	"email" varchar(100) NOT NULL CONSTRAINT "users_email_key" UNIQUE,
+	"password_hash" varchar(255) NOT NULL,
+	"full_name" varchar(100) NOT NULL,
+	"role" varchar(20) DEFAULT 'staff' NOT NULL,
+	"branch_id" integer DEFAULT 1,
+	"phone" varchar(20),
+	"is_active" boolean DEFAULT true,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("user_id") ON DELETE SET NULL;
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id");
+ALTER TABLE "blocked_dates" ADD CONSTRAINT "blocked_dates_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id") ON DELETE CASCADE;
+ALTER TABLE "dentist_schedules" ADD CONSTRAINT "dentist_schedules_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE CASCADE;
+ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE CASCADE;
+ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id") ON DELETE CASCADE;
+ALTER TABLE "dentists" ADD CONSTRAINT "dentists_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
+ALTER TABLE "dentists" ADD CONSTRAINT "dentists_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("user_id");
+ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("appointment_id") ON DELETE SET NULL;
+ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
+ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
+ALTER TABLE "patient_accounts" ADD CONSTRAINT "patient_accounts_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
+ALTER TABLE "users" ADD CONSTRAINT "users_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
+CREATE UNIQUE INDEX "appointments_appointment_number_key" ON "appointments" ("appointment_number");
+CREATE UNIQUE INDEX "appointments_pkey" ON "appointments" ("appointment_id");
+CREATE INDEX "idx_appointments_date" ON "appointments" ("appointment_date");
+CREATE INDEX "idx_appointments_dentist" ON "appointments" ("dentist_id");
+CREATE INDEX "idx_appointments_number" ON "appointments" ("appointment_number");
+CREATE INDEX "idx_appointments_patient" ON "appointments" ("patient_id");
+CREATE INDEX "idx_appointments_status" ON "appointments" ("status");
+CREATE UNIQUE INDEX "blocked_dates_pkey" ON "blocked_dates" ("block_id");
+CREATE UNIQUE INDEX "unique_block_date_branch" ON "blocked_dates" ("block_date","branch_id");
+CREATE UNIQUE INDEX "branches_pkey" ON "branches" ("branch_id");
+CREATE UNIQUE INDEX "dentist_schedules_pkey" ON "dentist_schedules" ("schedule_id");
+CREATE UNIQUE INDEX "dentist_service_mastery_pkey" ON "dentist_service_mastery" ("mastery_id");
+CREATE UNIQUE INDEX "unique_dentist_service" ON "dentist_service_mastery" ("dentist_id","service_id");
+CREATE UNIQUE INDEX "dentists_pkey" ON "dentists" ("dentist_id");
+CREATE UNIQUE INDEX "email_verification_codes_pkey" ON "email_verification_codes" ("code_id");
+CREATE INDEX "idx_email_verification_codes" ON "email_verification_codes" ("email","verification_code");
+CREATE INDEX "idx_email_verification_expires" ON "email_verification_codes" ("expires_at");
+CREATE INDEX "idx_lab_cases_number" ON "lab_cases" ("case_number");
+CREATE INDEX "idx_lab_cases_status" ON "lab_cases" ("status");
+CREATE UNIQUE INDEX "lab_cases_case_number_key" ON "lab_cases" ("case_number");
+CREATE UNIQUE INDEX "lab_cases_pkey" ON "lab_cases" ("case_id");
+CREATE UNIQUE INDEX "patient_accounts_email_key" ON "patient_accounts" ("email");
+CREATE UNIQUE INDEX "patient_accounts_patient_id_key" ON "patient_accounts" ("patient_id");
+CREATE UNIQUE INDEX "patient_accounts_pkey" ON "patient_accounts" ("account_id");
+CREATE INDEX "idx_patients_email" ON "patients" ("email");
+CREATE INDEX "idx_patients_number" ON "patients" ("patient_number");
+CREATE INDEX "idx_patients_phone" ON "patients" ("phone");
+CREATE UNIQUE INDEX "patients_patient_number_key" ON "patients" ("patient_number");
+CREATE UNIQUE INDEX "patients_pkey" ON "patients" ("patient_id");
+CREATE UNIQUE INDEX "services_pkey" ON "services" ("service_id");
+CREATE UNIQUE INDEX "services_service_code_key" ON "services" ("service_code");
+CREATE UNIQUE INDEX "time_slots_pkey" ON "time_slots" ("slot_id");
+CREATE UNIQUE INDEX "time_slots_slot_time_key" ON "time_slots" ("slot_time");
+CREATE UNIQUE INDEX "users_email_key" ON "users" ("email");
+CREATE UNIQUE INDEX "users_pkey" ON "users" ("user_id");
+CREATE UNIQUE INDEX "users_username_key" ON "users" ("username");

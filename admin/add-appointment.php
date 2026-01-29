@@ -30,11 +30,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please fill in all required fields.';
     } else {
         // Check if slot is available
-        $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                             WHERE appointment_date = ? AND appointment_time = ? 
-                             AND status IN ('pending', 'confirmed') 
-                             AND (dentist_id = ? OR ? IS NULL)");
-        $stmt->bind_param("ssii", $appointment_date, $appointment_time, $dentist_id, $dentist_id);
+        if ($dentist_id === null) {
+            // Any dentist – avoid binding a NULL dentist_id parameter
+            $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
+                                 WHERE appointment_date = ? AND appointment_time = ? 
+                                 AND status IN ('pending', 'confirmed')");
+            $stmt->bind_param("ss", $appointment_date, $appointment_time);
+        } else {
+            // Specific dentist
+            $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
+                                 WHERE appointment_date = ? AND appointment_time = ? 
+                                 AND status IN ('pending', 'confirmed') 
+                                 AND dentist_id = ?");
+            $stmt->bind_param("ssi", $appointment_date, $appointment_time, $dentist_id);
+        }
+
         $stmt->execute();
         $result = $stmt->get_result()->fetch_assoc();
 

@@ -36,11 +36,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             // Check if slot is available
             $db = getDB();
-            $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                                 WHERE appointment_date = ? AND appointment_time = ? 
-                                 AND status IN ('pending', 'confirmed') 
-                                 AND (dentist_id = ? OR ? IS NULL)");
-            $stmt->bind_param("ssii", $appointment_date, $appointment_time, $dentist_id, $dentist_id);
+
+            if ($dentist_id === null) {
+                // Any dentist – don't bind a NULL dentist_id parameter (PostgreSQL cannot infer type)
+                $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
+                                     WHERE appointment_date = ? AND appointment_time = ? 
+                                     AND status IN ('pending', 'confirmed')");
+                $stmt->bind_param("ss", $appointment_date, $appointment_time);
+            } else {
+                // Specific dentist
+                $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
+                                     WHERE appointment_date = ? AND appointment_time = ? 
+                                     AND status IN ('pending', 'confirmed') 
+                                     AND dentist_id = ?");
+                $stmt->bind_param("ssi", $appointment_date, $appointment_time, $dentist_id);
+            }
+
             $stmt->execute();
             $result = $stmt->get_result()->fetch_assoc();
 
