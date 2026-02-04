@@ -44,12 +44,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     // Toggle active state
     if (isset($_POST['toggle_block'])) {
-        $block_id = intval($_POST['block_id'] ?? 0);
-        $is_active = intval($_POST['is_active'] ?? 0) ? 1 : 0;
+        $block_id  = intval($_POST['block_id'] ?? 0);
+        // PostgreSQL: is_active is boolean – pass as text and cast in SQL
+        $is_active = intval($_POST['is_active'] ?? 0) ? 'true' : 'false';
 
         if ($block_id > 0) {
-            $stmt = $db->prepare("UPDATE blocked_dates SET is_active = ? WHERE block_id = ? AND branch_id = ?");
-            $stmt->bind_param("iii", $is_active, $block_id, $branch_id);
+            $stmt = $db->prepare("UPDATE blocked_dates SET is_active = CAST(? AS BOOLEAN) WHERE block_id = ? AND branch_id = ?");
+            $stmt->bind_param("sii", $is_active, $block_id, $branch_id);
             $stmt->execute();
             $success = 'Schedule updated successfully.';
         }

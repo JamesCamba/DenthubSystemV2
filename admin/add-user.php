@@ -57,8 +57,9 @@ $role = sanitize($_POST['role'] ?? 'admin');
                 
                 // If dentist, create dentist record
                 if ($role === 'dentist') {
+                    // PostgreSQL: is_active is a boolean, use TRUE
                     $dentistStmt = $db->prepare("INSERT INTO dentists (user_id, license_number, specialization, branch_id, is_active) 
-                                                  VALUES (?, ?, ?, ?, 1)");
+                                                  VALUES (?, ?, ?, ?, TRUE)");
                     $dentistStmt->bind_param("issi", $user_id, $license_number, $specialization, $branch_id);
                     
                     if ($dentistStmt->execute()) {
@@ -77,8 +78,9 @@ $role = sanitize($_POST['role'] ?? 'admin');
                         }
                         
                         // Add default schedule (Monday to Friday, 9 AM to 5 PM)
+                        // PostgreSQL: is_available is a boolean, use TRUE
                         $scheduleStmt = $db->prepare("INSERT INTO dentist_schedules (dentist_id, day_of_week, start_time, end_time, is_available) 
-                                                      VALUES (?, ?, '09:00:00', '17:00:00', 1)");
+                                                      VALUES (?, ?, '09:00:00', '17:00:00', TRUE)");
                         for ($day = 1; $day <= 5; $day++) { // Monday to Friday
                             $scheduleStmt->bind_param("ii", $dentist_id, $day);
                             $scheduleStmt->execute();

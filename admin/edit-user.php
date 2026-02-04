@@ -60,7 +60,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $role = sanitize($_POST['role'] ?? $user['role']);
     $phone = sanitize($_POST['phone'] ?? '');
     $branch_id = intval($_POST['branch_id'] ?? $user['branch_id']);
-    $is_active = isset($_POST['is_active']) ? 1 : 0;
+    // PostgreSQL: is_active is boolean – store as text and cast in SQL
+    $is_active = isset($_POST['is_active']) ? 'true' : 'false';
 
     $license_number = sanitize($_POST['license_number'] ?? '');
     $specialization = sanitize($_POST['specialization'] ?? '');
@@ -78,11 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($checkStmt->get_result()->num_rows > 0) {
             $error = 'Username or email already exists for another user.';
         } else {
-            // Update user
+            // Update user (PostgreSQL boolean cast for is_active)
             $updStmt = $db->prepare("UPDATE users 
-                                     SET username = ?, email = ?, full_name = ?, role = ?, branch_id = ?, phone = ?, is_active = ? 
+                                     SET username = ?, email = ?, full_name = ?, role = ?, branch_id = ?, phone = ?, is_active = CAST(? AS BOOLEAN) 
                                      WHERE user_id = ?");
-            $updStmt->bind_param("ssssiisi", $username, $email, $full_name, $role, $branch_id, $phone, $is_active, $user_id);
+            $updStmt->bind_param("ssssissi", $username, $email, $full_name, $role, $branch_id, $phone, $is_active, $user_id);
 
             if ($updStmt->execute()) {
                 // Handle dentist-specific data
