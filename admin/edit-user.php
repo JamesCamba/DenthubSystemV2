@@ -106,9 +106,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                     // Update service mastery
                     if ($dentist_id) {
-                        $db->prepare("DELETE FROM dentist_service_mastery WHERE dentist_id = ?")
-                           ->bind_param("i", $dentist_id)
-                           ->execute();
+                        $delStmt = $db->prepare("DELETE FROM dentist_service_mastery WHERE dentist_id = ?");
+                        $delStmt->bind_param("i", $dentist_id);
+                        $delStmt->execute();
 
                         if (!empty($service_mastery)) {
                             $mIns = $db->prepare("INSERT INTO dentist_service_mastery (dentist_id, service_id) VALUES (?, ?)");

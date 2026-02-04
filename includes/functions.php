@@ -210,8 +210,18 @@ function getStatusBadge($status) {
 function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $changed_by_user_id = null) {
     $db = getDB();
 
-    // Fetch current appointment
-    $stmt = $db->prepare("SELECT appointment_id, patient_id, status, appointment_date FROM appointments WHERE appointment_id = ?");
+    // Fetch current appointment with full details for email
+    $stmt = $db->prepare("
+        SELECT a.appointment_id, a.patient_id, a.status, a.appointment_date, a.appointment_time, 
+               a.appointment_number, p.first_name, p.last_name, p.email as patient_email,
+               s.service_name, u.full_name as dentist_name
+        FROM appointments a
+        JOIN patients p ON a.patient_id = p.patient_id
+        JOIN services s ON a.service_id = s.service_id
+        LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
+        LEFT JOIN users u ON d.user_id = u.user_id
+        WHERE a.appointment_id = ?
+    ");
     $stmt->bind_param("i", $appointment_id);
     $stmt->execute();
     $apt = $stmt->get_result()->fetch_assoc();
@@ -266,6 +276,29 @@ function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $c
 
     if (!$ok) {
         return false;
+    }
+
+    // Send confirmation email when status changes to 'confirmed'
+    if ($new_status === 'confirmed' && $current !== 'confirmed' && !empty($apt['patient_email'])) {
+        // Only send email if transitioning TO confirmed (not if already confirmed)
+        require_once __DIR__ . '/mailer.php';
+        $mailer = getMailer();
+        
+        $patient_name = trim($apt['first_name'] . ' ' . $apt['last_name']);
+        $appointment_data = [
+            'appointment_number' => $apt['appointment_number'],
+            'service' => $apt['service_name'],
+            'date' => formatDate($apt['appointment_date']),
+            'time' => formatTime($apt['appointment_time']),
+            'dentist' => $apt['dentist_name'] ?? 'TBD'
+        ];
+        
+        // Send email (fail silently if email sending fails - don't block status update)
+        try {
+            $mailer->sendAppointmentConfirmation($apt['patient_email'], $patient_name, $appointment_data);
+        } catch (Exception $e) {
+            error_log("Failed to send appointment confirmation email: " . $e->getMessage());
+        }
     }
 
     // Handle no-show tracking when transitioning to no_show
