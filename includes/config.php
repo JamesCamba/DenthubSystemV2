@@ -6,7 +6,8 @@
 
 // Database Configuration (PostgreSQL)
 // Supports both environment variables (Railway) and direct connection string
-$neon_connection_string = getenv('DATABASE_URL') ?: 'postgresql://neondb_owner:npg_1MeBTYFx9XPN@ep-young-dawn-a1pvepi1-pooler.ap-southeast-1.aws.neon.tech/denthub_clinic?sslmode=require&channel_binding=require';
+// Default to Neon Denthub v2 database when DATABASE_URL is not set
+$neon_connection_string = getenv('DATABASE_URL') ?: 'postgresql://neondb_owner:npg_1MeBTYFx9XPN@ep-young-dawn-a1pvepi1-pooler.ap-southeast-1.aws.neon.tech/denthub_clinicv2?sslmode=require&channel_binding=require';
 
 // Parse connection string
 $parsed = parse_url($neon_connection_string);
@@ -58,6 +59,12 @@ define('ITEMS_PER_PAGE', 10);
 // File Upload
 define('UPLOAD_MAX_SIZE', 5242880); // 5MB
 define('UPLOAD_DIR', 'uploads/');
+
+// Composer autoload (for external libraries like Metaphone 3, etc.)
+$autoloadPath = __DIR__ . '/../vendor/autoload.php';
+if (file_exists($autoloadPath)) {
+    require_once $autoloadPath;
+}
 
 // Set timezone
 date_default_timezone_set(TIMEZONE);

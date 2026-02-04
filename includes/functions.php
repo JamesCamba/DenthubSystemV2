@@ -5,6 +5,9 @@
 
 require_once __DIR__ . '/database.php';
 
+// Optional external libraries (loaded via Composer in config.php)
+use voku\helper\PhoneticAlgorithms;
+
 // Generate patient number
 function generatePatientNumber() {
     $db = getDB();
@@ -194,6 +197,121 @@ function getStatusBadge($status) {
     return $badges[$status] ?? 'secondary';
 }
 
+/**
+ * Centralized appointment status update with business rules.
+ *
+ * Rules:
+ * - New appointments start as 'pending'.
+ * - From 'pending' you can go to 'confirmed' or 'cancelled'.
+ * - From 'confirmed' you can go to 'completed', 'cancelled' or 'no_show'.
+ * - Once 'completed', 'cancelled', or 'no_show', the record is locked.
+ * - When moving to 'no_show', patient's no_show_count / last_no_show_date are updated.
+ */
+function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $changed_by_user_id = null) {
+    $db = getDB();
+
+    // Fetch current appointment
+    $stmt = $db->prepare("SELECT appointment_id, patient_id, status, appointment_date FROM appointments WHERE appointment_id = ?");
+    $stmt->bind_param("i", $appointment_id);
+    $stmt->execute();
+    $apt = $stmt->get_result()->fetch_assoc();
+
+    if (!$apt) {
+        return false;
+    }
+
+    $current = $apt['status'];
+    $allowed = [];
+
+    switch ($current) {
+        case 'pending':
+            $allowed = ['pending', 'confirmed', 'cancelled'];
+            break;
+        case 'confirmed':
+            $allowed = ['confirmed', 'completed', 'cancelled', 'no_show'];
+            break;
+        case 'completed':
+        case 'cancelled':
+        case 'no_show':
+            // Locked – cannot change
+            $allowed = [$current];
+            break;
+        default:
+            $allowed = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'];
+    }
+
+    if (!in_array($new_status, $allowed, true)) {
+        // Invalid transition
+        return false;
+    }
+
+    // If already locked, do nothing
+    if (in_array($current, ['completed', 'cancelled', 'no_show'], true)) {
+        return $current === $new_status;
+    }
+
+    $notesSql = $notes !== null ? ", notes = ?" : "";
+    $params = [$new_status, $appointment_id];
+    $types  = "si";
+
+    if ($notes !== null) {
+        $params = [$new_status, $notes, $appointment_id];
+        $types  = "ssi";
+    }
+
+    $sql = "UPDATE appointments SET status = ?{$notesSql}, updated_at = NOW() WHERE appointment_id = ?";
+    $updateStmt = $db->prepare($sql);
+    $updateStmt->bind_param($types, ...$params);
+    $ok = $updateStmt->execute();
+
+    if (!$ok) {
+        return false;
+    }
+
+    // Handle no-show tracking when transitioning to no_show
+    if ($new_status === 'no_show' && $apt['patient_id']) {
+        $patient_id = (int)$apt['patient_id'];
+        $date = $apt['appointment_date'] ?: date('Y-m-d');
+
+        // Increment no_show_count and set last_no_show_date
+        $nsStmt = $db->prepare("
+            UPDATE patients
+            SET no_show_count = COALESCE(no_show_count, 0) + 1,
+                last_no_show_date = GREATEST(COALESCE(last_no_show_date, '1900-01-01'), ?)
+            WHERE patient_id = ?
+        ");
+        $nsStmt->bind_param("si", $date, $patient_id);
+        $nsStmt->execute();
+    }
+
+    return true;
+}
+
+/**
+ * Auto-mark overdue appointments (past date) that are still pending/confirmed as no_show.
+ * This helps keep the UI consistent without a separate cron.
+ */
+function autoUpdateOverdueAppointments() {
+    $db = getDB();
+    $today = date('Y-m-d');
+
+    // Find affected appointments first so we can update patients individually.
+    $stmt = $db->prepare("
+        SELECT appointment_id
+        FROM appointments
+        WHERE appointment_date < ?
+          AND status IN ('pending', 'confirmed')
+        LIMIT 200
+    ");
+    $stmt->bind_param("s", $today);
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+    while ($row = $result->fetch_assoc()) {
+        updateAppointmentStatus((int)$row['appointment_id'], 'no_show');
+    }
+}
+
 // Get lab case status badge class
 function getLabStatusBadge($status) {
     $badges = [
@@ -336,5 +454,63 @@ function validateEmail($email) {
 // Validate phone
 function validatePhone($phone) {
     return preg_match('/^[0-9+\-\s()]+$/', $phone);
+}
+
+// Can this patient book online based on recent no-shows?
+// Returns true if allowed, false if patient must call the clinic.
+function canBookOnline($patient_id) {
+    $db = getDB();
+    $stmt = $db->prepare("
+        SELECT no_show_count, last_no_show_date
+        FROM patients
+        WHERE patient_id = ?
+          AND no_show_count >= 2
+          AND last_no_show_date >= (CURRENT_DATE - INTERVAL '30 days')
+    ");
+    $stmt->bind_param("i", $patient_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    return $res->num_rows === 0;
+}
+
+/**
+ * Log changes to patient contact information.
+ * Expects patient_audit_log table to exist in the database.
+ */
+function logPatientChange($patient_id, $field, $old_value, $new_value, $changed_by = null) {
+    if ($old_value === $new_value) {
+        return;
+    }
+    $db = getDB();
+    $stmt = $db->prepare("
+        INSERT INTO patient_audit_log (patient_id, changed_field, old_value, new_value, changed_by)
+        VALUES (?, ?, ?, ?, ?)
+    ");
+    $stmt->bind_param("isssi", $patient_id, $field, $old_value, $new_value, $changed_by);
+    $stmt->execute();
+}
+
+/**
+ * Compute phonetic keys for a name using Metaphone 3 / Double Metaphone
+ * via voku/phonetic-algorithms.
+ */
+function getMetaphone3Keys($first_name, $last_name) {
+    if (!class_exists(PhoneticAlgorithms::class)) {
+        // Fallback to built-in metaphone if library is not available
+        return [
+            'first' => metaphone($first_name),
+            'last'  => metaphone($last_name),
+        ];
+    }
+
+    $phonetic = new PhoneticAlgorithms();
+    $first = $phonetic->doubleMetaphone($first_name);
+    $last  = $phonetic->doubleMetaphone($last_name);
+
+    // Use primary codes, trimmed to 20 chars as per schema
+    return [
+        'first' => substr($first['primary'] ?? '', 0, 20),
+        'last'  => substr($last['primary'] ?? '', 0, 20),
+    ];
 }
 

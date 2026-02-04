@@ -19,7 +19,10 @@ $stmt->execute();
 $dentist = $stmt->get_result()->fetch_assoc();
 $dentist_id = $dentist['dentist_id'];
 
-// Handle status update
+// Auto-update overdue appointments for this dentist
+autoUpdateOverdueAppointments();
+
+// Handle status update using centralized rules
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $appointment_id = intval($_POST['appointment_id']);
     $status = sanitize($_POST['status']);
@@ -30,11 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $checkStmt->bind_param("ii", $appointment_id, $dentist_id);
     $checkStmt->execute();
     
-    if ($checkStmt->get_result()->num_rows === 1) {
-        $stmt = $db->prepare("UPDATE appointments SET status = ?, notes = ? WHERE appointment_id = ?");
-        $stmt->bind_param("ssi", $status, $notes, $appointment_id);
-        $stmt->execute();
-        
+    if ($checkStmt->get_result()->num_rows === 1 && updateAppointmentStatus($appointment_id, $status, $notes, $_SESSION['user_id'] ?? null)) {
         header('Location: appointments.php?updated=1');
         exit;
     }
@@ -75,6 +74,57 @@ $stmt = $db->prepare($sql);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $appointments = $stmt->get_result();
+
+// If this is an AJAX request, return only the table body HTML
+if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
+    ob_start();
+    if ($appointments->num_rows > 0): ?>
+        <?php while ($apt = $appointments->fetch_assoc()): ?>
+            <tr>
+                <td><code><?php echo htmlspecialchars($apt['appointment_number']); ?></code></td>
+                <td><?php echo htmlspecialchars($apt['first_name'] . ' ' . $apt['last_name']); ?></td>
+                <td><?php echo htmlspecialchars($apt['service_name']); ?></td>
+                <td><?php echo formatDate($apt['appointment_date']); ?></td>
+                <td><?php echo formatTime($apt['appointment_time']); ?></td>
+                <td>
+                    <?php 
+                    $statusOptions = getAvailableStatusOptions($apt['status'], $apt['appointment_date']);
+                    $isLocked = in_array($apt['status'], ['completed', 'cancelled', 'no_show']);
+                    ?>
+                    <?php if ($isLocked): ?>
+                        <span class="badge bg-<?php echo getStatusBadge($apt['status']); ?>">
+                            <?php echo ucfirst(str_replace('_', ' ', $apt['status'])); ?>
+                        </span>
+                    <?php else: ?>
+                        <form method="POST" action="" class="d-inline">
+                            <input type="hidden" name="appointment_id" value="<?php echo $apt['appointment_id']; ?>">
+                            <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <?php foreach ($statusOptions as $value => $label): ?>
+                                    <option value="<?php echo $value; ?>" <?php echo $apt['status'] === $value ? 'selected' : ''; ?>>
+                                        <?php echo $label; ?>
+                                    </option>
+                                <?php endforeach; ?>
+                            </select>
+                            <input type="hidden" name="update_status" value="1">
+                        </form>
+                    <?php endif; ?>
+                </td>
+                <td>
+                    <a href="view-appointment.php?id=<?php echo $apt['appointment_id']; ?>" class="btn btn-sm btn-outline-primary">
+                        View
+                    </a>
+                </td>
+            </tr>
+        <?php endwhile; ?>
+    <?php else: ?>
+        <tr>
+            <td colspan="7" class="text-center text-muted">No appointments found.</td>
+        </tr>
+    <?php endif;
+    $html = ob_get_clean();
+    echo $html;
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -135,7 +185,7 @@ $appointments = $stmt->get_result();
         <!-- Filters -->
         <div class="card mb-4">
             <div class="card-body">
-                <form method="GET" action="">
+                <form method="GET" action="" id="filterForm">
                     <div class="row g-3">
                         <div class="col-md-4">
                             <label class="form-label">Status</label>
@@ -231,5 +281,43 @@ $appointments = $stmt->get_result();
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Realtime filter for status/date with 2s debounce using AJAX
+        (function() {
+            const form = document.getElementById('filterForm');
+            const tableBody = document.querySelector('table.table tbody');
+            if (!form || !tableBody) return;
+
+            const statusInput = form.querySelector('select[name="status"]');
+            const dateInput = form.querySelector('input[name="date"]');
+            let searchTimeout;
+
+            function fetchAppointmentsRealtime() {
+                const params = new URLSearchParams();
+                if (statusInput.value) params.append('status', statusInput.value);
+                if (dateInput.value) params.append('date', dateInput.value);
+                params.append('ajax', '1');
+
+                fetch('appointments.php?' + params.toString(), {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                    .then(res => res.text())
+                    .then(html => {
+                        tableBody.innerHTML = html;
+                    })
+                    .catch(err => console.error('Error loading appointments:', err));
+            }
+
+            function scheduleFetch() {
+                if (searchTimeout) {
+                    clearTimeout(searchTimeout);
+                }
+                searchTimeout = setTimeout(fetchAppointmentsRealtime, 2000);
+            }
+
+            statusInput.addEventListener('change', scheduleFetch);
+            dateInput.addEventListener('change', scheduleFetch);
+        })();
+    </script>
 </body>
 </html>

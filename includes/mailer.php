@@ -114,7 +114,7 @@ class Mailer {
             $subject = 'Email Verification Code - Denthub Dental Clinic';
             $text    = "Your verification code is: $code\n\nThis code will expire in 10 minutes.";
         }
-        $html    = $this->getVerificationTemplate($code, $name);
+        $html    = $this->getVerificationTemplate($code, $name, $purpose);
 
         if ($this->driver === 'maileroo' && $this->apiKey) {
             return $this->sendViaMaileroo($to, $subject, $html, $text, $name);
@@ -222,17 +222,48 @@ class Mailer {
     
     /**
      * Get verification code email template
+     * Adds visual distinction between registration and password reset.
      */
-    private function getVerificationTemplate($code, $name) {
+    private function getVerificationTemplate($code, $name, $purpose = 'registration') {
         $name = $name ?: 'Valued Patient';
         $templatePath = __DIR__ . '/../templates/email_verification.html';
         if (!file_exists($templatePath)) {
             // Fallback to simple text template
-            return "Hello $name,\n\nYour verification code is: $code\n\nThis code will expire in 10 minutes.";
+            if ($purpose === 'password_reset') {
+                return "RESET PASSWORD\n\nHello $name,\n\nYour password reset verification code is: $code\n\nThis code will expire in 10 minutes.";
+            }
+            return "REGISTER\n\nHello $name,\n\nYour verification code is: $code\n\nThis code will expire in 10 minutes.";
         }
         $template = file_get_contents($templatePath);
         $template = str_replace('{{NAME}}', htmlspecialchars($name), $template);
         $template = str_replace('{{CODE}}', htmlspecialchars($code), $template);
+
+        // Add purpose-specific badge and colors
+        if ($purpose === 'password_reset') {
+            // Change heading and color to red, label RESET PASSWORD
+            $template = str_replace(
+                'Email Verification',
+                'RESET PASSWORD',
+                $template
+            );
+            $template = str_replace(
+                '#0d6efd',
+                '#dc3545',
+                $template
+            );
+            $badgeHtml = '<div style="margin-bottom: 10px;"><strong style="display:inline-block;padding:6px 12px;border-radius:999px;background-color:#dc3545;color:#ffffff;font-size:12px;letter-spacing:1px;">RESET PASSWORD</strong></div>';
+        } else {
+            // Registration – keep original blue color, show REGISTER badge
+            $badgeHtml = '<div style="margin-bottom: 10px;"><strong style="display:inline-block;padding:6px 12px;border-radius:999px;background-color:#0d6efd;color:#ffffff;font-size:12px;letter-spacing:1px;">REGISTER</strong></div>';
+        }
+
+        // Inject badge before the introductory paragraph
+        $template = str_replace(
+            '<p style="color: #666666; font-size: 16px; line-height: 1.6;">',
+            $badgeHtml . '<p style="color: #666666; font-size: 16px; line-height: 1.6;">',
+            $template
+        );
+
         return $template;
     }
     

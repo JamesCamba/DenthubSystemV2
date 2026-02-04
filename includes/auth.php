@@ -52,7 +52,7 @@ function login($username_or_email, $password) {
     $db = getDB();
     // Try to find user by username or email
     // PostgreSQL: use boolean comparison with TRUE instead of integer 1
-    $stmt = $db->prepare("SELECT user_id, username, email, password_hash, full_name, role, branch_id FROM users WHERE (username = ? OR email = ?) AND is_active = TRUE");
+    $stmt = $db->prepare("SELECT user_id, username, email, password_hash, full_name, role, branch_id, must_change_password FROM users WHERE (username = ? OR email = ?) AND is_active = TRUE");
     $stmt->bind_param("ss", $username_or_email, $username_or_email);
     $stmt->execute();
     $result = $stmt->get_result();
@@ -65,6 +65,7 @@ function login($username_or_email, $password) {
             $_SESSION['full_name'] = $user['full_name'];
             $_SESSION['role'] = $user['role'];
             $_SESSION['branch_id'] = $user['branch_id'];
+            $_SESSION['must_change_password'] = !empty($user['must_change_password']);
             return true;
         }
     }

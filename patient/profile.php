@@ -9,7 +9,54 @@ require_once '../includes/auth.php';
 
 requirePatientLogin();
 
+$db = getDB();
 $patient = getCurrentPatient();
+$error = '';
+$success = '';
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $patient_id = (int)$_SESSION['patient_id'];
+
+    // Re-fetch latest data for comparison
+    $stmt = $db->prepare("SELECT email, phone, address FROM patients WHERE patient_id = ?");
+    $stmt->bind_param("i", $patient_id);
+    $stmt->execute();
+    $current = $stmt->get_result()->fetch_assoc();
+
+    $new_email = sanitize($_POST['email'] ?? $current['email']);
+    $new_phone = sanitize($_POST['phone'] ?? $current['phone']);
+    $new_address = sanitize($_POST['address'] ?? $current['address']);
+
+    if (!empty($new_email) && !validateEmail($new_email)) {
+        $error = 'Invalid email address.';
+    } elseif (!empty($new_phone) && !validatePhone($new_phone)) {
+        $error = 'Invalid phone number.';
+    } else {
+        $changed_by = null; // patient editing their own record
+
+        // Log and update phone + phone_hash
+        if ($new_phone !== $current['phone'] || $new_address !== $current['address']) {
+            // Audit trail
+            logPatientChange($patient_id, 'phone', $current['phone'], $new_phone, $changed_by);
+            logPatientChange($patient_id, 'address', $current['address'], $new_address, $changed_by);
+
+            $phone_hash = $new_phone ? hash('sha256', $new_phone) : null;
+            $upd = $db->prepare("UPDATE patients SET phone = ?, phone_hash = ?, address = ?, updated_at = NOW() WHERE patient_id = ?");
+            $upd->bind_param("sssi", $new_phone, $phone_hash, $new_address, $patient_id);
+            $upd->execute();
+        }
+
+        // Email re-verification flow: do not change email directly here.
+        if ($new_email !== $current['email']) {
+            $error = 'To change your email, please contact the clinic so they can verify and update it securely.';
+        } else {
+            $success = 'Profile updated successfully.';
+        }
+
+        // Refresh patient data for display
+        $patient = getCurrentPatient();
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">

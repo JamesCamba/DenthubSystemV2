@@ -31,6 +31,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Validation
         if (empty($service_id) || empty($appointment_date) || empty($appointment_time)) {
             $error = 'Please fill in all required fields.';
+        } elseif (!canBookOnline($patient_id)) {
+            $error = 'You have multiple recent no-shows. Please call the clinic to book a new appointment.';
         } elseif (isDateBlocked($appointment_date, $branch_id)) {
             $error = 'Selected date is not available.';
         } else {

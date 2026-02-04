@@ -26,6 +26,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (empty($username) || empty($password)) {
         $error = 'Please enter username and password.';
     } elseif (login($username, $password)) {
+        // If this is a first-time login with a temporary password,
+        // force the user to change it before accessing the dashboard.
+        if (!empty($_SESSION['must_change_password'])) {
+            header('Location: force-password-change.php');
+            exit;
+        }
+
         header('Location: dashboard.php');
         exit;
     } else {

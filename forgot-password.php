@@ -9,6 +9,14 @@ require_once 'includes/mailer.php';
 
 session_start();
 
+// Simple rate limiting for password reset attempts
+if (!isset($_SESSION['reset_attempts'])) {
+    $_SESSION['reset_attempts'] = 0;
+}
+if (!isset($_SESSION['reset_block_until'])) {
+    $_SESSION['reset_block_until'] = 0;
+}
+
 $error = '';
 $success = '';
 $step = $_GET['step'] ?? 'request'; // request, verify, reset
@@ -17,9 +25,16 @@ $step = $_GET['step'] ?? 'request'; // request, verify, reset
 if ($step === 'verify' && isset($_POST['resend_code'])) {
     $email = sanitize($_POST['email'] ?? '');
     
-    if (empty($email)) {
+    if (time() < $_SESSION['reset_block_until']) {
+        $error = 'Too many attempts. Please try again in 1 hour.';
+    } elseif (empty($email)) {
         $error = 'Email address is required.';
     } else {
+        $_SESSION['reset_attempts']++;
+        if ($_SESSION['reset_attempts'] > 5) {
+            $_SESSION['reset_block_until'] = time() + 3600;
+            $error = 'Too many attempts. Please try again in 1 hour.';
+        } else {
         $db = getDB();
         
         // Check if email exists in patient_accounts
@@ -68,6 +83,7 @@ if ($step === 'verify' && isset($_POST['resend_code'])) {
                 $error = 'Error generating verification code. Please try again.';
             }
         }
+        }
     }
 }
 
@@ -75,63 +91,71 @@ if ($step === 'verify' && isset($_POST['resend_code'])) {
 if ($step === 'request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = sanitize($_POST['email'] ?? '');
     
-    if (empty($email)) {
+    if (time() < $_SESSION['reset_block_until']) {
+        $error = 'Too many attempts. Please try again in 1 hour.';
+    } elseif (empty($email)) {
         $error = 'Please enter your email address.';
     } elseif (!validateEmail($email)) {
         $error = 'Invalid email address.';
     } else {
-        $db = getDB();
-        
-        // Check if email exists in patient_accounts (verified accounts only)
-        $stmt = $db->prepare("SELECT account_id FROM patient_accounts WHERE email = ? AND is_verified = TRUE");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 0) {
-            $error = 'Email not found or account not verified.';
+        $_SESSION['reset_attempts']++;
+        if ($_SESSION['reset_attempts'] > 5) {
+            $_SESSION['reset_block_until'] = time() + 3600;
+            $error = 'Too many attempts. Please try again in 1 hour.';
         } else {
-            // Generate 6-digit verification code
-            $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+            $db = getDB();
             
-            // Invalidate any old codes for this email
-            $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'password_reset'");
-            $invalidateStmt->bind_param("s", $email);
-            $invalidateStmt->execute();
+            // Check if email exists in patient_accounts (verified accounts only)
+            $stmt = $db->prepare("SELECT account_id FROM patient_accounts WHERE email = ? AND is_verified = TRUE");
+            $stmt->bind_param("s", $email);
+            $stmt->execute();
+            $result = $stmt->get_result();
             
-            // Save verification code
-            $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
-                                      VALUES (?, ?, 'password_reset', ?)");
-            $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
-            
-            if (!$codeStmt->execute()) {
-                $error = 'Error generating verification code. Please try again.';
+            if ($result->num_rows === 0) {
+                $error = 'Email not found or account not verified.';
             } else {
-                // Get patient name for email
-                $patientStmt = $db->prepare("SELECT p.first_name, p.last_name FROM patients p 
-                                           JOIN patient_accounts pa ON p.patient_id = pa.patient_id 
-                                           WHERE pa.email = ?");
-                $patientStmt->bind_param("s", $email);
-                $patientStmt->execute();
-                $patientResult = $patientStmt->get_result();
-                $patient = $patientResult->fetch_assoc();
-                $patient_name = ($patient ? $patient['first_name'] . ' ' . $patient['last_name'] : 'Valued Patient');
+                // Generate 6-digit verification code
+                $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
                 
-                // Send verification email
-                $mailer = getMailer();
+                // Invalidate any old codes for this email
+                $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'password_reset'");
+                $invalidateStmt->bind_param("s", $email);
+                $invalidateStmt->execute();
                 
-                if ($mailer->sendVerificationCode($email, $verification_code, $patient_name, 'password_reset')) {
-                    // Store email in session for verification step
-                    $_SESSION['password_reset_email'] = $email;
-                    header('Location: forgot-password.php?step=verify&email=' . urlencode($email));
-                    exit;
+                // Save verification code
+                $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
+                                          VALUES (?, ?, 'password_reset', ?)");
+                $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
+                
+                if (!$codeStmt->execute()) {
+                    $error = 'Error generating verification code. Please try again.';
                 } else {
-                    // Email sending failed - delete verification code
-                    $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
-                    $deleteCodeStmt->bind_param("ss", $email, $verification_code);
-                    $deleteCodeStmt->execute();
-                    $error = 'Failed to send verification email. Please try again.';
+                    // Get patient name for email
+                    $patientStmt = $db->prepare("SELECT p.first_name, p.last_name FROM patients p 
+                                               JOIN patient_accounts pa ON p.patient_id = pa.patient_id 
+                                               WHERE pa.email = ?");
+                    $patientStmt->bind_param("s", $email);
+                    $patientStmt->execute();
+                    $patientResult = $patientStmt->get_result();
+                    $patient = $patientResult->fetch_assoc();
+                    $patient_name = ($patient ? $patient['first_name'] . ' ' . $patient['last_name'] : 'Valued Patient');
+                    
+                    // Send verification email
+                    $mailer = getMailer();
+                    
+                    if ($mailer->sendVerificationCode($email, $verification_code, $patient_name, 'password_reset')) {
+                        // Store email in session for verification step
+                        $_SESSION['password_reset_email'] = $email;
+                        header('Location: forgot-password.php?step=verify&email=' . urlencode($email));
+                        exit;
+                    } else {
+                        // Email sending failed - delete verification code
+                        $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
+                        $deleteCodeStmt->bind_param("ss", $email, $verification_code);
+                        $deleteCodeStmt->execute();
+                        $error = 'Failed to send verification email. Please try again.';
+                    }
                 }
             }
         }
@@ -143,33 +167,41 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST
     $email = sanitize($_POST['email'] ?? '');
     $code = sanitize($_POST['verification_code'] ?? '');
     
-    if (empty($email) || empty($code)) {
+    if (time() < $_SESSION['reset_block_until']) {
+        $error = 'Too many attempts. Please try again in 1 hour.';
+    } elseif (empty($email) || empty($code)) {
         $error = 'Please enter the verification code.';
     } else {
-        $db = getDB();
-        $stmt = $db->prepare("SELECT * FROM email_verification_codes 
-                              WHERE email = ? AND verification_code = ? 
-                              AND is_used = FALSE AND expires_at > NOW() 
-                              AND purpose = 'password_reset'
-                              ORDER BY created_at DESC LIMIT 1");
-        $stmt->bind_param("ss", $email, $code);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($result->num_rows === 1) {
-            $verification = $result->fetch_assoc();
-            
-            // Mark code as used
-            $updateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE code_id = ?");
-            $updateStmt->bind_param("i", $verification['code_id']);
-            $updateStmt->execute();
-            
-            // Store verified email in session for password reset step
-            $_SESSION['password_reset_verified'] = $email;
-            header('Location: forgot-password.php?step=reset&email=' . urlencode($email));
-            exit;
+        $_SESSION['reset_attempts']++;
+        if ($_SESSION['reset_attempts'] > 5) {
+            $_SESSION['reset_block_until'] = time() + 3600;
+            $error = 'Too many attempts. Please try again in 1 hour.';
         } else {
-            $error = 'Invalid or expired verification code. Please try again.';
+            $db = getDB();
+            $stmt = $db->prepare("SELECT * FROM email_verification_codes 
+                                  WHERE email = ? AND verification_code = ? 
+                                  AND is_used = FALSE AND expires_at > NOW() 
+                                  AND purpose = 'password_reset'
+                                  ORDER BY created_at DESC LIMIT 1");
+            $stmt->bind_param("ss", $email, $code);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows === 1) {
+                $verification = $result->fetch_assoc();
+                
+                // Mark code as used
+                $updateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE code_id = ?");
+                $updateStmt->bind_param("i", $verification['code_id']);
+                $updateStmt->execute();
+                
+                // Store verified email in session for password reset step
+                $_SESSION['password_reset_verified'] = $email;
+                header('Location: forgot-password.php?step=reset&email=' . urlencode($email));
+                exit;
+            } else {
+                $error = 'Invalid or expired verification code. Please try again.';
+            }
         }
     }
 }

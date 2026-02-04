@@ -45,11 +45,12 @@ $role = sanitize($_POST['role'] ?? 'admin');
             // Generate temporary password
             $temp_password = bin2hex(random_bytes(4)); // 8 character password
             $password_hash = password_hash($temp_password, PASSWORD_DEFAULT);
+            $phone_hash = $phone ? hash('sha256', $phone) : null;
             
-            // Create user account
-            $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, full_name, role, branch_id, phone, is_active) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, 1)");
-            $stmt->bind_param("sssssis", $username, $email, $password_hash, $full_name, $role, $branch_id, $phone);
+            // Create user account with must_change_password flag and phone_hash
+            $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, full_name, role, branch_id, phone, phone_hash, is_active, must_change_password) 
+                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE)");
+            $stmt->bind_param("sssssiss", $username, $email, $password_hash, $full_name, $role, $branch_id, $phone, $phone_hash);
             
             if ($stmt->execute()) {
                 $user_id = $db->insert_id;

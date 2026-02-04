@@ -11,16 +11,19 @@ requireLogin();
 
 $db = getDB();
 
-// Handle status update
+// Auto-update overdue appointments to no_show for consistency
+autoUpdateOverdueAppointments();
+
+// Handle status update using centralized rules
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $appointment_id = intval($_POST['appointment_id']);
     $status = sanitize($_POST['status']);
-    
-    $stmt = $db->prepare("UPDATE appointments SET status = ? WHERE appointment_id = ?");
-    $stmt->bind_param("si", $status, $appointment_id);
-    $stmt->execute();
-    
-    header('Location: appointments.php?updated=1');
+
+    if (updateAppointmentStatus($appointment_id, $status, null, $_SESSION['user_id'] ?? null)) {
+        header('Location: appointments.php?updated=1');
+    } else {
+        header('Location: appointments.php?error=invalid_status');
+    }
     exit;
 }
 

@@ -9,6 +9,14 @@ require_once 'includes/mailer.php';
 
 session_start();
 
+// Simple rate limiting to prevent OTP/registration brute force
+if (!isset($_SESSION['register_attempts'])) {
+    $_SESSION['register_attempts'] = 0;
+}
+if (!isset($_SESSION['register_block_until'])) {
+    $_SESSION['register_block_until'] = 0;
+}
+
 $error = '';
 $success = '';
 $step = $_GET['step'] ?? 'register'; // register, verify
@@ -17,9 +25,16 @@ $step = $_GET['step'] ?? 'register'; // register, verify
 if ($step === 'verify' && isset($_POST['resend_code'])) {
     $email = sanitize($_POST['email'] ?? '');
     
-    if (empty($email)) {
+    if (time() < $_SESSION['register_block_until']) {
+        $error = 'Too many attempts. Please try again in 1 hour.';
+    } elseif (empty($email)) {
         $error = 'Email address is required.';
     } else {
+        $_SESSION['register_attempts']++;
+        if ($_SESSION['register_attempts'] > 5) {
+            $_SESSION['register_block_until'] = time() + 3600; // 1 hour
+            $error = 'Too many attempts. Please try again in 1 hour.';
+        } else {
         // Check if there's pending registration data in session
         if (isset($_SESSION['pending_registration']) && $_SESSION['pending_registration']['email'] === $email) {
             $db = getDB();
@@ -51,6 +66,7 @@ if ($step === 'verify' && isset($_POST['resend_code'])) {
             } else {
                 $error = 'Error generating verification code. Please try again.';
             }
+        }
         } else {
             $error = 'No pending registration found. Please register again.';
         }
@@ -62,9 +78,16 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST
     $email = sanitize($_POST['email'] ?? '');
     $code = sanitize($_POST['verification_code'] ?? '');
     
-    if (empty($email) || empty($code)) {
+    if (time() < $_SESSION['register_block_until']) {
+        $error = 'Too many attempts. Please try again in 1 hour.';
+    } elseif (empty($email) || empty($code)) {
         $error = 'Please enter the verification code.';
     } else {
+        $_SESSION['register_attempts']++;
+        if ($_SESSION['register_attempts'] > 5) {
+            $_SESSION['register_block_until'] = time() + 3600;
+            $error = 'Too many attempts. Please try again in 1 hour.';
+        } else {
         $db = getDB();
         $stmt = $db->prepare("SELECT * FROM email_verification_codes 
                               WHERE email = ? AND verification_code = ? 
@@ -91,11 +114,27 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST
                 
                 // NOW create patient record (only after verification)
                 $patient_number = generatePatientNumber();
-                $stmt = $db->prepare("INSERT INTO patients (patient_number, first_name, last_name, middle_name, email, phone, birthdate, gender, address) 
-                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-                $stmt->bind_param("sssssssss", $patient_number, $reg_data['first_name'], $reg_data['last_name'], 
-                                 $reg_data['middle_name'], $reg_data['email'], $reg_data['phone'], 
-                                 $reg_data['birthdate'], $reg_data['gender'], $reg_data['address']);
+                $phone_hash = $reg_data['phone'] ? hash('sha256', $reg_data['phone']) : null;
+                $first_meta = $reg_data['first_name_metaphone'] ?? null;
+                $last_meta  = $reg_data['last_name_metaphone'] ?? null;
+
+                $stmt = $db->prepare("INSERT INTO patients (patient_number, first_name, last_name, middle_name, email, phone, birthdate, gender, address, phone_hash, first_name_metaphone, last_name_metaphone) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                $stmt->bind_param(
+                    "ssssssssssss",
+                    $patient_number,
+                    $reg_data['first_name'],
+                    $reg_data['last_name'],
+                    $reg_data['middle_name'],
+                    $reg_data['email'],
+                    $reg_data['phone'],
+                    $reg_data['birthdate'],
+                    $reg_data['gender'],
+                    $reg_data['address'],
+                    $phone_hash,
+                    $first_meta,
+                    $last_meta
+                );
                 
                 if ($stmt->execute()) {
                     $patient_id = $db->getLastInsertId();
@@ -128,6 +167,7 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST
         } else {
             $error = 'Invalid or expired verification code. Please try again.';
         }
+        }
     }
 }
 
@@ -159,60 +199,95 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     } elseif (!empty($birthdate) && (int)date('Y', strtotime($birthdate)) > (int)date('Y')) {
         $error = 'Birthdate year cannot exceed current year.';
     } else {
-        $db = getDB();
-        
-        // Check if email already exists in patient_accounts (verified accounts)
-        $stmt = $db->prepare("SELECT account_id FROM patient_accounts WHERE email = ? AND is_verified = TRUE");
-        $stmt->bind_param("s", $email);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
-            $error = 'Email already registered. Please login instead.';
+        if (time() < $_SESSION['register_block_until']) {
+            $error = 'Too many attempts. Please try again in 1 hour.';
         } else {
-            // Store registration data in session (NOT in database yet)
-            $_SESSION['pending_registration'] = [
-                'first_name' => $first_name,
-                'last_name' => $last_name,
-                'middle_name' => $middle_name,
-                'email' => $email,
-                'phone' => $phone,
-                'birthdate' => $birthdate ?: null,
-                'gender' => $gender ?: null,
-                'address' => $address ?: null,
-                'password' => $password
-            ];
-            
-            // Generate 6-digit verification code
-            $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
-            
-            // Invalidate any old codes for this email
-            $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'registration'");
-            $invalidateStmt->bind_param("s", $email);
-            $invalidateStmt->execute();
-            
-            // Save verification code
-            $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
-                                      VALUES (?, ?, 'registration', ?)");
-            $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
-            
-            if (!$codeStmt->execute()) {
-                $error = 'Error generating verification code. Please try again.';
+            $_SESSION['register_attempts']++;
+            if ($_SESSION['register_attempts'] > 5) {
+                $_SESSION['register_block_until'] = time() + 3600;
+                $error = 'Too many attempts. Please try again in 1 hour.';
             } else {
-                // Send verification email
-                $mailer = getMailer();
-                $patient_name = $first_name . ' ' . $last_name;
+                $db = getDB();
                 
-                if ($mailer->sendVerificationCode($email, $verification_code, $patient_name)) {
-                    // Email sent successfully - Redirect to verification step
-                    header('Location: register.php?step=verify&email=' . urlencode($email));
-                    exit;
+                // Check if email already exists in patient_accounts (verified accounts)
+                $stmt = $db->prepare("SELECT account_id FROM patient_accounts WHERE email = ? AND is_verified = TRUE");
+                $stmt->bind_param("s", $email);
+                $stmt->execute();
+                if ($stmt->get_result()->num_rows > 0) {
+                    $error = 'Email already registered. Please login instead.';
                 } else {
-                    // Email sending failed - delete verification code
-                    $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
-                    $deleteCodeStmt->bind_param("ss", $email, $verification_code);
-                    $deleteCodeStmt->execute();
-                    unset($_SESSION['pending_registration']);
-                    $error = 'Failed to send verification email. Please check your email address and try again.';
+                    // Duplicate prevention using Metaphone 3 and birthdate window
+                    $metaKeys = getMetaphone3Keys($first_name, $last_name);
+                    if (!empty($birthdate)) {
+                        $dupStmt = $db->prepare("
+                            SELECT patient_id, first_name, last_name, birthdate
+                            FROM patients
+                            WHERE first_name_metaphone = ?
+                              AND last_name_metaphone = ?
+                              AND birthdate IS NOT NULL
+                              AND ?::date BETWEEN (birthdate - INTERVAL '30 days') AND (birthdate + INTERVAL '30 days')
+                            LIMIT 1
+                        ");
+                        $dupStmt->bind_param("sss", $metaKeys['first'], $metaKeys['last'], $birthdate);
+                        $dupStmt->execute();
+                        $dup = $dupStmt->get_result()->fetch_assoc();
+                        if ($dup) {
+                            $dupName = $dup['first_name'] . ' ' . $dup['last_name'];
+                            $dupDob  = $dup['birthdate'];
+                            $error = 'Possible duplicate found: ' . htmlspecialchars($dupName) . ' (born ' . htmlspecialchars($dupDob) . '). Please contact the clinic before creating a new account.';
+                            return;
+                        }
+                    }
+
+                    // Store registration data in session (NOT in database yet), include metaphone keys
+                    $_SESSION['pending_registration'] = [
+                        'first_name' => $first_name,
+                        'last_name' => $last_name,
+                        'middle_name' => $middle_name,
+                        'email' => $email,
+                        'phone' => $phone,
+                        'birthdate' => $birthdate ?: null,
+                        'gender' => $gender ?: null,
+                        'address' => $address ?: null,
+                        'password' => $password,
+                        'first_name_metaphone' => $metaKeys['first'],
+                        'last_name_metaphone' => $metaKeys['last'],
+                    ];
+                    
+                    // Generate 6-digit verification code
+                    $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
+                    $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+                    
+                    // Invalidate any old codes for this email
+                    $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'registration'");
+                    $invalidateStmt->bind_param("s", $email);
+                    $invalidateStmt->execute();
+                    
+                    // Save verification code
+                    $codeStmt = $db->prepare("INSERT INTO email_verification_codes (email, verification_code, purpose, expires_at) 
+                                              VALUES (?, ?, 'registration', ?)");
+                    $codeStmt->bind_param("sss", $email, $verification_code, $expires_at);
+                    
+                    if (!$codeStmt->execute()) {
+                        $error = 'Error generating verification code. Please try again.';
+                    } else {
+                        // Send verification email
+                        $mailer = getMailer();
+                        $patient_name = $first_name . ' ' . $last_name;
+                        
+                        if ($mailer->sendVerificationCode($email, $verification_code, $patient_name, 'registration')) {
+                            // Email sent successfully - Redirect to verification step
+                            header('Location: register.php?step=verify&email=' . urlencode($email));
+                            exit;
+                        } else {
+                            // Email sending failed - delete verification code
+                            $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
+                            $deleteCodeStmt->bind_param("ss", $email, $verification_code);
+                            $deleteCodeStmt->execute();
+                            unset($_SESSION['pending_registration']);
+                            $error = 'Failed to send verification email. Please check your email address and try again.';
+                        }
+                    }
                 }
             }
         }
