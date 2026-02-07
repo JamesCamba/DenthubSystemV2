@@ -48,6 +48,7 @@ $users = $db->query("SELECT u.*, b.branch_name
                                 <th>Username</th>
                                 <th>Full Name</th>
                                 <th>Email</th>
+                                <th>Phone</th>
                                 <th>Role</th>
                                 <th>Branch</th>
                                 <th>Status</th>
@@ -61,7 +62,8 @@ $users = $db->query("SELECT u.*, b.branch_name
                                     <tr>
                                         <td><?php echo htmlspecialchars($user['username']); ?></td>
                                         <td><?php echo htmlspecialchars($user['full_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($user['email']); ?></td>
+                                        <td><?php echo htmlspecialchars(maskEmail($user['email'])); ?></td>
+                                        <td><?php echo htmlspecialchars(maskPhone($user['phone'] ?? '')); ?></td>
                                         <td>
                                             <span class="badge bg-<?php echo $user['role'] === 'admin' ? 'danger' : ($user['role'] === 'dentist' ? 'info' : 'secondary'); ?>">
                                                 <?php echo ucfirst($user['role']); ?>
@@ -83,7 +85,7 @@ $users = $db->query("SELECT u.*, b.branch_name
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="8" class="text-center text-muted">No users found.</td>
+                                    <td colspan="9" class="text-center text-muted">No users found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>

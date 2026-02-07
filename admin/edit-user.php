@@ -210,7 +210,7 @@ if (isset($_GET['updated'])) {
                         </div>
                         <div class="col-md-4 mb-3">
                             <label class="form-label">Phone</label>
-                            <input type="tel" class="form-control" name="phone"
+                            <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
                                    value="<?php echo htmlspecialchars($_POST['phone'] ?? $user['phone']); ?>">
                         </div>
                         <div class="col-md-4 mb-3">

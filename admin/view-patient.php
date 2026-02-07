@@ -72,8 +72,8 @@ $appointments = $stmt->get_result();
                         <?php if ($patient['middle_name']): ?>
                         <p><strong>Middle Name:</strong><br><?php echo htmlspecialchars($patient['middle_name']); ?></p>
                         <?php endif; ?>
-                        <p><strong>Email:</strong><br><?php echo htmlspecialchars($patient['email'] ?: '-'); ?></p>
-                        <p><strong>Phone:</strong><br><?php echo htmlspecialchars($patient['phone']); ?></p>
+                        <p><strong>Email:</strong><br><?php echo htmlspecialchars(maskEmail($patient['email'])); ?></p>
+                        <p><strong>Phone:</strong><br><?php echo htmlspecialchars(maskPhone($patient['phone'])); ?></p>
                         <?php if ($patient['birthdate']): ?>
                         <p><strong>Birthdate:</strong><br><?php echo formatDate($patient['birthdate']); ?></p>
                         <?php endif; ?>

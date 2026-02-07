@@ -14,12 +14,13 @@ $db = getDB();
 // Search
 $search = $_GET['search'] ?? '';
 
-$sql = "SELECT * FROM patients";
+// Patient list: show only ID and name (folder-style); full details on View
+$sql = "SELECT patient_id, patient_number, first_name, last_name FROM patients";
 if ($search) {
-    $sql .= " WHERE first_name LIKE ? OR last_name LIKE ? OR patient_number LIKE ? OR phone LIKE ? OR email LIKE ?";
+    $sql .= " WHERE LOWER(first_name) LIKE LOWER(?) OR LOWER(last_name) LIKE LOWER(?) OR patient_number LIKE ?";
     $search_param = "%$search%";
     $stmt = $db->prepare($sql);
-    $stmt->bind_param("sssss", $search_param, $search_param, $search_param, $search_param, $search_param);
+    $stmt->bind_param("sss", $search_param, $search_param, $search_param);
 } else {
     $stmt = $db->prepare($sql);
 }
@@ -51,7 +52,7 @@ $patients = $stmt->get_result();
                 <form method="GET" action="">
                     <div class="row">
                         <div class="col-md-10">
-                            <input type="text" class="form-control" name="search" placeholder="Search by name, patient number, phone, or email..." value="<?php echo htmlspecialchars($search); ?>">
+                            <input type="text" class="form-control" name="search" placeholder="Search by name or patient number (e.g. PAT000001)..." value="<?php echo htmlspecialchars($search); ?>">
                         </div>
                         <div class="col-md-2">
                             <button type="submit" class="btn btn-primary w-100">Search</button>
@@ -68,12 +69,8 @@ $patients = $stmt->get_result();
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Patient #</th>
+                                <th>Patient ID</th>
                                 <th>Name</th>
-                                <th>Email</th>
-                                <th>Phone</th>
-                                <th>Birthdate</th>
-                                <th>Gender</th>
                                 <th>Actions</th>
                             </tr>
                         </thead>
@@ -83,20 +80,16 @@ $patients = $stmt->get_result();
                                     <tr>
                                         <td><code><?php echo htmlspecialchars($patient['patient_number']); ?></code></td>
                                         <td><?php echo htmlspecialchars($patient['first_name'] . ' ' . $patient['last_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($patient['email'] ?: '-'); ?></td>
-                                        <td><?php echo htmlspecialchars($patient['phone']); ?></td>
-                                        <td><?php echo $patient['birthdate'] ? formatDate($patient['birthdate']) : '-'; ?></td>
-                                        <td><?php echo htmlspecialchars($patient['gender'] ?: '-'); ?></td>
                                         <td>
-                                            <a href="view-patient.php?id=<?php echo $patient['patient_id']; ?>" class="btn btn-sm btn-outline-primary">
-                                                View
+                                            <a href="view-patient.php?id=<?php echo (int)$patient['patient_id']; ?>" class="btn btn-sm btn-outline-primary">
+                                                <i class="bi bi-folder2-open"></i> View
                                             </a>
                                         </td>
                                     </tr>
                                 <?php endwhile; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="7" class="text-center text-muted">No patients found.</td>
+                                    <td colspan="3" class="text-center text-muted">No patients found.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>

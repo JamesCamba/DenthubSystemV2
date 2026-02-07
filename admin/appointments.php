@@ -31,6 +31,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 $status_filter = $_GET['status'] ?? '';
 $date_filter = $_GET['date'] ?? '';
 $search = $_GET['search'] ?? '';
+$sort = $_GET['sort'] ?? 'appointment_date';
+$order = strtolower($_GET['order'] ?? 'desc');
+if (!in_array($order, ['asc', 'desc'], true)) $order = 'desc';
+
+$allowed_sort = ['appointment_number' => 'a.appointment_number', 'patient' => 'p.last_name', 'service' => 's.service_name', 'appointment_date' => 'a.appointment_date', 'appointment_time' => 'a.appointment_time', 'dentist' => 'u.full_name', 'status' => 'a.status'];
+$sort_col = isset($allowed_sort[$sort]) ? $allowed_sort[$sort] : 'a.appointment_date';
+$order_sql = $order === 'asc' ? 'ASC' : 'DESC';
 
 // Build query
 $where = [];
@@ -67,7 +74,7 @@ $sql = "SELECT a.*, p.first_name, p.last_name, p.phone, p.email, s.service_name,
         LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
         LEFT JOIN users u ON d.user_id = u.user_id
         $where_clause
-        ORDER BY a.appointment_date DESC, a.appointment_time DESC
+        ORDER BY $sort_col $order_sql, a.appointment_id DESC
         LIMIT 100";
 
 $stmt = $db->prepare($sql);
@@ -136,6 +143,8 @@ $appointments = $stmt->get_result();
                             </div>
                         </div>
                     </div>
+                    <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
+                    <input type="hidden" name="order" value="<?php echo htmlspecialchars($order); ?>">
                 </form>
             </div>
         </div>
@@ -147,13 +156,21 @@ $appointments = $stmt->get_result();
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Reference #</th>
-                                <th>Patient</th>
-                                <th>Service</th>
-                                <th>Date</th>
-                                <th>Time</th>
-                                <th>Dentist</th>
-                                <th>Status</th>
+                                <?php
+                                $base = $_GET;
+                                $link = function($col) use ($base, $sort, $order) {
+                                    $base['sort'] = $col;
+                                    $base['order'] = ($sort === $col && $order === 'asc') ? 'desc' : 'asc';
+                                    return '?' . http_build_query($base);
+                                };
+                                ?>
+                                <th><a href="<?php echo $link('appointment_number'); ?>" class="text-decoration-none">Reference #</a> <?php if ($sort === 'appointment_number') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('patient'); ?>" class="text-decoration-none">Patient</a> <?php if ($sort === 'patient') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('service'); ?>" class="text-decoration-none">Service</a> <?php if ($sort === 'service') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('appointment_date'); ?>" class="text-decoration-none">Date</a> <?php if ($sort === 'appointment_date') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('appointment_time'); ?>" class="text-decoration-none">Time</a> <?php if ($sort === 'appointment_time') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('dentist'); ?>" class="text-decoration-none">Dentist</a> <?php if ($sort === 'dentist') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('status'); ?>" class="text-decoration-none">Status</a> <?php if ($sort === 'status') echo $order === 'asc' ? '↑' : '↓'; ?></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

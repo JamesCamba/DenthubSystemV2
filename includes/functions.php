@@ -53,6 +53,31 @@ function formatDateTime($datetime) {
     return date(DISPLAY_DATE_FORMAT . ' ' . DISPLAY_TIME_FORMAT, strtotime($datetime));
 }
 
+/**
+ * Mask email for display (e.g. j***@example.com) - protects sensitive info on profiles.
+ */
+function maskEmail($email) {
+    if (empty($email) || !is_string($email)) return '-';
+    $at = strpos($email, '@');
+    if ($at === false) return substr($email, 0, 2) . '***';
+    $local = substr($email, 0, $at);
+    $domain = substr($email, $at);
+    $len = strlen($local);
+    if ($len <= 2) return $local . '***' . $domain;
+    return substr($local, 0, 1) . str_repeat('*', min($len - 1, 5)) . substr($local, -1) . $domain;
+}
+
+/**
+ * Mask phone for display (e.g. 09***123) - Philippines style; protects sensitive info.
+ */
+function maskPhone($phone) {
+    if (empty($phone) || !is_string($phone)) return '-';
+    $digits = preg_replace('/\D/', '', $phone);
+    $len = strlen($digits);
+    if ($len <= 4) return str_repeat('*', $len);
+    return substr($digits, 0, 2) . '***' . substr($digits, -3);
+}
+
 // Get available time slots for a date ////////////////////////////////////////
 function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null) {
     $db = getDB();
@@ -298,6 +323,25 @@ function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $c
             $mailer->sendAppointmentConfirmation($apt['patient_email'], $patient_name, $appointment_data);
         } catch (Exception $e) {
             error_log("Failed to send appointment confirmation email: " . $e->getMessage());
+        }
+    }
+
+    // Notify patient when appointment is cancelled (by staff/dentist)
+    if ($new_status === 'cancelled' && $current !== 'cancelled' && !empty($apt['patient_email'])) {
+        require_once __DIR__ . '/mailer.php';
+        $mailer = getMailer();
+        $patient_name = trim($apt['first_name'] . ' ' . $apt['last_name']);
+        $appointment_data = [
+            'appointment_number' => $apt['appointment_number'],
+            'service' => $apt['service_name'],
+            'date' => formatDate($apt['appointment_date']),
+            'time' => formatTime($apt['appointment_time']),
+            'dentist' => $apt['dentist_name'] ?? 'TBD'
+        ];
+        try {
+            $mailer->sendAppointmentCancellation($apt['patient_email'], $patient_name, $appointment_data);
+        } catch (Exception $e) {
+            error_log("Failed to send appointment cancellation email: " . $e->getMessage());
         }
     }
 

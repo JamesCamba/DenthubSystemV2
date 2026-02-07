@@ -380,7 +380,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Phone Number <span class="text-danger">*</span></label>
-                                <input type="tel" class="form-control" name="phone" required value="<?php echo $_POST['phone'] ?? ''; ?>">
+                                <input type="tel" class="form-control" name="phone" required maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
+                                <small class="text-muted">Philippines mobile: 11 digits (e.g. 09161234567)</small>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">

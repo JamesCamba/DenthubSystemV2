@@ -175,8 +175,9 @@ $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
                         </div>
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Phone</label>
-                            <input type="tel" class="form-control" name="phone" 
+                            <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
                                    value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
+                                <small class="text-muted">Philippines: 11 digits</small>
                         </div>
                     </div>
 

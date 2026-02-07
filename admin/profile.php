@@ -142,8 +142,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Phone</label>
-                                <input type="tel" class="form-control" name="phone" 
+                                <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
                                        value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>">
+                                <small class="text-muted">Philippines mobile: 11 digits (e.g. 09161234567)</small>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Role</label>

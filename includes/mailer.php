@@ -110,6 +110,9 @@ class Mailer {
         if ($purpose === 'password_reset') {
             $subject = 'Password Reset Verification Code - Denthub Dental Clinic';
             $text    = "Your password reset verification code is: $code\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, please ignore this email.";
+        } elseif ($purpose === 'email_change') {
+            $subject = 'Verify Your New Email - Denthub Dental Clinic';
+            $text    = "Your verification code to confirm your new email is: $code\n\nThis code will expire in 10 minutes.";
         } else {
             $subject = 'Email Verification Code - Denthub Dental Clinic';
             $text    = "Your verification code is: $code\n\nThis code will expire in 10 minutes.";
@@ -219,6 +222,42 @@ class Mailer {
             return false;
         }
     }
+
+    /**
+     * Send appointment cancellation notification to patient
+     */
+    public function sendAppointmentCancellation($to, $name, $appointmentData) {
+        $subject = 'Appointment Cancelled - Denthub Dental Clinic';
+        $html    = $this->getAppointmentCancellationTemplate($name, $appointmentData);
+        $text    = "Your appointment has been cancelled.\n\nReference: {$appointmentData['appointment_number']}\nDate: {$appointmentData['date']}\nTime: {$appointmentData['time']}\nService: {$appointmentData['service']}\n\nPlease contact the clinic to reschedule if needed.";
+
+        if ($this->driver === 'maileroo' && $this->apiKey) {
+            return $this->sendViaMaileroo($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'sendgrid' && $this->apiKey) {
+            return $this->sendViaSendGrid($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'brevo' && $this->apiKey) {
+            return $this->sendViaBrevo($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'resend' && $this->apiKey) {
+            return $this->sendViaResend($to, $subject, $html, $text, $name);
+        }
+
+        try {
+            $this->mail->clearAddresses();
+            $this->mail->addAddress($to, $name);
+            $this->mail->isHTML(true);
+            $this->mail->Subject = $subject;
+            $this->mail->Body    = $html;
+            $this->mail->AltBody = $text;
+            $this->mail->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Mailer Error: {$this->mail->ErrorInfo}");
+            return false;
+        }
+    }
     
     /**
      * Get verification code email template
@@ -239,6 +278,13 @@ class Mailer {
         $template = str_replace('{{CODE}}', htmlspecialchars($code), $template);
 
         // Add purpose-specific badge and colors
+        if ($purpose === 'email_change') {
+            $template = str_replace('Email Verification', 'Verify New Email', $template);
+            $template = str_replace('#0d6efd', '#198754', $template);
+            $badgeHtml = '<div style="margin-bottom: 10px;"><strong style="display:inline-block;padding:6px 12px;border-radius:999px;background-color:#198754;color:#ffffff;font-size:12px;">VERIFY NEW EMAIL</strong></div>';
+            $template = preg_replace('/<p style="color: #666666; font-size: 16px; line-height: 1.6;">/', $badgeHtml . '$0', $template, 1);
+            return $template;
+        }
         if ($purpose === 'password_reset') {
             // Change heading and color to red, label RESET PASSWORD
             $template = str_replace(
@@ -308,6 +354,25 @@ class Mailer {
         }
         $template = str_replace('{{DENTIST_ROW}}', $dentistRow, $template);
         
+        return $template;
+    }
+
+    /**
+     * Get appointment cancellation email template
+     */
+    private function getAppointmentCancellationTemplate($name, $appointmentData) {
+        $templatePath = __DIR__ . '/../templates/appointment_cancelled.html';
+        if (!file_exists($templatePath)) {
+            return "Hello $name,\n\nYour appointment has been cancelled.\nReference: " . ($appointmentData['appointment_number'] ?? '') . "\nDate: " . ($appointmentData['date'] ?? '') . "\nTime: " . ($appointmentData['time'] ?? '') . "\n\nPlease contact the clinic to reschedule if needed.";
+        }
+        $template = file_get_contents($templatePath);
+        $template = str_replace('{{NAME}}', htmlspecialchars($name), $template);
+        $template = str_replace('{{APPOINTMENT_NUMBER}}', htmlspecialchars($appointmentData['appointment_number'] ?? ''), $template);
+        $template = str_replace('{{SERVICE}}', htmlspecialchars($appointmentData['service'] ?? ''), $template);
+        $template = str_replace('{{DATE}}', htmlspecialchars($appointmentData['date'] ?? ''), $template);
+        $template = str_replace('{{TIME}}', htmlspecialchars($appointmentData['time'] ?? ''), $template);
+        $dentistRow = !empty($appointmentData['dentist']) ? '<tr><td style="padding: 8px 0; color: #333333; font-weight: bold;">Dentist:</td><td style="padding: 8px 0; color: #666666;">' . htmlspecialchars($appointmentData['dentist']) . '</td></tr>' : '';
+        $template = str_replace('{{DENTIST_ROW}}', $dentistRow, $template);
         return $template;
     }
 

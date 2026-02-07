@@ -56,13 +56,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)");
             $stmt->bind_param("siiissssi", $appointment_number, $patient_id, $dentist_id, $service_id, $branch_id, $appointment_date, $appointment_time, $reason_for_visit, $_SESSION['user_id']);
 
-            if ($stmt->execute()) {
-                $success = 'Appointment created successfully!';
-                header('Location: appointments.php');
-                exit;
-            } else {
-                $error = 'Error creating appointment.';
+            try {
+                if ($stmt->execute()) {
+                    $success = 'Appointment created successfully!';
+                    header('Location: appointments.php');
+                    exit;
+                }
+            } catch (Exception $e) {
+                error_log('Add appointment error: ' . $e->getMessage());
             }
+            $error = 'We could not create the appointment. Please try again.';
         }
     }
 }
@@ -183,8 +186,8 @@ if ($patient_search) {
             const resultsDiv = document.getElementById('patient_results');
             resultsDiv.innerHTML = '<div class="list-group"><?php 
                 while ($p = $patients_list->fetch_assoc()): 
-                    echo '<button type="button" class="list-group-item list-group-item-action" onclick="selectPatient(' . $p['patient_id'] . ', \'' . htmlspecialchars($p['first_name'] . ' ' . $p['last_name']) . '\')">';
-                    echo htmlspecialchars($p['patient_number'] . ' - ' . $p['first_name'] . ' ' . $p['last_name'] . ' (' . $p['phone'] . ')');
+echo '<button type="button" class="list-group-item list-group-item-action" onclick="selectPatient(' . $p['patient_id'] . ', \'' . addslashes(htmlspecialchars($p['first_name'] . ' ' . $p['last_name'])) . '\')">';
+                                    echo htmlspecialchars($p['patient_number'] . ' - ' . $p['first_name'] . ' ' . $p['last_name'] . ' (' . maskPhone($p['phone'] ?? '') . ')');
                     echo '</button>';
                 endwhile;
             ?></div>';

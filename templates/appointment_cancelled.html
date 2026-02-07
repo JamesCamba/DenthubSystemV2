@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Appointment Cancelled</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td style="padding: 20px 0; text-align: center; background-color: #dc3545;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 24px;">Denthub Dental Clinic</h1>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 40px 20px; background-color: #ffffff;">
+                <table role="presentation" style="width: 100%; max-width: 600px; margin: 0 auto;">
+                    <tr>
+                        <td>
+                            <h2 style="color: #333333; margin-top: 0;">Appointment Cancelled</h2>
+                            <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                                Hello {{NAME}},
+                            </p>
+                            <p style="color: #666666; font-size: 16px; line-height: 1.6;">
+                                We are sorry to inform you that your appointment has been cancelled. Details of the cancelled appointment:
+                            </p>
+                            <div style="background-color: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 20px; margin: 20px 0;">
+                                <table role="presentation" style="width: 100%;">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #333333; font-weight: bold; width: 40%;">Reference Number:</td>
+                                        <td style="padding: 8px 0; color: #666666;">{{APPOINTMENT_NUMBER}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #333333; font-weight: bold;">Service:</td>
+                                        <td style="padding: 8px 0; color: #666666;">{{SERVICE}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #333333; font-weight: bold;">Date:</td>
+                                        <td style="padding: 8px 0; color: #666666;">{{DATE}}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #333333; font-weight: bold;">Time:</td>
+                                        <td style="padding: 8px 0; color: #666666;">{{TIME}}</td>
+                                    </tr>
+                                    {{DENTIST_ROW}}
+                                </table>
+                            </div>
+                            <p style="color: #666666; font-size: 14px; line-height: 1.6;">
+                                If you would like to reschedule, please contact us or book a new appointment through our website.
+                            </p>
+                            <p style="color: #666666; font-size: 14px; line-height: 1.6;">
+                                For any inquiries, please contact us at <a href="mailto:dentalclinicdenthub@gmail.com" style="color: #0d6efd;">dentalclinicdenthub@gmail.com</a> or call 0916 607 0999.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+        <tr>
+            <td style="padding: 20px; text-align: center; background-color: #f8f9fa; color: #666666; font-size: 12px;">
+                <p style="margin: 0;">&copy; Denthub Dental Clinic. All rights reserved.</p>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

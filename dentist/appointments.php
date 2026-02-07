@@ -42,6 +42,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
 // Get filter parameters
 $status_filter = $_GET['status'] ?? '';
 $date_filter = $_GET['date'] ?? '';
+$sort = $_GET['sort'] ?? 'appointment_date';
+$order = strtolower($_GET['order'] ?? 'desc');
+if (!in_array($order, ['asc', 'desc'], true)) $order = 'desc';
+$allowed_sort = ['appointment_number' => 'a.appointment_number', 'patient' => 'p.last_name', 'service' => 's.service_name', 'appointment_date' => 'a.appointment_date', 'appointment_time' => 'a.appointment_time', 'status' => 'a.status'];
+$sort_col = isset($allowed_sort[$sort]) ? $allowed_sort[$sort] : 'a.appointment_date';
+$order_sql = $order === 'asc' ? 'ASC' : 'DESC';
 
 // Build query
 $where = ["a.dentist_id = ?"];
@@ -67,7 +73,7 @@ $sql = "SELECT a.*, p.first_name, p.last_name, p.phone, p.email, s.service_name
         JOIN patients p ON a.patient_id = p.patient_id
         JOIN services s ON a.service_id = s.service_id
         $where_clause
-        ORDER BY a.appointment_date DESC, a.appointment_time DESC
+        ORDER BY $sort_col $order_sql, a.appointment_id DESC
         LIMIT 100";
 
 $stmt = $db->prepare($sql);
@@ -209,6 +215,8 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                             </div>
                         </div>
                     </div>
+                    <input type="hidden" name="sort" value="<?php echo htmlspecialchars($sort); ?>">
+                    <input type="hidden" name="order" value="<?php echo htmlspecialchars($order); ?>">
                 </form>
             </div>
         </div>
@@ -220,12 +228,20 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Reference #</th>
-                                <th>Patient</th>
-                                <th>Service</th>
-                                <th>Date</th>
-                                <th>Time</th>
-                                <th>Status</th>
+                                <?php
+                                $base = $_GET;
+                                $link = function($col) use ($base, $sort, $order) {
+                                    $base['sort'] = $col;
+                                    $base['order'] = ($sort === $col && $order === 'asc') ? 'desc' : 'asc';
+                                    return '?' . http_build_query($base);
+                                };
+                                ?>
+                                <th><a href="<?php echo $link('appointment_number'); ?>" class="text-decoration-none">Reference #</a> <?php if ($sort === 'appointment_number') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('patient'); ?>" class="text-decoration-none">Patient</a> <?php if ($sort === 'patient') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('service'); ?>" class="text-decoration-none">Service</a> <?php if ($sort === 'service') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('appointment_date'); ?>" class="text-decoration-none">Date</a> <?php if ($sort === 'appointment_date') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('appointment_time'); ?>" class="text-decoration-none">Time</a> <?php if ($sort === 'appointment_time') echo $order === 'asc' ? '↑' : '↓'; ?></th>
+                                <th><a href="<?php echo $link('status'); ?>" class="text-decoration-none">Status</a> <?php if ($sort === 'status') echo $order === 'asc' ? '↑' : '↓'; ?></th>
                                 <th>Actions</th>
                             </tr>
                         </thead>

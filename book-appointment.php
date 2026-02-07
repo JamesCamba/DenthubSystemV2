@@ -66,13 +66,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
                 $stmt->bind_param("siiissss", $appointment_number, $patient_id, $dentist_id, $service_id, $branch_id, $appointment_date, $appointment_time, $reason_for_visit);
 
-                if ($stmt->execute()) {
-                    $appointment_id = $db->insert_id;
-                    header('Location: appointment-confirmation.php?id=' . $appointment_id);
-                    exit;
-                } else {
-                    $error = 'Error booking appointment. Please try again.';
+                try {
+                    if ($stmt->execute()) {
+                        $appointment_id = $db->insert_id;
+                        header('Location: appointment-confirmation.php?id=' . $appointment_id);
+                        exit;
+                    }
+                } catch (Exception $e) {
+                    error_log('Book appointment error: ' . $e->getMessage());
                 }
+                $error = 'We could not complete your booking. Please try again or contact the clinic.';
             }
         }
     }

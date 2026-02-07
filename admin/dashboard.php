@@ -29,10 +29,6 @@ $pending_appointments = $stmt->fetch_assoc()['count'];
 $stmt = $db->query("SELECT COUNT(*) as count FROM patients");
 $total_patients = $stmt->fetch_assoc()['count'];
 
-// Pending lab cases
-$stmt = $db->query("SELECT COUNT(*) as count FROM lab_cases WHERE status IN ('pending', 'in_progress')");
-$pending_lab_cases = $stmt->fetch_assoc()['count'];
-
 // Today's appointments list
 $stmt = $db->prepare("SELECT a.*, p.first_name, p.last_name, p.phone, s.service_name, u.full_name as dentist_name
                       FROM appointments a
@@ -77,9 +73,6 @@ $today_appointments_list = $stmt->get_result();
                     </li>
                     <li class="nav-item">
                         <a class="nav-link" href="patients.php">Patients</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="lab-cases.php">Lab Cases</a>
                     </li>
                     <?php if (hasRole('admin')): ?>
                     <li class="nav-item">
@@ -144,19 +137,6 @@ $today_appointments_list = $stmt->get_result();
                                 <h3 class="mb-0"><?php echo $total_patients; ?></h3>
                             </div>
                             <i class="bi bi-people" style="font-size: 48px; opacity: 0.5;"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card bg-danger text-white">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="card-subtitle mb-2">Pending Lab Cases</h6>
-                                <h3 class="mb-0"><?php echo $pending_lab_cases; ?></h3>
-                            </div>
-                            <i class="bi bi-briefcase" style="font-size: 48px; opacity: 0.5;"></i>
                         </div>
                     </div>
                 </div>
