@@ -86,6 +86,8 @@ MAILEROO_FROM_NAME=Denthub Dental Clinic
 - `MAILEROO_FROM_NAME=Denthub Dental Clinic`
 - `BACKUP_CRON_KEY` (optional, for auto backup - set a secret string to enable)
 
+**Note:** `RENDER_EXTERNAL_URL` is set automatically by Render (e.g. `https://denthubsystemv2-5.onrender.com`). If the backup cron URL shows localhost, ensure your service is deployed; you can also set `APP_URL` manually in Environment Variables.
+
 ### Auto Backup (Every 5 Hours)
 
 1. Set `BACKUP_CRON_KEY` in Environment Variables (e.g. a random string like `mySecretBackupKey123`)

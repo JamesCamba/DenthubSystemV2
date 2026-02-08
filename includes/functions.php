@@ -304,13 +304,15 @@ function getStatusBadge($status) {
 function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $changed_by_user_id = null) {
     $db = getDB();
 
-    // Fetch current appointment with full details for email
+    // Fetch current appointment with full details for email (patient_email from patients or patient_accounts)
     $stmt = $db->prepare("
         SELECT a.appointment_id, a.patient_id, a.status, a.appointment_date, a.appointment_time, 
-               a.appointment_number, p.first_name, p.last_name, p.email as patient_email,
+               a.appointment_number, p.first_name, p.last_name, 
+               COALESCE(p.email, pa.email) as patient_email,
                s.service_name, u.full_name as dentist_name
         FROM appointments a
         JOIN patients p ON a.patient_id = p.patient_id
+        LEFT JOIN patient_accounts pa ON p.patient_id = pa.patient_id
         JOIN services s ON a.service_id = s.service_id
         LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
         LEFT JOIN users u ON d.user_id = u.user_id

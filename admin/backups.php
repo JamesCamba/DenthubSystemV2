@@ -50,19 +50,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
     $user = DB_USER;
     $pass = DB_PASS;
 
-    putenv('PGPASSWORD=' . $pass);
-    $cmd = sprintf(
-        'pg_dump -h %s -p %d -U %s -d %s --no-owner --no-acl 2>/dev/null',
-        escapeshellarg($host),
-        $port,
-        escapeshellarg($user),
-        escapeshellarg($dbname)
-    );
-    $content = @shell_exec($cmd);
-    putenv('PGPASSWORD');
+    try {
+        putenv('PGPASSWORD=' . $pass);
+        $cmd = sprintf(
+            'pg_dump -h %s -p %d -U %s -d %s --no-owner --no-acl 2>/dev/null',
+            escapeshellarg($host),
+            $port,
+            escapeshellarg($user),
+            escapeshellarg($dbname)
+        );
+        $content = @shell_exec($cmd);
+        putenv('PGPASSWORD');
 
-    if (empty($content) || strlen($content) < 100) {
-        try {
+        if (empty($content) || strlen($content) < 100) {
             $pdo = new PDO(
                 sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=%s', $host, $port, $dbname, DB_SSLMODE ?? 'require'),
                 $user,
@@ -82,22 +82,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
                     $content .= 'INSERT INTO "' . $table . '" ("' . implode('","', $cols) . '") VALUES (' . implode(',', $vals) . ");\n";
                 }
             }
-        } catch (Exception $e) {
-            $error = 'Backup failed: ' . $e->getMessage();
         }
-    }
 
-    if (empty($error) && !empty($content)) {
-        $size = strlen($content);
-        $stmt = $db->prepare("INSERT INTO database_backups (backup_name, backup_size, content) VALUES (?, ?, ?)");
-        $stmt->bind_param("sis", $backupName, $size, $content);
-        if ($stmt->execute()) {
-            $success = 'Backup created successfully.';
-        } else {
-            $error = 'Failed to save backup.';
+        if (!empty($content)) {
+            $size = strlen($content);
+            $stmt = $db->prepare("INSERT INTO database_backups (backup_name, backup_size, content) VALUES (?, ?, ?)");
+            $stmt->bind_param("sis", $backupName, $size, $content);
+            if ($stmt->execute()) {
+                header('Location: backups.php?created=1');
+                exit;
+            }
         }
-    } elseif (empty($error)) {
         $error = 'Backup failed. Ensure PostgreSQL client is available or check logs.';
+    } catch (Exception $e) {
+        error_log('Backup error: ' . $e->getMessage());
+        $error = 'Backup failed: ' . $e->getMessage();
     }
 }
 
@@ -180,9 +179,9 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>
-        <?php if ($success): ?>
+        <?php if ($success || isset($_GET['created'])): ?>
             <div class="alert alert-success alert-dismissible fade show">
-                <?php echo htmlspecialchars($success); ?>
+                <?php echo htmlspecialchars($success ?: 'Backup created successfully.'); ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
         <?php endif; ?>

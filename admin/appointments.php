@@ -194,9 +194,9 @@ $appointments = $stmt->get_result();
                                                     <?php echo ucfirst(str_replace('_', ' ', $apt['status'])); ?>
                                                 </span>
                                             <?php else: ?>
-                                                <form method="POST" action="" class="d-inline">
+                                                <form method="POST" action="" class="d-inline" id="statusForm<?php echo $apt['appointment_id']; ?>">
                                                     <input type="hidden" name="appointment_id" value="<?php echo $apt['appointment_id']; ?>">
-                                                    <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                                    <select name="status" class="form-select form-select-sm" data-current="<?php echo htmlspecialchars($apt['status']); ?>" onchange="if(confirm('Are you sure you want to change this appointment status? The patient will be notified by email.')) { this.form.submit(); } else { this.value = this.getAttribute('data-current'); }">
                                                         <?php foreach ($statusOptions as $value => $label): ?>
                                                             <option value="<?php echo $value; ?>" <?php echo $apt['status'] === $value ? 'selected' : ''; ?>>
                                                                 <?php echo $label; ?>

@@ -29,20 +29,15 @@ if (!$appointment) {
     exit;
 }
 
-// Handle status update
+// Handle status update (use centralized function so confirmation/cancellation emails are sent)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
     $status = sanitize($_POST['status']);
     $notes = sanitize($_POST['notes'] ?? '');
     
-    // Validate status transition
     $current_status = $appointment['status'];
     $allowed_statuses = array_keys(getAvailableStatusOptions($current_status, $appointment['appointment_date']));
     
-    if (in_array($status, $allowed_statuses)) {
-        $stmt = $db->prepare("UPDATE appointments SET status = ?, notes = ? WHERE appointment_id = ?");
-        $stmt->bind_param("ssi", $status, $notes, $appointment_id);
-        $stmt->execute();
-        
+    if (in_array($status, $allowed_statuses) && updateAppointmentStatus($appointment_id, $status, $notes, $_SESSION['user_id'] ?? null)) {
         header('Location: view-appointment.php?id=' . $appointment_id . '&updated=1');
         exit;
     }
@@ -124,7 +119,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
                             <div class="col-sm-4"><strong>Time:</strong></div>
                             <div class="col-sm-8"><?php echo formatTime($appointment['appointment_time']); ?></div>
                         </div>
-                        <form method="POST" action="">
+                        <form method="POST" action="" onsubmit="return confirm('Are you sure you want to change the appointment status? This will notify the patient by email.');">
                             <div class="row mb-3">
                                 <div class="col-sm-4"><strong>Status:</strong></div>
                                 <div class="col-sm-8">

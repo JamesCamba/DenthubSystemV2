@@ -33,10 +33,11 @@ define('DB_TYPE', 'postgresql');
 
 // Application Configuration
 define('APP_NAME', 'Denthub Dental Clinic');
-// Use Railway's PORT and RAILWAY_PUBLIC_DOMAIN if available, otherwise use localhost
-$app_url = getenv('RAILWAY_PUBLIC_DOMAIN') 
-    ? 'https://' . getenv('RAILWAY_PUBLIC_DOMAIN') 
-    : (getenv('APP_URL') ?: 'http://localhost/denthub');
+// Use RENDER_EXTERNAL_URL (Render), RAILWAY_PUBLIC_DOMAIN (Railway), APP_URL, or fallback to localhost
+$app_url = getenv('RENDER_EXTERNAL_URL') 
+    ?: (getenv('RAILWAY_PUBLIC_DOMAIN') ? 'https://' . getenv('RAILWAY_PUBLIC_DOMAIN') : null)
+    ?: getenv('APP_URL')
+    ?: 'http://localhost/denthub';
 define('APP_URL', $app_url);
 define('TIMEZONE', 'Asia/Manila');
 
