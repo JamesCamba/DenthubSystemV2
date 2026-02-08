@@ -71,6 +71,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             if (login($identifier, $password)) {
                 clearLoginAttempts($login_identifier, $attempt_type);
+                if (!empty($_SESSION['must_change_password'])) {
+                    header('Location: admin/force-password-change.php');
+                    exit;
+                }
                 $role = $_SESSION['role'] ?? '';
                 if ($role === 'admin' || $role === 'staff') {
                     header('Location: admin/dashboard.php');
@@ -131,7 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <input type="hidden" name="recaptcha_token" id="recaptcha_token" value="">
                             <div class="mb-3">
                                 <label class="form-label">Email or Username</label>
-                                <input type="email" class="form-control" name="email" required autofocus>
+                                <input type="text" class="form-control" name="email" required autofocus placeholder="Email or username">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Password</label>
@@ -153,7 +157,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <div class="text-center mt-4">
                             <p>Don't have an account? <a href="register.php">Register here</a></p>
                             <hr class="my-3">
-                            <!-- <p class="text-muted small">Staff/Admin/Doctor? <a href="login-unified.php?type=staff">Unified Login</a></p> -->
                             <a href="index.php" class="text-muted">Back to Home</a>
                         </div>
                     </div>

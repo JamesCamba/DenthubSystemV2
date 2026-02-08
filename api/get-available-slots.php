@@ -9,6 +9,7 @@ require_once '../includes/functions.php';
 $date = $_GET['date'] ?? '';
 $dentist_id = !empty($_GET['dentist_id']) ? intval($_GET['dentist_id']) : null;
 $branch_id = !empty($_GET['branch_id']) ? intval($_GET['branch_id']) : 1;
+$exclude_appointment_id = !empty($_GET['exclude_appointment_id']) ? intval($_GET['exclude_appointment_id']) : null;
 
 if (empty($date)) {
     echo json_encode(['success' => false, 'message' => 'Date is required']);
@@ -33,7 +34,7 @@ if (isDateBlocked($date, $branch_id)) {
     exit;
 }
 
-$slots = getAvailableTimeSlots($date, $dentist_id, null, $branch_id);
+$slots = getAvailableTimeSlots($date, $dentist_id, null, $branch_id, $exclude_appointment_id);
 $formatted_slots = [];
 
 foreach ($slots as $slot) {

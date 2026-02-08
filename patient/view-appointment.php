@@ -28,6 +28,21 @@ if (!$appointment) {
     header('Location: dashboard.php');
     exit;
 }
+
+// Handle reschedule (patient)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
+    $new_date = sanitize($_POST['reschedule_date'] ?? '');
+    $new_time = sanitize($_POST['reschedule_time'] ?? '');
+    $is_reschedulable = in_array($appointment['status'], ['pending', 'confirmed']);
+
+    if ($is_reschedulable && $new_date && $new_time) {
+        if (rescheduleAppointment($appointment_id, $new_date, $new_time, null)) {
+            header('Location: view-appointment.php?id=' . $appointment_id . '&rescheduled=1');
+            exit;
+        }
+    }
+    $reschedule_error = 'Failed to reschedule. Please ensure the slot is available.';
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -111,6 +126,43 @@ if (!$appointment) {
                         </div>
                         <?php endif; ?>
 
+                        <?php if (isset($_GET['rescheduled'])): ?>
+                        <div class="alert alert-success alert-dismissible fade show">
+                            Your appointment has been rescheduled successfully. You will receive a confirmation email.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        <?php endif; ?>
+                        <?php if (!empty($reschedule_error)): ?>
+                        <div class="alert alert-danger alert-dismissible fade show">
+                            <?php echo htmlspecialchars($reschedule_error); ?>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                        <?php endif; ?>
+
+                        <?php 
+                        $is_reschedulable = in_array($appointment['status'], ['pending', 'confirmed']);
+                        if ($is_reschedulable): 
+                        ?>
+                        <hr>
+                        <h6 class="mb-2">Reschedule Appointment</h6>
+                        <form method="POST" action="" id="rescheduleForm" class="row g-2 align-items-end mb-3">
+                            <input type="hidden" name="reschedule" value="1">
+                            <div class="col-auto">
+                                <label class="form-label small mb-0">New Date</label>
+                                <input type="date" class="form-control form-control-sm" name="reschedule_date" id="reschedule_date" required min="<?php echo date('Y-m-d'); ?>">
+                            </div>
+                            <div class="col-auto">
+                                <label class="form-label small mb-0">New Time</label>
+                                <select class="form-select form-select-sm" name="reschedule_time" id="reschedule_time" required>
+                                    <option value="">Select time...</option>
+                                </select>
+                            </div>
+                            <div class="col-auto">
+                                <button type="submit" class="btn btn-warning btn-sm">Reschedule</button>
+                            </div>
+                        </form>
+                        <?php endif; ?>
+
                         <hr>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-end">
@@ -123,6 +175,36 @@ if (!$appointment) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var rescheduleDate = document.getElementById('reschedule_date');
+            var rescheduleTime = document.getElementById('reschedule_time');
+            if (!rescheduleDate || !rescheduleTime) return;
+            var appointmentId = <?php echo (int)$appointment_id; ?>;
+            var dentistId = <?php echo !empty($appointment['dentist_id']) ? (int)$appointment['dentist_id'] : 'null'; ?>;
+            var branchId = <?php echo (int)($appointment['branch_id'] ?? 1); ?>;
+            rescheduleDate.addEventListener('change', function() {
+                var date = this.value;
+                rescheduleTime.innerHTML = '<option value="">Loading...</option>';
+                if (!date) { rescheduleTime.innerHTML = '<option value="">Select time...</option>'; return; }
+                var url = '../api/get-available-slots.php?date=' + encodeURIComponent(date) + '&branch_id=' + branchId + '&exclude_appointment_id=' + appointmentId;
+                if (dentistId) url += '&dentist_id=' + dentistId;
+                fetch(url).then(function(r) { return r.json(); }).then(function(data) {
+                    rescheduleTime.innerHTML = '<option value="">Select time...</option>';
+                    if (data.success && data.slots) {
+                        data.slots.forEach(function(s) {
+                            var opt = document.createElement('option');
+                            opt.value = s.slot_time;
+                            opt.textContent = s.display_time;
+                            rescheduleTime.appendChild(opt);
+                        });
+                    }
+                }).catch(function() {
+                    rescheduleTime.innerHTML = '<option value="">Error loading slots</option>';
+                });
+            });
+        });
+    </script>
 </body>
 </html>
 

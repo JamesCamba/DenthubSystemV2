@@ -139,8 +139,9 @@ function logActivity($action_type, $details = '', $actor_user_id = null, $actor_
     }
 }
 
-// Get available time slots for a date ////////////////////////////////////////
-function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $branch_id = 1) {
+// Get available time slots for a date
+// $exclude_appointment_id: when rescheduling, exclude this appointment so its current slot shows as available
+function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $branch_id = 1, $exclude_appointment_id = null) {
     $db = getDB();
 
     // Get day of week (0 = Sunday)
@@ -206,6 +207,12 @@ function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $b
         if ($dentist_id !== null) {
             $sql .= " AND dentist_id = ?";
             $params[] = $dentist_id;
+            $types   .= "i";
+        }
+
+        if ($exclude_appointment_id !== null) {
+            $sql .= " AND appointment_id != ?";
+            $params[] = $exclude_appointment_id;
             $types   .= "i";
         }
 
@@ -423,6 +430,77 @@ function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $c
         ");
         $nsStmt->bind_param("si", $date, $patient_id);
         $nsStmt->execute();
+    }
+
+    return true;
+}
+
+/**
+ * Reschedule an appointment (change date and/or time).
+ * Only for pending/confirmed appointments. Sends reschedule confirmation email.
+ */
+function rescheduleAppointment($appointment_id, $new_date, $new_time, $rescheduled_by_user_id = null) {
+    $db = getDB();
+
+    $stmt = $db->prepare("
+        SELECT a.*, p.first_name, p.last_name, p.email as patient_email,
+               s.service_name, u.full_name as dentist_name, a.branch_id
+        FROM appointments a
+        JOIN patients p ON a.patient_id = p.patient_id
+        JOIN services s ON a.service_id = s.service_id
+        LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
+        LEFT JOIN users u ON d.user_id = u.user_id
+        WHERE a.appointment_id = ?
+    ");
+    $stmt->bind_param("i", $appointment_id);
+    $stmt->execute();
+    $apt = $stmt->get_result()->fetch_assoc();
+
+    if (!$apt || !in_array($apt['status'], ['pending', 'confirmed'], true)) {
+        return false;
+    }
+
+    // Normalize time to H:i:s (e.g. "09:00" -> "09:00:00")
+    $new_time_str = is_string($new_time) ? $new_time : date('H:i:s', strtotime($new_time));
+    if (strlen($new_time_str) <= 5) {
+        $new_time_str .= ':00';
+    }
+    $new_time_str = substr($new_time_str, 0, 8);
+
+    // Validate new slot is available
+    $slots = getAvailableTimeSlots($new_date, $apt['dentist_id'], null, $apt['branch_id'], $appointment_id);
+    $valid_times = array_map(function ($s) {
+        $t = $s['slot_time'];
+        return strlen($t) <= 5 ? $t . ':00' : substr($t, 0, 8);
+    }, $slots);
+    if (!in_array($new_time_str, $valid_times)) {
+        return false;
+    }
+
+    $stmt = $db->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ?, updated_at = NOW() WHERE appointment_id = ?");
+    $stmt->bind_param("ssi", $new_date, $new_time_str, $appointment_id);
+    if (!$stmt->execute()) {
+        return false;
+    }
+
+    logActivity('appointment_rescheduled', "Appointment {$apt['appointment_number']} → {$new_date} {$new_time_str}", $rescheduled_by_user_id, $apt['patient_id']);
+
+    if (!empty($apt['patient_email'])) {
+        require_once __DIR__ . '/mailer.php';
+        $mailer = getMailer();
+        $patient_name = trim($apt['first_name'] . ' ' . $apt['last_name']);
+        $appointment_data = [
+            'appointment_number' => $apt['appointment_number'],
+            'service' => $apt['service_name'],
+            'date' => formatDate($new_date),
+            'time' => formatTime($new_time_str),
+            'dentist' => $apt['dentist_name'] ?? 'TBD'
+        ];
+        try {
+            $mailer->sendAppointmentRescheduled($apt['patient_email'], $patient_name, $appointment_data);
+        } catch (Exception $e) {
+            error_log("Failed to send reschedule email: " . $e->getMessage());
+        }
     }
 
     return true;

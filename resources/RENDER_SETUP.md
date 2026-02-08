@@ -84,5 +84,14 @@ MAILEROO_FROM_NAME=Denthub Dental Clinic
 - `MAILEROO_API_KEY` (your sending key)
 - `MAILEROO_FROM_EMAIL=denthub@93832b22d815d4ec.maileroo.org` (your Maileroo email)
 - `MAILEROO_FROM_NAME=Denthub Dental Clinic`
+- `BACKUP_CRON_KEY` (optional, for auto backup - set a secret string to enable)
+
+### Auto Backup (Every 5 Hours)
+
+1. Set `BACKUP_CRON_KEY` in Environment Variables (e.g. a random string like `mySecretBackupKey123`)
+2. Add a Cron Job (e.g. at [cron-job.org](https://cron-job.org)):
+   - URL: `https://your-app.onrender.com/cron/backup.php?key=YOUR_BACKUP_CRON_KEY`
+   - Schedule: Every 5 hours
+3. Backups are stored in the database and can be viewed/downloaded from Admin → Backups
 
 That's it! Once deployed, your email verification should work.

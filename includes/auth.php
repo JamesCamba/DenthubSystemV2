@@ -41,7 +41,7 @@ function isPatientLoggedIn() {
 // Require login for staff
 function requireLogin() {
     if (!isLoggedIn()) {
-        header('Location: /admin/login.php');
+        header('Location: /login.php');
         exit;
     }
 }

@@ -152,7 +152,7 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST
                             // Clear pending registration data
                             unset($_SESSION['pending_registration']);
 
-                            $success = 'Email verified successfully! You can now <a href="login-unified.php">login</a>.';
+                            $success = 'Email verified successfully! You can now <a href="login.php">login</a>.';
                             $step    = 'complete';
                         } else {
                             // Rollback: delete patient record if account creation fails
@@ -430,7 +430,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                         <?php endif; ?>
 
                         <div class="text-center mt-4">
-                            <p>Already have an account? <a href="login-unified.php">Login here</a></p>
+                            <p>Already have an account? <a href="login.php">Login here</a></p>
                             <a href="index.php" class="text-muted">Back to Home</a>
                         </div>
                     </div>
