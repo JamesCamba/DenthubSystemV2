@@ -5,9 +5,8 @@
 require_once 'includes/config.php';
 require_once 'includes/database.php';
 require_once 'includes/functions.php';
+require_once 'includes/auth.php';
 require_once 'includes/mailer.php';
-
-session_start();
 
 // Simple rate limiting for password reset attempts
 if (!isset($_SESSION['reset_attempts'])) {
@@ -262,6 +261,7 @@ if ($step === 'reset' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
+    <?php $nav_active = ''; require_once 'includes/nav-public.php'; ?>
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-md-8 col-lg-6">

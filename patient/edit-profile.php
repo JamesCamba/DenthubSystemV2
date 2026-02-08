@@ -93,26 +93,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-primary" href="../index.php"><?php echo APP_NAME; ?></a>
-            <div class="collapse navbar-collapse">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item"><a class="nav-link" href="dashboard.php">Dashboard</a></li>
-                    <li class="nav-item"><a class="nav-link active" href="edit-profile.php">Edit Profile</a></li>
-                    <li class="nav-item"><a class="nav-link" href="profile.php">Profile</a></li>
-                    <li class="nav-item"><a class="nav-link" href="../logout.php">Logout</a></li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <?php $nav_base = '../'; $nav_patient_base = ''; $nav_active = 'profile'; require_once '../includes/nav-public.php'; ?>
 
+    <main class="denthub-main" style="margin-left:0;">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-6">
                 <div class="card shadow">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Edit Profile</h5>
+                    <div class="card-header denthub-card-header">
+                        <h5 class="mb-0"><i class="bi bi-pencil-square me-2"></i>Edit Profile</h5>
                     </div>
                     <div class="card-body">
                         <p class="text-muted">You can only change your phone number and email. Changing email requires verification.</p>
@@ -146,6 +135,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    </main>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

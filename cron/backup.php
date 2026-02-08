@@ -6,6 +6,7 @@
  */
 require_once __DIR__ . '/../includes/config.php';
 require_once __DIR__ . '/../includes/database.php';
+require_once __DIR__ . '/../includes/functions.php';
 
 header('Content-Type: application/json');
 
@@ -32,7 +33,7 @@ try {
         )
     ");
 
-    $backupName = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
+    $backupName = 'backup_' . appNow() . '.sql';
     $content = '';
 
     // Try pg_dump first (available in Docker with postgresql-client)

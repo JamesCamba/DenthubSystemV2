@@ -161,6 +161,7 @@ if (isset($_GET['updated'])) {
 <body>
     <?php include 'navbar.php'; ?>
 
+    <main class="denthub-main">
     <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>Edit User</h2>
@@ -293,6 +294,7 @@ if (isset($_GET['updated'])) {
             </div>
         </div>
     </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>

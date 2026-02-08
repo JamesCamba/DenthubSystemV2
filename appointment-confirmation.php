@@ -40,6 +40,8 @@ if (!$appointment) {
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 <body>
+    <?php $nav_base = ''; $nav_patient_base = ''; $nav_active = 'book'; require_once 'includes/nav-public.php'; ?>
+    <main class="denthub-main" style="margin-left:0;">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-8">
@@ -112,6 +114,7 @@ if (!$appointment) {
             </div>
         </div>
     </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

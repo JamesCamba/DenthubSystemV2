@@ -56,46 +56,46 @@ $today_appointments_list = $stmt->get_result();
 <body>
     <?php include 'navbar.php'; ?>
 
-    <div class="container-fluid py-4">
-        <h2 class="mb-4">Dashboard</h2>
+    <main class="denthub-main">
+        <h1 class="denthub-page-title">Dashboard</h1>
 
         <!-- Statistics Cards -->
         <div class="row g-4 mb-4">
             <div class="col-md-3">
-                <div class="card bg-primary text-white">
+                <div class="card denthub-stat-card primary text-white">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="card-subtitle mb-2">Today's Appointments</h6>
+                                <h6 class="card-subtitle mb-2 opacity-90">Today's Appointments</h6>
                                 <h3 class="mb-0"><?php echo $today_appointments; ?></h3>
                             </div>
-                            <i class="bi bi-calendar-check" style="font-size: 48px; opacity: 0.5;"></i>
+                            <i class="bi bi-calendar-check" style="font-size: 48px; opacity: 0.4;"></i>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-warning text-white">
+                <div class="card denthub-stat-card warning text-white">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="card-subtitle mb-2">Pending Appointments</h6>
+                                <h6 class="card-subtitle mb-2 opacity-90">Pending Appointments</h6>
                                 <h3 class="mb-0"><?php echo $pending_appointments; ?></h3>
                             </div>
-                            <i class="bi bi-clock-history" style="font-size: 48px; opacity: 0.5;"></i>
+                            <i class="bi bi-clock-history" style="font-size: 48px; opacity: 0.4;"></i>
                         </div>
                     </div>
                 </div>
             </div>
             <div class="col-md-3">
-                <div class="card bg-info text-white">
+                <div class="card denthub-stat-card info text-white">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
-                                <h6 class="card-subtitle mb-2">Total Patients</h6>
+                                <h6 class="card-subtitle mb-2 opacity-90">Total Patients</h6>
                                 <h3 class="mb-0"><?php echo $total_patients; ?></h3>
                             </div>
-                            <i class="bi bi-people" style="font-size: 48px; opacity: 0.5;"></i>
+                            <i class="bi bi-people" style="font-size: 48px; opacity: 0.4;"></i>
                         </div>
                     </div>
                 </div>
@@ -103,9 +103,9 @@ $today_appointments_list = $stmt->get_result();
         </div>
 
         <!-- Today's Appointments -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="bi bi-calendar-check"></i> Today's Appointments</h5>
+        <div class="card shadow-sm">
+            <div class="denthub-card-header">
+                <i class="bi bi-calendar-check me-2"></i> Today's Appointments
             </div>
             <div class="card-body">
                 <?php if ($today_appointments_list->num_rows > 0): ?>
@@ -144,11 +144,11 @@ $today_appointments_list = $stmt->get_result();
                         </table>
                     </div>
                 <?php else: ?>
-                    <p class="text-muted text-center">No appointments scheduled for today.</p>
+                    <p class="text-muted text-center py-4 mb-0">No appointments scheduled for today.</p>
                 <?php endif; ?>
             </div>
         </div>
-    </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

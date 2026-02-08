@@ -112,17 +112,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
 </head>
-<body>
+<body style="background-color: var(--denthub-bg);">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-md-5">
-                <div class="card shadow">
-                    <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <i class="bi bi-box-arrow-in-right text-primary" style="font-size: 48px;"></i>
-                            <h2 class="mt-3">Login</h2>
-                            <p class="text-muted">Login to access your account</p>
+                <div class="card denthub-auth-card shadow">
+                    <div class="card-header denthub-auth-card-header">
+                        <div class="text-center">
+                            <i class="bi bi-tooth d-block" style="font-size: 48px;"></i>
+                            <h2 class="mt-2 mb-0">Login</h2>
+                            <p class="mb-0 small opacity-90">Login to access your account</p>
                         </div>
+                    </div>
+                    <div class="card-body p-5">
 
                         <?php if ($error): ?>
                             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
@@ -155,9 +157,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </form>
 
                         <div class="text-center mt-4">
-                            <p>Don't have an account? <a href="register.php">Register here</a></p>
-                            <hr class="my-3">
-                            <a href="index.php" class="text-muted">Back to Home</a>
+                            <p class="mb-1">Don't have an account? <a href="register.php">Register here</a></p>
+                            <a href="index.php" class="text-primary">Back to Home</a>
                         </div>
                     </div>
                 </div>

@@ -42,7 +42,7 @@ if (isset($_GET['download']) && isset($_GET['id'])) {
 
 // Create backup now
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
-    $backupName = 'backup_' . date('Y-m-d_H-i-s') . '.sql';
+    $backupName = 'backup_' . appNow() . '.sql';
     $content = '';
     $host = DB_HOST;
     $port = DB_PORT;
@@ -69,7 +69,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
                 $pass,
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
-            $content = "-- Denthub Backup (PHP fallback)\n-- " . date('Y-m-d H:i:s') . "\n\n";
+            $content = "-- Denthub Backup (PHP fallback)\n-- " . date('Y-m-d H:i:s', strtotime('now')) . " (" . (defined('TIMEZONE') ? TIMEZONE : 'Asia/Manila') . ")\n\n";
             $tables = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN);
             foreach ($tables as $table) {
                 $content .= "\n-- Table: $table\n";
@@ -170,8 +170,8 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
 <body>
     <?php include 'navbar.php'; ?>
 
-    <div class="container-fluid py-4">
-        <h2 class="mb-4"><i class="bi bi-database"></i> Database Backups</h2>
+    <main class="denthub-main">
+        <h1 class="denthub-page-title"><i class="bi bi-database me-2"></i> Database Backups</h1>
 
         <?php if ($error): ?>
             <div class="alert alert-danger alert-dismissible fade show">
@@ -188,9 +188,9 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
 
         <div class="row mb-4">
             <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Create Backup</h5>
+                <div class="card shadow-sm">
+                    <div class="denthub-card-header">
+                        <i class="bi bi-plus-circle me-2"></i> Create Backup
                     </div>
                     <div class="card-body">
                         <form method="POST">
@@ -201,9 +201,9 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
                 </div>
             </div>
             <div class="col-md-6">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0">Auto Backup (Every 5 Hours)</h5>
+                <div class="card shadow-sm">
+                    <div class="denthub-card-header">
+                        <i class="bi bi-clock-history me-2"></i> Auto Backup (Every 5 Hours)
                     </div>
                     <div class="card-body">
                         <?php if ($hasCronKey): ?>
@@ -218,14 +218,14 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
             </div>
         </div>
 
-        <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">Backup List</h5>
-                <span class="badge bg-secondary"><?php echo count($backupsList); ?> backups</span>
+        <div class="card shadow-sm mb-4">
+            <div class="denthub-card-header d-flex justify-content-between align-items-center">
+                <span><i class="bi bi-list-ul me-2"></i> Backup List</span>
+                <span class="badge bg-light text-dark"><?php echo count($backupsList); ?> backups</span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover mb-0">
+                    <table class="table table-hover mb-0 denthub-backup-list">
                         <thead>
                             <tr>
                                 <th>Name</th>
@@ -238,7 +238,7 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
                             <?php foreach ($backupsList as $row): ?>
                             <tr>
                                 <td><code><?php echo htmlspecialchars($row['backup_name']); ?></code></td>
-                                <td><?php echo formatDateTime($row['created_at']); ?></td>
+                                <td><?php echo formatDateTimeUtcToApp($row['created_at']); ?></td>
                                 <td><?php echo number_format($row['backup_size'] / 1024, 1); ?> KB</td>
                                 <td>
                                     <a href="?download=1&id=<?php echo $row['backup_id']; ?>" class="btn btn-sm btn-success"><i class="bi bi-download"></i> Download</a>
@@ -259,9 +259,9 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0">Import Backup</h5>
+        <div class="card shadow-sm">
+            <div class="denthub-card-header">
+                <i class="bi bi-upload me-2"></i> Import Backup
             </div>
             <div class="card-body">
                 <p class="text-danger"><strong>Warning:</strong> Importing will execute SQL against your database. Use with caution. Ensure the backup is from a compatible Denthub installation.</p>
@@ -279,7 +279,7 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
                 </form>
             </div>
         </div>
-    </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

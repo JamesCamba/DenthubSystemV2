@@ -47,10 +47,39 @@ function formatTime($time, $format = DISPLAY_TIME_FORMAT) {
     return date($format, strtotime($time));
 }
 
-// Format datetime for display
+// Format datetime for display (assumes input is in app local time)
 function formatDateTime($datetime) {
     if (empty($datetime)) return '-';
     return date(DISPLAY_DATE_FORMAT . ' ' . DISPLAY_TIME_FORMAT, strtotime($datetime));
+}
+
+/**
+ * Format datetime stored in UTC (e.g. from Neon/PostgreSQL) for display in app timezone (Asia/Manila).
+ * Use for created_at, updated_at from database.
+ */
+function formatDateTimeUtcToApp($datetime) {
+    if (empty($datetime)) return '-';
+    $tz = defined('TIMEZONE') ? TIMEZONE : 'Asia/Manila';
+    try {
+        $utc = new DateTimeZone('UTC');
+        $appTz = new DateTimeZone($tz);
+        $dt = new DateTime($datetime, $utc);
+        $dt->setTimezone($appTz);
+        return $dt->format(DISPLAY_DATE_FORMAT . ' ' . DISPLAY_TIME_FORMAT);
+    } catch (Exception $e) {
+        return date(DISPLAY_DATE_FORMAT . ' ' . DISPLAY_TIME_FORMAT, strtotime($datetime));
+    }
+}
+
+/** Current datetime in app timezone for filenames (e.g. backup_2026-02-08_18-50-55.sql) */
+function appNow($format = 'Y-m-d_H-i-s') {
+    $tz = defined('TIMEZONE') ? TIMEZONE : 'Asia/Manila';
+    try {
+        $dt = new DateTime('now', new DateTimeZone($tz));
+        return $dt->format($format);
+    } catch (Exception $e) {
+        return date($format);
+    }
 }
 
 /**

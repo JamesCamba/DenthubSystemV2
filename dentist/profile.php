@@ -123,44 +123,9 @@ $masteryServices = $masteryStmt->get_result();
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-        <div class="container-fluid">
-            <a class="navbar-brand fw-bold" href="dashboard.php">
-                <i class="bi bi-tooth"></i> <?php echo APP_NAME; ?> - Dentist
-            </a>
-            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-                <span class="navbar-toggler-icon"></span>
-            </button>
-            <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
-                        <a class="nav-link" href="dashboard.php">Dashboard</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="appointments.php">My Appointments</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="schedule.php">My Schedule</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link active" href="profile.php">Profile</a>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="navbarDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="bi bi-person-circle"></i> <?php echo htmlspecialchars($user['full_name']); ?>
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="profile.php">Profile</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="../logout.php">Logout</a></li>
-                        </ul>
-                    </li>
-                </ul>
-            </div>
-        </div>
-    </nav>
+    <?php require_once 'navbar.php'; ?>
 
+    <main class="denthub-main" style="margin-left:0;">
     <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>My Profile</h2>
@@ -187,8 +152,8 @@ $masteryServices = $masteryStmt->get_result();
             <!-- Profile Information -->
             <div class="col-md-6 mb-4">
                 <div class="card">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0"><i class="bi bi-person-circle"></i> Profile Information</h5>
+                    <div class="card-header denthub-card-header">
+                        <h5 class="mb-0"><i class="bi bi-person-circle me-2"></i>Profile Information</h5>
                     </div>
                     <div class="card-body">
                         <form method="POST" action="">
@@ -277,6 +242,7 @@ $masteryServices = $masteryStmt->get_result();
             </div>
         </div>
     </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

@@ -89,6 +89,7 @@ try {
 <body>
     <?php include 'navbar.php'; ?>
 
+    <main class="denthub-main">
     <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2><i class="bi bi-journal-text"></i> Activity Logs</h2>
@@ -146,7 +147,7 @@ try {
                     <tbody>
                         <?php foreach ($logs as $row): ?>
                         <tr>
-                            <td><?php echo htmlspecialchars(date('Y-m-d H:i:s', strtotime($row['created_at']))); ?></td>
+                            <td><?php echo htmlspecialchars(formatDateTimeUtcToApp($row['created_at'])); ?></td>
                             <td><?php echo htmlspecialchars($row['username'] ?? '-'); ?></td>
                             <td><?php echo htmlspecialchars($row['full_name'] ?? '-'); ?></td>
                             <td><?php echo htmlspecialchars($row['role'] ?? $row['actor_type']); ?></td>
@@ -163,6 +164,7 @@ try {
             </div>
         </div>
     </div>
+    </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>

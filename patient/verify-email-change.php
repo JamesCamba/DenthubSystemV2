@@ -69,23 +69,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
-        <div class="container">
-            <a class="navbar-brand fw-bold text-primary" href="../index.php"><?php echo APP_NAME; ?></a>
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="dashboard.php">Dashboard</a></li>
-                <li class="nav-item"><a class="nav-link" href="profile.php">Profile</a></li>
-                <li class="nav-item"><a class="nav-link" href="../logout.php">Logout</a></li>
-            </ul>
-        </div>
-    </nav>
+    <?php $nav_base = '../'; $nav_patient_base = ''; $nav_active = 'profile'; require_once '../includes/nav-public.php'; ?>
 
+    <main class="denthub-main" style="margin-left:0;">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-5">
                 <div class="card shadow">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0"><i class="bi bi-envelope-check"></i> Step 2: Verify your new email</h5>
+                    <div class="card-header denthub-card-header">
+                        <h5 class="mb-0"><i class="bi bi-envelope-check me-2"></i>Step 2: Verify your new email</h5>
                     </div>
                     <div class="card-body">
                         <?php if ($success): ?>
@@ -112,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         </div>
     </div>
+    </main>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
