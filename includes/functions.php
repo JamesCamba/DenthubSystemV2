@@ -281,8 +281,8 @@ function getServices($active_only = true) {
     return $db->query($sql);
 }
 
-// Get dentists list
-function getDentists($active_only = true, $service_id = null) {
+// Get dentists list (optionally by branch and/or service)
+function getDentists($active_only = true, $service_id = null, $branch_id = null) {
     $db = getDB();
     $sql = "SELECT DISTINCT d.*, u.full_name, u.email, u.phone 
             FROM dentists d 
@@ -290,11 +290,11 @@ function getDentists($active_only = true, $service_id = null) {
     
     $where = [];
     if ($active_only) {
-        // PostgreSQL: is_active is a boolean on both tables
         $where[] = "d.is_active = TRUE AND u.is_active = TRUE";
     }
-    
-    // Filter by service mastery if service_id is provided
+    if ($branch_id !== null && $branch_id > 0) {
+        $where[] = "d.branch_id = " . intval($branch_id);
+    }
     if ($service_id) {
         $sql .= " JOIN dentist_service_mastery dsm ON d.dentist_id = dsm.dentist_id";
         $where[] = "dsm.service_id = " . intval($service_id);

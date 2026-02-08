@@ -28,8 +28,8 @@ $asset_img = '../assets/images';
     </div>
     <div class="offcanvas-body d-flex flex-column p-0">
         <nav class="nav flex-column py-2">
-            <a class="nav-link <?php echo $current_page === 'dashboard.php' && !$is_appointments_view ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
-            <a class="nav-link <?php echo $is_appointments_view ? 'active' : ''; ?>" href="dashboard.php?view=appointments"><i class="bi bi-calendar-check me-2"></i> My Appointment</a>
+            <a class="nav-link <?php echo $current_page === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
+            <!-- <a class="nav-link <?php echo $is_appointments_view ? 'active' : ''; ?>" href="dashboard.php?view=appointments"><i class="bi bi-calendar-check me-2"></i> My Appointment</a> -->
             <a class="nav-link" href="../book-appointment.php"><i class="bi bi-calendar-plus me-2"></i> Book Appointment</a>
         </nav>
         <div class="sidebar-user dropdown p-3 mt-auto">
@@ -55,8 +55,8 @@ $asset_img = '../assets/images';
         <!-- <small>Center for Smile<br>DENTAL CLINIC</small> -->
     </div>
     <nav class="nav flex-column py-2">
-        <a class="nav-link <?php echo $current_page === 'dashboard.php' && !$is_appointments_view ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
-        <a class="nav-link <?php echo $is_appointments_view ? 'active' : ''; ?>" href="dashboard.php?view=appointments"><i class="bi bi-calendar-check me-2"></i> My Appointment</a>
+        <a class="nav-link <?php echo $current_page === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
+        <!-- <a class="nav-link <?php echo $is_appointments_view ? 'active' : ''; ?>" href="dashboard.php?view=appointments"><i class="bi bi-calendar-check me-2"></i> My Appointment</a> -->
         <a class="nav-link" href="../book-appointment.php"><i class="bi bi-calendar-plus me-2"></i> Book Appointment</a>
     </nav>
     <div class="sidebar-user dropdown">

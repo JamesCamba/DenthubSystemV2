@@ -141,10 +141,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                                 <div class="mb-3">
                                     <label class="form-label">Dentist (Optional)</label>
-                                    <select class="form-select" name="dentist_id" id="dentist_id">
-                                        <option value="">Any Available Dentist</option>
+                                    <select class="form-select" name="dentist_id" id="dentist_id" disabled>
+                                        <option value="">Select branch and service first</option>
                                     </select>
-                                    <small class="text-muted">Select a service first to see available dentists</small>
+                                    <small class="text-muted">Select branch and service to see dentists assigned to that branch</small>
                                 </div>
 
                                 <div class="mb-3">
@@ -205,18 +205,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Load dentists based on selected service
-        document.getElementById('service_id').addEventListener('change', function() {
-            const serviceId = this.value;
+        // Load dentists based on branch + service (order: branch, then service)
+        function loadDentists() {
+            const branchId = document.getElementById('branch_id').value;
+            const serviceId = document.getElementById('service_id').value;
             const dentistSelect = document.getElementById('dentist_id');
             
-            if (!serviceId) {
-                dentistSelect.innerHTML = '<option value="">Any Available Dentist</option>';
+            if (!branchId || !serviceId) {
+                dentistSelect.innerHTML = '<option value="">Select branch and service first</option>';
+                dentistSelect.disabled = true;
                 return;
             }
+            dentistSelect.disabled = false;
+            dentistSelect.innerHTML = '<option value="">Loading...</option>';
             
-            // Fetch dentists for this service
-            fetch(`api/get-dentists-by-service.php?service_id=${serviceId}`)
+            fetch(`api/get-dentists-by-service.php?branch_id=${branchId}&service_id=${serviceId}`)
                 .then(response => response.json())
                 .then(data => {
                     dentistSelect.innerHTML = '<option value="">Any Available Dentist</option>';
@@ -231,8 +234,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 })
                 .catch(error => {
                     console.error('Error:', error);
+                    dentistSelect.innerHTML = '<option value="">Any Available Dentist</option>';
                 });
-        });
+        }
+        
+        document.getElementById('branch_id').addEventListener('change', loadDentists);
+        document.getElementById('service_id').addEventListener('change', loadDentists);
+        if (document.getElementById('branch_id').value && document.getElementById('service_id').value) {
+            loadDentists();
+        }
         
         // Load available time slots when date is selected
         function loadSlots() {

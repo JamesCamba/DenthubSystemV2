@@ -538,8 +538,14 @@ footer.denthub-footer .text-white {
     background-color: rgba(220, 53, 69, 0.8);
 }
 .schedule-tab-blocked.active {
-    background-color: #a01e2e;
+    background-color: #a01e2e !important;
     color: #fff !important;
+}
+/* Override Bootstrap nav-tabs .active so Blocked Dates tab stays dark red */
+.nav-tabs .nav-link.schedule-tab-blocked.active {
+    background-color: #a01e2e !important;
+    color: #fff !important;
+    border-color: transparent;
 }
 .card.denthub-card-rounded {
     border-radius: 12px;

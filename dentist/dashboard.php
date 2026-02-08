@@ -78,7 +78,7 @@ $today_appointments_list = $stmt->get_result();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <h2 class="denthub-page-title mb-4">Welcome, Dr. <?php echo htmlspecialchars($user['full_name']); ?></h2>
+        <h2 class="denthub-page-title mb-4"><i class="bi bi-grid-1x2 me-2"></i> Welcome, Dr. <?php echo htmlspecialchars($user['full_name']); ?></h2>
 
         <!-- Statistics Cards -->
         <div class="row g-4 mb-4">

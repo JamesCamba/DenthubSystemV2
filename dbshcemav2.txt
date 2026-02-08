@@ -27,7 +27,7 @@ CREATE TABLE "appointments" (
 	"created_by" integer,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "appointments_status_check" CHECK (CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'no_show'::character varying])::text[]))))
+	CONSTRAINT "appointments_status_check" CHECK (CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('confirmed'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text, ('no_show'::character varying)::text]))))
 );
 CREATE TABLE "blocked_dates" (
 	"block_id" serial PRIMARY KEY,
@@ -45,6 +45,13 @@ CREATE TABLE "branches" (
 	"email" varchar(100),
 	"is_active" boolean DEFAULT true,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "database_backups" (
+	"backup_id" serial PRIMARY KEY,
+	"backup_name" varchar(255) NOT NULL,
+	"backup_size" integer DEFAULT 0,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"content" text
 );
 CREATE TABLE "dentist_schedules" (
 	"schedule_id" serial PRIMARY KEY,
@@ -78,7 +85,7 @@ CREATE TABLE "email_verification_codes" (
 	"expires_at" timestamp NOT NULL,
 	"is_used" boolean DEFAULT false,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying])::text[]))))
+	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying, 'email_change'::character varying])::text[]))))
 );
 CREATE TABLE "lab_cases" (
 	"case_id" serial PRIMARY KEY,
@@ -95,7 +102,7 @@ CREATE TABLE "lab_cases" (
 	"notes" text,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "lab_cases_status_check" CHECK (CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'in_progress'::character varying, 'ready_for_pickup'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[]))))
+	CONSTRAINT "lab_cases_status_check" CHECK (CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('in_progress'::character varying)::text, ('ready_for_pickup'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text]))))
 );
 CREATE TABLE "login_attempts" (
 	"attempt_id" serial PRIMARY KEY,
@@ -105,7 +112,8 @@ CREATE TABLE "login_attempts" (
 	"captcha_passed_at" timestamp,
 	"locked_until" timestamp,
 	"last_attempt_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"lock_at_count" integer DEFAULT 5
 );
 CREATE TABLE "patient_accounts" (
 	"account_id" serial PRIMARY KEY,
@@ -116,6 +124,15 @@ CREATE TABLE "patient_accounts" (
 	"verification_token" varchar(100),
 	"last_login" timestamp,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "patient_audit_log" (
+	"log_id" serial PRIMARY KEY,
+	"patient_id" integer NOT NULL,
+	"changed_field" varchar(50) NOT NULL,
+	"old_value" text,
+	"new_value" text,
+	"changed_by" integer,
+	"changed_at" timestamp DEFAULT now()
 );
 CREATE TABLE "patients" (
 	"patient_id" serial PRIMARY KEY,
@@ -134,7 +151,12 @@ CREATE TABLE "patients" (
 	"allergies" text,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "patients_gender_check" CHECK (CHECK ((((gender)::text = ANY ((ARRAY['Male'::character varying, 'Female'::character varying, 'Other'::character varying])::text[])) OR (gender IS NULL))))
+	"phone_hash" varchar(64),
+	"no_show_count" integer DEFAULT 0,
+	"last_no_show_date" date,
+	"first_name_metaphone" varchar(20),
+	"last_name_metaphone" varchar(20),
+	CONSTRAINT "patients_gender_check" CHECK (CHECK ((((gender)::text = ANY (ARRAY[('Male'::character varying)::text, ('Female'::character varying)::text, ('Other'::character varying)::text])) OR (gender IS NULL))))
 );
 CREATE TABLE "services" (
 	"service_id" serial PRIMARY KEY,
@@ -162,7 +184,9 @@ CREATE TABLE "users" (
 	"phone" varchar(20),
 	"is_active" boolean DEFAULT true,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"phone_hash" varchar(64),
+	"must_change_password" boolean DEFAULT false
 );
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("user_id") ON DELETE SET NULL;
@@ -194,6 +218,7 @@ CREATE INDEX "idx_appointments_status" ON "appointments" ("status");
 CREATE UNIQUE INDEX "blocked_dates_pkey" ON "blocked_dates" ("block_id");
 CREATE UNIQUE INDEX "unique_block_date_branch" ON "blocked_dates" ("block_date","branch_id");
 CREATE UNIQUE INDEX "branches_pkey" ON "branches" ("branch_id");
+CREATE UNIQUE INDEX "database_backups_pkey" ON "database_backups" ("backup_id");
 CREATE UNIQUE INDEX "dentist_schedules_pkey" ON "dentist_schedules" ("schedule_id");
 CREATE UNIQUE INDEX "dentist_service_mastery_pkey" ON "dentist_service_mastery" ("mastery_id");
 CREATE UNIQUE INDEX "unique_dentist_service" ON "dentist_service_mastery" ("dentist_id","service_id");
@@ -211,6 +236,7 @@ CREATE UNIQUE INDEX "login_attempts_pkey" ON "login_attempts" ("attempt_id");
 CREATE UNIQUE INDEX "patient_accounts_email_key" ON "patient_accounts" ("email");
 CREATE UNIQUE INDEX "patient_accounts_patient_id_key" ON "patient_accounts" ("patient_id");
 CREATE UNIQUE INDEX "patient_accounts_pkey" ON "patient_accounts" ("account_id");
+CREATE UNIQUE INDEX "patient_audit_log_pkey" ON "patient_audit_log" ("log_id");
 CREATE INDEX "idx_patients_email" ON "patients" ("email");
 CREATE INDEX "idx_patients_number" ON "patients" ("patient_number");
 CREATE INDEX "idx_patients_phone" ON "patients" ("phone");

@@ -57,7 +57,7 @@ $today_appointments_list = $stmt->get_result();
     <?php include 'navbar.php'; ?>
 
     <main class="denthub-main">
-        <h1 class="denthub-page-title">Dashboard</h1>
+        <h1 class="denthub-page-title"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</h1>
 
         <!-- Statistics Cards -->
         <div class="row g-4 mb-4">
