@@ -32,6 +32,9 @@ CREATE TABLE IF NOT EXISTS login_attempts (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_login_attempts_identifier_type ON login_attempts (identifier, attempt_type);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_locked ON login_attempts (locked_until);
 
+-- Lock threshold: 5 after captcha (with reset), 10 when no captcha key (no reset)
+ALTER TABLE login_attempts ADD COLUMN IF NOT EXISTS lock_at_count integer DEFAULT 5;
+
 -- Add second branch: Tondo, Manila (run once)
 INSERT INTO branches (branch_name, address, phone, email, is_active)
 SELECT 'Denthub Tondo', '1876 Velasquez Street Barangay 92 Zone 8 Tondo, Manila, Philippines, 1013', NULL, NULL, true

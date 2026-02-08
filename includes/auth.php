@@ -91,7 +91,6 @@ function login($username_or_email, $password) {
             return true;
         }
     }
-    logActivity('login_failed', 'Attempt: ' . substr($username_or_email, 0, 100), null, null, $username_or_email, null, 'guest');
     return false;
 }
 
@@ -122,7 +121,6 @@ function patientLogin($email, $password) {
             return true;
         }
     }
-    logActivity('login_failed', 'Patient attempt: ' . substr($email, 0, 100), null, null, $email, null, 'guest');
     return false;
 }
 
@@ -164,7 +162,7 @@ function getLoginClientIdentifier() {
     return hash('sha256', $ip . '|' . $ua);
 }
 
-/** @return array|null { failed_count, captcha_passed_at, locked_until } */
+/** @return array|null { failed_count, captcha_passed_at, locked_until, lock_at_count } */
 function getLoginAttemptRecord($identifier, $attempt_type = 'unified') {
     try {
         $db = getDB();
@@ -172,7 +170,20 @@ function getLoginAttemptRecord($identifier, $attempt_type = 'unified') {
         $stmt->bind_param("ss", $identifier, $attempt_type);
         $stmt->execute();
         $r = $stmt->get_result()->fetch_assoc();
-        return $r ?: null;
+        if (!$r) return null;
+        $r['lock_at_count'] = 5;
+        try {
+            $stmt2 = $db->prepare("SELECT lock_at_count FROM login_attempts WHERE identifier = ? AND attempt_type = ?");
+            $stmt2->bind_param("ss", $identifier, $attempt_type);
+            $stmt2->execute();
+            $row = $stmt2->get_result()->fetch_assoc();
+            if ($row !== null && array_key_exists('lock_at_count', $row)) {
+                $r['lock_at_count'] = (int)$row['lock_at_count'];
+            }
+        } catch (Throwable $e) {
+            // Column may not exist yet
+        }
+        return $r;
     } catch (Throwable $e) {
         error_log('getLoginAttemptRecord: ' . $e->getMessage());
         return null;
@@ -214,7 +225,8 @@ function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         $failed = (int)($r['failed_count'] ?? 0);
         $captcha_passed = !empty($r['captcha_passed_at']);
-        if ($failed >= $max_attempts && $captcha_passed) {
+        $lock_threshold = isset($r['lock_at_count']) ? (int)$r['lock_at_count'] : 5;
+        if ($captcha_passed && $failed >= $lock_threshold) {
             $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
             $upd = $db->prepare("UPDATE login_attempts SET locked_until = ?, failed_count = 0, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
             $upd->bind_param("sss", $locked_until, $identifier, $attempt_type);
@@ -252,15 +264,36 @@ function loginNeedsCaptcha($identifier, $attempt_type = 'unified') {
     }
 }
 
-function recordLoginCaptchaPassed($identifier, $attempt_type = 'unified') {
+/**
+ * Mark that captcha was passed. When $reset_count is true (default), failed_count is set to 0 (user gets 5 more attempts).
+ * When $reset_count is false (e.g. no captcha key), we only set captcha_passed_at so the next 5 failures will trigger lockout.
+ */
+function recordLoginCaptchaPassed($identifier, $attempt_type = 'unified', $reset_count = true) {
     try {
         $db = getDB();
         $now = date('Y-m-d H:i:s');
-        $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at) VALUES (?, ?, 0, ?, ?)
-                              ON CONFLICT (identifier, attempt_type) DO UPDATE SET
-                              failed_count = 0, captcha_passed_at = EXCLUDED.captcha_passed_at, last_attempt_at = EXCLUDED.last_attempt_at");
-        $stmt->bind_param("ssss", $identifier, $attempt_type, $now, $now);
-        $stmt->execute();
+        if ($reset_count) {
+            $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at) VALUES (?, ?, 0, ?, ?)
+                                  ON CONFLICT (identifier, attempt_type) DO UPDATE SET
+                                  failed_count = 0, captcha_passed_at = EXCLUDED.captcha_passed_at, last_attempt_at = EXCLUDED.last_attempt_at");
+            $stmt->bind_param("ssss", $identifier, $attempt_type, $now, $now);
+            $stmt->execute();
+            if ($stmt = @$db->prepare("UPDATE login_attempts SET lock_at_count = 5 WHERE identifier = ? AND attempt_type = ?")) {
+                $stmt->bind_param("ss", $identifier, $attempt_type);
+                @$stmt->execute();
+            }
+        } else {
+            $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at) VALUES (?, ?, 5, ?, ?)
+                                  ON CONFLICT (identifier, attempt_type) DO UPDATE SET
+                                  captcha_passed_at = EXCLUDED.captcha_passed_at, last_attempt_at = EXCLUDED.last_attempt_at");
+            $stmt->bind_param("ssss", $identifier, $attempt_type, $now, $now);
+            $stmt->execute();
+            $upd = @$db->prepare("UPDATE login_attempts SET lock_at_count = 10 WHERE identifier = ? AND attempt_type = ?");
+            if ($upd) {
+                $upd->bind_param("ss", $identifier, $attempt_type);
+                @$upd->execute();
+            }
+        }
         return true;
     } catch (Throwable $e) {
         error_log('recordLoginCaptchaPassed: ' . $e->getMessage());

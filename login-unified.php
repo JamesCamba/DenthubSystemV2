@@ -59,10 +59,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $error = 'Verification failed. Please try again.';
                     $show_captcha = true;
                 } else {
-                    recordLoginCaptchaPassed($login_identifier, $attempt_type);
+                    recordLoginCaptchaPassed($login_identifier, $attempt_type, true);
                 }
             } else {
-                recordLoginCaptchaPassed($login_identifier, $attempt_type);
+                recordLoginCaptchaPassed($login_identifier, $attempt_type, false);
             }
         }
 
@@ -96,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Too many failed attempts. This device is temporarily locked for ' . $mins . ' minutes.';
             } else {
                 $error = 'Invalid email/username or password.';
+                logActivity('login_failed', 'Attempt: ' . substr($email_or_username, 0, 100), null, null, $email_or_username, null, 'guest');
                 if (loginNeedsCaptcha($login_identifier, $attempt_type)) {
                     $show_captcha = true;
                 }
