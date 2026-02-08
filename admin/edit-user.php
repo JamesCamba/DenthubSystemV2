@@ -163,8 +163,9 @@ if (isset($_GET['updated'])) {
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
+        <h1 class="denthub-page-title">User Management</h1>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Edit User</h2>
+            <div></div>
             <a href="users.php" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Users
             </a>
@@ -178,110 +179,102 @@ if (isset($_GET['updated'])) {
             <div class="alert alert-success"><?php echo $success; ?></div>
         <?php endif; ?>
 
-        <div class="card">
+        <div class="card denthub-card-rounded shadow-sm">
+            <div class="denthub-card-header text-white">
+                <h5 class="mb-0">Edit User</h5>
+            </div>
             <div class="card-body">
                 <form method="POST" action="">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Username <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="username" required
-                                   value="<?php echo htmlspecialchars($_POST['username'] ?? $user['username']); ?>">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" name="email" required
-                                   value="<?php echo htmlspecialchars($_POST['email'] ?? $user['email']); ?>">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" name="full_name" required
-                               value="<?php echo htmlspecialchars($_POST['full_name'] ?? $user['full_name']); ?>">
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Role <span class="text-danger">*</span></label>
-                            <select class="form-select" name="role" id="role" required>
-                                <option value="admin" <?php echo (($user['role'] ?? '') === 'admin') ? 'selected' : ''; ?>>Admin</option>
-                                <option value="dentist" <?php echo (($user['role'] ?? '') === 'dentist') ? 'selected' : ''; ?>>Dentist</option>
-                                <option value="staff" <?php echo (($user['role'] ?? '') === 'staff') ? 'selected' : ''; ?>>Staff</option>
-                            </select>
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Phone</label>
-                            <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
-                                   value="<?php echo htmlspecialchars($_POST['phone'] ?? $user['phone']); ?>">
-                        </div>
-                        <div class="col-md-4 mb-3">
-                            <label class="form-label">Active</label>
-                            <div class="form-check mt-2">
-                                <input class="form-check-input" type="checkbox" name="is_active" id="is_active"
-                                       <?php echo (($user['is_active'] ?? true) ? 'checked' : ''); ?>>
-                                <label class="form-check-label" for="is_active">
-                                    Account is active
-                                </label>
+                        <div class="col-lg-6">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">User Details</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Username <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="username" required
+                                       value="<?php echo htmlspecialchars($_POST['username'] ?? $user['username']); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Email <span class="text-danger">*</span></label>
+                                <input type="email" class="form-control" name="email" required
+                                       value="<?php echo htmlspecialchars($_POST['email'] ?? $user['email']); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="full_name" required
+                                       value="<?php echo htmlspecialchars($_POST['full_name'] ?? $user['full_name']); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Role <span class="text-danger">*</span></label>
+                                <select class="form-select" name="role" id="role" required>
+                                    <option value="admin" <?php echo (($user['role'] ?? '') === 'admin') ? 'selected' : ''; ?>>Admin</option>
+                                    <option value="dentist" <?php echo (($user['role'] ?? '') === 'dentist') ? 'selected' : ''; ?>>Dentist</option>
+                                    <option value="staff" <?php echo (($user['role'] ?? '') === 'staff') ? 'selected' : ''; ?>>Staff</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
+                                       value="<?php echo htmlspecialchars($_POST['phone'] ?? $user['phone']); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="is_active" id="is_active"
+                                           <?php echo (($user['is_active'] ?? true) ? 'checked' : ''); ?>>
+                                    <label class="form-check-label" for="is_active">
+                                        Account is active
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Branch</label>
+                                <select class="form-select" name="branch_id">
+                                    <?php
+                                    $branches->data_seek(0);
+                                    while ($branch = $branches->fetch_assoc()):
+                                        $selectedBranch = $_POST['branch_id'] ?? $user['branch_id'];
+                                    ?>
+                                        <option value="<?php echo $branch['branch_id']; ?>" <?php echo ($selectedBranch == $branch['branch_id']) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($branch['branch_name']); ?>
+                                        </option>
+                                    <?php endwhile; ?>
+                                </select>
                             </div>
                         </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Branch</label>
-                        <select class="form-select" name="branch_id">
-                            <?php
-                            $branches->data_seek(0);
-                            while ($branch = $branches->fetch_assoc()):
-                            ?>
-                                <option value="<?php echo $branch['branch_id']; ?>"
-                                    <?php
-                                    $selectedBranch = $_POST['branch_id'] ?? $user['branch_id'];
-                                    echo ($selectedBranch == $branch['branch_id']) ? 'selected' : '';
-                                    ?>>
-                                    <?php echo htmlspecialchars($branch['branch_name']); ?>
-                                </option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-
-                    <!-- Dentist-specific fields -->
-                    <div id="dentistFields" style="display: none;">
-                        <hr>
-                        <h5>Dentist Information</h5>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
+                        <div class="col-lg-6" id="dentistFieldsCol" style="display: none;">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">Dentist Information</h6>
+                            <div class="mb-3">
                                 <label class="form-label">License Number</label>
                                 <input type="text" class="form-control" name="license_number"
                                        value="<?php echo htmlspecialchars($_POST['license_number'] ?? ($user['license_number'] ?? '')); ?>">
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="mb-3">
                                 <label class="form-label">Specialization</label>
                                 <input type="text" class="form-control" name="specialization"
                                        placeholder="e.g., General Dentistry, Orthodontics"
                                        value="<?php echo htmlspecialchars($_POST['specialization'] ?? ($user['specialization'] ?? '')); ?>">
                             </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Service Mastery <span class="text-muted">(Select services this dentist can perform)</span></label>
-                            <div class="row">
-                                <?php
-                                $services->data_seek(0);
-                                $selected_mastery = $_POST['service_mastery'] ?? $current_mastery;
-                                while ($service = $services->fetch_assoc()):
-                                ?>
-                                    <div class="col-md-4 mb-2">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="service_mastery[]"
-                                                   value="<?php echo $service['service_id']; ?>"
-                                                   id="service_<?php echo $service['service_id']; ?>"
-                                                   <?php echo in_array($service['service_id'], $selected_mastery) ? 'checked' : ''; ?>>
-                                            <label class="form-check-label" for="service_<?php echo $service['service_id']; ?>">
-                                                <?php echo htmlspecialchars($service['service_name']); ?>
-                                            </label>
+                            <div class="mb-3">
+                                <label class="form-label">Service Mastery</label>
+                                <p class="small text-primary">(Select services this dentist can perform)</p>
+                                <div class="row">
+                                    <?php
+                                    $services->data_seek(0);
+                                    $selected_mastery = $_POST['service_mastery'] ?? $current_mastery;
+                                    while ($service = $services->fetch_assoc()):
+                                    ?>
+                                        <div class="col-md-6 mb-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="service_mastery[]"
+                                                       value="<?php echo $service['service_id']; ?>"
+                                                       id="service_<?php echo $service['service_id']; ?>"
+                                                       <?php echo in_array($service['service_id'], $selected_mastery) ? 'checked' : ''; ?>>
+                                                <label class="form-check-label" for="service_<?php echo $service['service_id']; ?>">
+                                                    <?php echo htmlspecialchars($service['service_name']); ?>
+                                                </label>
+                                            </div>
                                         </div>
-                                    </div>
-                                <?php endwhile; ?>
+                                    <?php endwhile; ?>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -298,16 +291,10 @@ if (isset($_GET['updated'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Show/hide dentist fields based on role selection
         document.getElementById('role').addEventListener('change', function() {
-            const dentistFields = document.getElementById('dentistFields');
-            if (this.value === 'dentist') {
-                dentistFields.style.display = 'block';
-            } else {
-                dentistFields.style.display = 'none';
-            }
+            const col = document.getElementById('dentistFieldsCol');
+            col.style.display = (this.value === 'dentist') ? 'block' : 'none';
         });
-        // Trigger on page load
         document.getElementById('role').dispatchEvent(new Event('change'));
     </script>
 </body>

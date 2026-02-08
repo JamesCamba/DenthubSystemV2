@@ -33,7 +33,7 @@ $users = $db->query("SELECT u.*, b.branch_name
     <main class="denthub-main">
     <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>User Management</h2>
+            <h1 class="denthub-page-title">User Management</h1>
             <a href="add-user.php" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Add New User
             </a>

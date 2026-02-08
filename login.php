@@ -120,7 +120,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card denthub-auth-card shadow">
                     <div class="card-header denthub-auth-card-header">
                         <div class="text-center">
-                            <i class="bi bi-tooth d-block" style="font-size: 48px;"></i>
+                            <img src="assets/images/logobluetransparent.png" alt="<?php echo APP_NAME; ?>" style="max-height: 64px; width: auto;" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                            <i class="bi bi-tooth d-block" style="font-size: 48px; display: none;"></i>
                             <h2 class="mt-2 mb-0">Login</h2>
                             <p class="mb-0 small opacity-90">Login to access your account</p>
                         </div>

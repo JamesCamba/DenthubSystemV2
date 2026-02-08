@@ -9,10 +9,10 @@ $nav_patient_base = $nav_patient_base ?? 'patient/';
 ?>
 <nav class="navbar navbar-expand-lg navbar-public">
     <div class="container">
-        <a class="navbar-brand fw-bold d-flex align-items-center" href="<?php echo $nav_base; ?>index.php">
-            <img src="<?php echo $nav_base; ?>resources/468397831_122123862374527362_8536709169507539928_n.jpg" alt="<?php echo APP_NAME; ?>" height="36" class="me-2 rounded d-none d-md-inline">
-            <span class="d-inline d-md-none"><i class="bi bi-tooth me-1"></i></span>
-            <span>DENTHUB<br class="d-none d-lg-block"><small class="fw-normal d-lg-inline" style="font-size: 0.65em;">DENTAL CLINIC</small></span>
+        <a class="navbar-brand fw-bold d-flex align-items-center brand-img-wrap text-white text-decoration-none" href="<?php echo $nav_base; ?>index.php">
+            <img src="<?php echo $nav_base; ?>assets/images/logowblue.png" alt="Logo" onerror="this.style.display='none'">
+            <img src="<?php echo $nav_base; ?>assets/images/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
+            <span class="ms-1">DENTHUB</span>
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>

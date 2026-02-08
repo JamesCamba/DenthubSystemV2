@@ -129,8 +129,9 @@ $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
+        <h1 class="denthub-page-title">User Management</h1>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Add New User</h2>
+            <div></div>
             <a href="users.php" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Back to Users
             </a>
@@ -144,103 +145,95 @@ $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
             <div class="alert alert-success"><?php echo $success; ?></div>
         <?php endif; ?>
 
-        <div class="card">
+        <div class="card denthub-card-rounded shadow-sm">
+            <div class="denthub-card-header text-white">
+                <h5 class="mb-0">Add New User</h5>
+            </div>
             <div class="card-body">
                 <form method="POST" action="">
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Username <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" name="username" required 
-                                   value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" name="email" required 
-                                   value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                        <input type="text" class="form-control" name="full_name" required 
-                               value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>">
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Role <span class="text-danger">*</span></label>
-                            <select class="form-select" name="role" id="role" required>
-                                <option value="admin" <?php echo (($_POST['role'] ?? '') === 'admin') ? 'selected' : ''; ?>>Admin</option>
-                                <option value="dentist" <?php echo (($_POST['role'] ?? '') === 'dentist') ? 'selected' : ''; ?>>Dentist</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Phone</label>
-                            <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
-                                   value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
+                        <div class="col-lg-6">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">User Details</h6>
+                            <div class="mb-3">
+                                <label class="form-label">Username <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="username" required 
+                                       value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Email <span class="text-danger">*</span></label>
+                                <input type="email" class="form-control" name="email" required 
+                                       value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
+                                <input type="text" class="form-control" name="full_name" required 
+                                       value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Role <span class="text-danger">*</span></label>
+                                <select class="form-select" name="role" id="role" required>
+                                    <option value="admin" <?php echo (($_POST['role'] ?? '') === 'admin') ? 'selected' : ''; ?>>Admin</option>
+                                    <option value="dentist" <?php echo (($_POST['role'] ?? '') === 'dentist') ? 'selected' : ''; ?>>Dentist</option>
+                                </select>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
+                                       value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
                                 <small class="text-muted">Philippines: 11 digits</small>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Branch</label>
+                                <select class="form-select" name="branch_id">
+                                    <?php $branches->data_seek(0); while ($branch = $branches->fetch_assoc()): ?>
+                                        <option value="<?php echo $branch['branch_id']; ?>" <?php echo (($_POST['branch_id'] ?? 1) == $branch['branch_id']) ? 'selected' : ''; ?>>
+                                            <?php echo htmlspecialchars($branch['branch_name']); ?>
+                                        </option>
+                                    <?php endwhile; ?>
+                                </select>
+                            </div>
                         </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Branch</label>
-                        <select class="form-select" name="branch_id">
-                            <?php while ($branch = $branches->fetch_assoc()): ?>
-                                <option value="<?php echo $branch['branch_id']; ?>" 
-                                        <?php echo (($_POST['branch_id'] ?? 1) == $branch['branch_id']) ? 'selected' : ''; ?>>
-                                    <?php echo htmlspecialchars($branch['branch_name']); ?>
-                                </option>
-                            <?php endwhile; ?>
-                        </select>
-                    </div>
-
-                    <!-- Dentist-specific fields -->
-                    <div id="dentistFields" style="display: none;">
-                        <hr>
-                        <h5>Dentist Information</h5>
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
+                        <div class="col-lg-6" id="dentistFields" style="display: none;">
+                            <h6 class="text-primary border-bottom pb-2 mb-3">Dentist Information</h6>
+                            <div class="mb-3">
                                 <label class="form-label">License Number</label>
                                 <input type="text" class="form-control" name="license_number" 
                                        value="<?php echo htmlspecialchars($_POST['license_number'] ?? ''); ?>">
                             </div>
-                            <div class="col-md-6 mb-3">
+                            <div class="mb-3">
                                 <label class="form-label">Specialization</label>
                                 <input type="text" class="form-control" name="specialization" 
                                        placeholder="e.g., General Dentistry, Orthodontics"
                                        value="<?php echo htmlspecialchars($_POST['specialization'] ?? ''); ?>">
                             </div>
-                        </div>
-
-                        <div class="mb-3">
-                            <label class="form-label">Service Mastery <span class="text-muted">(Select services this dentist can perform)</span></label>
-                            <div class="row">
-                                <?php 
-                                $services->data_seek(0);
-                                while ($service = $services->fetch_assoc()): 
-                                ?>
-                                    <div class="col-md-4 mb-2">
-                                        <div class="form-check">
-                                            <input class="form-check-input" type="checkbox" name="service_mastery[]" 
-                                                   value="<?php echo $service['service_id']; ?>"
-                                                   id="service_<?php echo $service['service_id']; ?>"
-                                                   <?php echo (in_array($service['service_id'], $_POST['service_mastery'] ?? [])) ? 'checked' : ''; ?>>
-                                            <label class="form-check-label" for="service_<?php echo $service['service_id']; ?>">
-                                                <?php echo htmlspecialchars($service['service_name']); ?>
-                                            </label>
+                            <div class="mb-3">
+                                <label class="form-label">Service Mastery</label>
+                                <p class="small text-primary">(Select services this dentist can perform)</p>
+                                <div class="row">
+                                    <?php $services->data_seek(0); while ($service = $services->fetch_assoc()): ?>
+                                        <div class="col-md-6 mb-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" name="service_mastery[]" 
+                                                       value="<?php echo $service['service_id']; ?>"
+                                                       id="service_<?php echo $service['service_id']; ?>"
+                                                       <?php echo (in_array($service['service_id'], $_POST['service_mastery'] ?? [])) ? 'checked' : ''; ?>>
+                                                <label class="form-check-label" for="service_<?php echo $service['service_id']; ?>">
+                                                    <?php echo htmlspecialchars($service['service_name']); ?>
+                                                </label>
+                                            </div>
                                         </div>
-                                    </div>
-                                <?php endwhile; ?>
+                                    <?php endwhile; ?>
+                                </div>
+                                <small class="text-muted">A default schedule (Monday-Friday, 9 AM - 5 PM) will be created automatically.</small>
                             </div>
-                            <small class="text-muted">A default schedule (Monday-Friday, 9 AM - 5 PM) will be created automatically.</small>
                         </div>
                     </div>
 
-                    <div class="alert alert-info">
+                    <div class="alert alert-info mt-3">
                         <i class="bi bi-info-circle"></i> A temporary password will be generated and sent to the user's email. They should change it on first login.
                     </div>
 
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
                         <a href="users.php" class="btn btn-secondary">Cancel</a>
                         <button type="submit" class="btn btn-primary">Create User</button>
                     </div>
@@ -252,17 +245,9 @@ $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Show/hide dentist fields based on role selection
         document.getElementById('role').addEventListener('change', function() {
-            const dentistFields = document.getElementById('dentistFields');
-            if (this.value === 'dentist') {
-                dentistFields.style.display = 'block';
-            } else {
-                dentistFields.style.display = 'none';
-            }
+            document.getElementById('dentistFields').style.display = (this.value === 'dentist') ? 'block' : 'none';
         });
-        
-        // Trigger on page load
         document.getElementById('role').dispatchEvent(new Event('change'));
     </script>
 </body>

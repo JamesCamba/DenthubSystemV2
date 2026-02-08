@@ -12,18 +12,28 @@ requireRole('admin');
 $db = getDB();
 $error = '';
 $success = '';
-$branch_id = $_SESSION['branch_id'] ?? 1;
+
+// Branch list for tabs and dropdown
+$branches_list = [];
+$br = $db->query("SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE ORDER BY branch_id");
+while ($row = $br->fetch_assoc()) {
+    $branches_list[] = $row;
+}
+
+// Selected branch for viewing blocked dates (from GET or first branch)
+$view_branch_id = isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : (isset($branches_list[0]) ? (int)$branches_list[0]['branch_id'] : 1);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    // Add a blocked date
     if (isset($_POST['add_block'])) {
         $block_date = $_POST['block_date'] ?? '';
         $reason = sanitize($_POST['reason'] ?? '');
+        $branch_id = isset($_POST['branch_id']) ? (int)$_POST['branch_id'] : 0;
 
         if (empty($block_date)) {
             $error = 'Please select a date to block.';
+        } elseif ($branch_id <= 0) {
+            $error = 'Please select a branch.';
         } else {
-            // Check if already exists
             $check = $db->prepare("SELECT block_id FROM blocked_dates WHERE block_date = ? AND branch_id = ?");
             $check->bind_param("si", $block_date, $branch_id);
             $check->execute();
@@ -42,10 +52,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Toggle active state
     if (isset($_POST['toggle_block'])) {
         $block_id  = intval($_POST['block_id'] ?? 0);
-        // PostgreSQL: is_active is boolean – pass as text and cast in SQL
+        $branch_id = intval($_POST['branch_id'] ?? $view_branch_id);
         $is_active = intval($_POST['is_active'] ?? 0) ? 'true' : 'false';
 
         if ($block_id > 0) {
@@ -57,12 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-// Load blocked dates for this branch
+// Load blocked dates for selected branch
 $stmt = $db->prepare("SELECT * FROM blocked_dates WHERE branch_id = ? ORDER BY block_date ASC");
-$stmt->bind_param("i", $branch_id);
+$stmt->bind_param("i", $view_branch_id);
 $stmt->execute();
 $blocked_dates = $stmt->get_result();
-
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -79,9 +87,7 @@ $blocked_dates = $stmt->get_result();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Clinic Schedule / Closed Dates</h2>
-        </div>
+        <h1 class="denthub-page-title">Clinic Schedule / Closed Dates</h1>
 
         <?php if ($error): ?>
             <div class="alert alert-danger"><?php echo $error; ?></div>
@@ -93,12 +99,20 @@ $blocked_dates = $stmt->get_result();
 
         <div class="row">
             <div class="col-lg-5 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-calendar-x"></i> Block a Date</h5>
+                <div class="card denthub-card-rounded shadow-sm">
+                    <div class="schedule-tab-block text-white">
+                        <h5 class="mb-0"><i class="bi bi-calendar-x me-2"></i> Block a Date</h5>
                     </div>
                     <div class="card-body">
                         <form method="POST" action="">
+                            <div class="mb-3">
+                                <label class="form-label">Branch <span class="text-danger">*</span></label>
+                                <select class="form-select" name="branch_id" required>
+                                    <?php foreach ($branches_list as $b): ?>
+                                        <option value="<?php echo (int)$b['branch_id']; ?>"><?php echo htmlspecialchars($b['branch_name']); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
                             <div class="mb-3">
                                 <label class="form-label">Date to Block <span class="text-danger">*</span></label>
                                 <input type="date" class="form-control" name="block_date"
@@ -115,7 +129,7 @@ $blocked_dates = $stmt->get_result();
                                 </button>
                             </div>
                             <small class="text-muted d-block mt-2">
-                                Blocked dates will be unavailable for patients when booking appointments.
+                                Blocked dates will be unavailable for patients when booking appointments for that branch.
                             </small>
                         </form>
                     </div>
@@ -123,10 +137,20 @@ $blocked_dates = $stmt->get_result();
             </div>
 
             <div class="col-lg-7 mb-4">
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="bi bi-calendar-event"></i> Blocked Dates (Branch <?php echo (int)$branch_id; ?>)</h5>
-                    </div>
+                <div class="card denthub-card-rounded shadow-sm">
+                    <ul class="nav nav-tabs border-0">
+                        <?php foreach ($branches_list as $b): 
+                            $bid = (int)$b['branch_id'];
+                            $active = ($bid === $view_branch_id);
+                        ?>
+                        <li class="nav-item">
+                            <a class="nav-link <?php echo $active ? 'active' : ''; ?> schedule-tab-blocked text-white rounded-0" 
+                               href="?branch_id=<?php echo $bid; ?>">
+                                <i class="bi bi-calendar-event me-2"></i> Blocked Dates (<?php echo htmlspecialchars($b['branch_name']); ?>)
+                            </a>
+                        </li>
+                        <?php endforeach; ?>
+                    </ul>
                     <div class="card-body">
                         <?php if ($blocked_dates->num_rows > 0): ?>
                             <div class="table-responsive">
@@ -152,6 +176,7 @@ $blocked_dates = $stmt->get_result();
                                                 <td>
                                                     <form method="POST" action="" class="d-inline">
                                                         <input type="hidden" name="block_id" value="<?php echo $row['block_id']; ?>">
+                                                        <input type="hidden" name="branch_id" value="<?php echo $view_branch_id; ?>">
                                                         <input type="hidden" name="is_active" value="<?php echo $row['is_active'] ? 0 : 1; ?>">
                                                         <button type="submit" name="toggle_block" value="1"
                                                                 class="btn btn-sm btn-outline-<?php echo $row['is_active'] ? 'secondary' : 'success'; ?>">
@@ -177,4 +202,3 @@ $blocked_dates = $stmt->get_result();
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
-

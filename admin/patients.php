@@ -11,22 +11,41 @@ requireLogin();
 
 $db = getDB();
 
-// Search
 $search = $_GET['search'] ?? '';
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
 
-// Patient list: show only ID and name (folder-style); full details on View
-$sql = "SELECT patient_id, patient_number, first_name, last_name FROM patients";
+$where = '';
+$params = [];
+$types = '';
 if ($search) {
-    $sql .= " WHERE LOWER(first_name) LIKE LOWER(?) OR LOWER(last_name) LIKE LOWER(?) OR patient_number LIKE ?";
-    $search_param = "%$search%";
-    $stmt = $db->prepare($sql);
-    $stmt->bind_param("sss", $search_param, $search_param, $search_param);
-} else {
-    $stmt = $db->prepare($sql);
+    $where = " WHERE LOWER(first_name) LIKE LOWER(?) OR LOWER(last_name) LIKE LOWER(?) OR patient_number LIKE ?";
+    $params = ["%$search%", "%$search%", "%$search%"];
+    $types = 'sss';
 }
 
-$stmt->execute();
-$patients = $stmt->get_result();
+$count_sql = "SELECT COUNT(*) as total FROM patients" . $where;
+if ($types) {
+    $stmt = $db->prepare($count_sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $total_rows = (int)$stmt->get_result()->fetch_assoc()['total'];
+} else {
+    $total_rows = (int)$db->query($count_sql)->fetch_assoc()['total'];
+}
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+$page = min($page, $total_pages);
+$offset = ($page - 1) * $per_page;
+
+$sql = "SELECT patient_id, patient_number, first_name, last_name FROM patients" . $where . " ORDER BY patient_id DESC LIMIT $per_page OFFSET $offset";
+if ($types) {
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $patients = $stmt->get_result();
+} else {
+    $patients = $db->query($sql);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -43,9 +62,7 @@ $patients = $stmt->get_result();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Patient Management</h2>
-        </div>
+        <h1 class="denthub-page-title">Patient Management</h1>
 
         <!-- Search -->
         <div class="card mb-4">
@@ -64,8 +81,18 @@ $patients = $stmt->get_result();
         </div>
 
         <!-- Patients Table -->
-        <div class="card">
+        <div class="card denthub-card-rounded">
             <div class="card-body">
+                <div class="denthub-table-pagination">
+                    <span class="page-info">Page <?php echo $page; ?> of <?php echo $total_pages; ?></span>
+                    <?php
+                    $q = $_GET;
+                    if ($total_pages > 1) {
+                        if ($page > 1) { $q['page'] = $page - 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Previous</a>'; }
+                        if ($page < $total_pages) { $q['page'] = $page + 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Next</a>'; }
+                    }
+                    ?>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>

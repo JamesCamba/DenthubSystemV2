@@ -508,7 +508,8 @@ function rescheduleAppointment($appointment_id, $new_date, $new_time, $reschedul
         return false;
     }
 
-    $stmt = $db->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ?, updated_at = NOW() WHERE appointment_id = ?");
+    // Set status back to pending so it can be changed again if needed; email still sends below
+    $stmt = $db->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ?, status = 'pending', updated_at = NOW() WHERE appointment_id = ?");
     $stmt->bind_param("ssi", $new_date, $new_time_str, $appointment_id);
     if (!$stmt->execute()) {
         return false;

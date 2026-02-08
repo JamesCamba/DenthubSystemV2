@@ -101,7 +101,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <h2 class="denthub-page-title mb-4">My Weekly Schedule</h2>
+        <h1 class="denthub-page-title mb-4">My Weekly Schedule</h1>
 
         <?php if ($error): ?>
             <div class="alert alert-danger"><?php echo $error; ?></div>
@@ -111,7 +111,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="alert alert-success"><?php echo $success; ?></div>
         <?php endif; ?>
 
-        <div class="card denthub-card-light">
+        <div class="card denthub-card-rounded shadow-sm">
+            <div class="denthub-card-header text-white">
+                <h5 class="mb-0"><i class="bi bi-calendar-week me-2"></i> Configure your availability</h5>
+            </div>
             <div class="card-body">
                 <form method="POST" action="">
                     <p class="text-muted">

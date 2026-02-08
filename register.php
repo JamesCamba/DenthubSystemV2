@@ -313,7 +313,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
             <div class="col-md-8 col-lg-6">
                 <div class="denthub-auth-wrap shadow">
                     <div class="text-center mb-4">
-                        <i class="bi bi-tooth text-primary" style="font-size: 48px;"></i>
+                        <img src="assets/images/logobluetransparent.png" alt="<?php echo APP_NAME; ?>" style="max-height: 64px; width: auto;" onerror="this.style.display='none'">
                         <h2 class="mt-3 text-primary fw-bold">Create Account</h2>
                         <p class="text-muted">Register to book appointments online</p>
                     </div>

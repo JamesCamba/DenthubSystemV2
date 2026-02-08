@@ -51,8 +51,8 @@ $appointments = $stmt->get_result();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Patient Profile</h2>
+        <h1 class="denthub-page-title">Patient Profile</h1>
+        <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
             <div>
                 <a href="add-appointment.php?patient_id=<?php echo $patient_id; ?>" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> New Appointment
@@ -63,8 +63,8 @@ $appointments = $stmt->get_result();
 
         <div class="row">
             <div class="col-md-4">
-                <div class="card mb-4">
-                    <div class="card-header">
+                <div class="card mb-4 denthub-card-rounded shadow-sm">
+                    <div class="view-patient-tab-primary">
                         <h5 class="mb-0">Personal Information</h5>
                     </div>
                     <div class="card-body">
@@ -95,8 +95,8 @@ $appointments = $stmt->get_result();
             </div>
 
             <div class="col-md-8">
-                <div class="card">
-                    <div class="card-header">
+                <div class="card denthub-card-rounded shadow-sm">
+                    <div class="view-patient-tab-green">
                         <h5 class="mb-0">Appointment History</h5>
                     </div>
                     <div class="card-body">

@@ -16,6 +16,8 @@ if (!hasRole('admin')) {
 $db_error = false;
 $error_message = '';
 $logs = [];
+$page = 1;
+$total_pages = 1;
 $action_types = ['login_success', 'login_failed', 'password_changed', 'email_changed', 'phone_changed', 'appointment_status_changed'];
 sort($action_types);
 
@@ -44,7 +46,23 @@ try {
         $params[] = $filter_date_to . ' 23:59:59';
         $types .= 's';
     }
-    $sql .= " ORDER BY created_at DESC LIMIT 500";
+    $page = max(1, (int)($_GET['page'] ?? 1));
+    $per_page = 20;
+    $offset = ($page - 1) * $per_page;
+
+    $count_sql = preg_replace('/SELECT .+ FROM/', 'SELECT COUNT(*) as total FROM', $sql);
+    $count_sql = preg_replace('/ORDER BY .+/', '', $count_sql);
+    $count_stmt = $db->prepare($count_sql);
+    if (!empty($params)) {
+        $count_stmt->bind_param($types, ...$params);
+    }
+    $count_stmt->execute();
+    $total_rows = (int)$count_stmt->get_result()->fetch_assoc()['total'];
+    $total_pages = max(1, (int)ceil($total_rows / $per_page));
+    $page = min($page, $total_pages);
+    $offset = ($page - 1) * $per_page;
+
+    $sql .= " ORDER BY created_at DESC LIMIT $per_page OFFSET $offset";
 
     $stmt = $db->prepare($sql);
     if (!empty($params)) {
@@ -91,8 +109,8 @@ try {
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2><i class="bi bi-journal-text"></i> Activity Logs</h2>
+        <h1 class="denthub-page-title"><i class="bi bi-journal-text me-2"></i> Activity Logs</h1>
+        <div class="d-flex justify-content-end mb-4">
             <a href="dashboard.php" class="btn btn-secondary"><i class="bi bi-arrow-left"></i> Back to Dashboard</a>
         </div>
 
@@ -130,9 +148,20 @@ try {
             </div>
         </div>
 
-        <div class="card">
-            <div class="card-body table-responsive">
-                <table class="table table-hover">
+        <div class="card denthub-card-rounded">
+            <div class="card-body">
+                <div class="denthub-table-pagination">
+                    <span class="page-info">Page <?php echo $page; ?> of <?php echo $total_pages; ?></span>
+                    <?php
+                    $q = $_GET;
+                    if ($total_pages > 1) {
+                        if ($page > 1) { $q['page'] = $page - 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Previous</a>'; }
+                        if ($page < $total_pages) { $q['page'] = $page + 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Next</a>'; }
+                    }
+                    ?>
+                </div>
+                <div class="table-scroll-wrapper">
+                <table class="table table-hover mb-0">
                     <thead>
                         <tr>
                             <th>Time</th>
@@ -159,8 +188,9 @@ try {
                     </tbody>
                 </table>
                 <?php if (empty($logs)): ?>
-                    <p class="text-muted mb-0">No log entries found.</p>
+                    <p class="text-muted mb-0 p-3">No log entries found.</p>
                 <?php endif; ?>
+                </div>
             </div>
         </div>
     </div>

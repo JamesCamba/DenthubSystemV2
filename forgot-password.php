@@ -268,7 +268,8 @@ if ($step === 'reset' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="card shadow">
                     <div class="card-body p-5">
                         <div class="text-center mb-4">
-                            <i class="bi bi-key text-primary" style="font-size: 48px;"></i>
+                            <img src="assets/images/logobluetransparent.png" alt="<?php echo APP_NAME; ?>" style="max-height: 64px; width: auto;" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
+                            <i class="bi bi-key text-primary" style="font-size: 48px; display: none;"></i>
                             <h2 class="mt-3">Reset Password</h2>
                             <p class="text-muted">Enter your email to receive a verification code</p>
                         </div>

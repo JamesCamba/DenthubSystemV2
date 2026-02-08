@@ -106,12 +106,14 @@ $totals = $stmt->get_result()->fetch_assoc();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <h2 class="mb-4">Reports</h2>
+        <h1 class="denthub-page-title">Reports</h1>
 
         <!-- Generate Report: Period + Title + Export -->
-        <div class="card mb-4 no-print">
+        <div class="card mb-4 no-print denthub-card-rounded shadow-sm">
+            <div class="reports-tab-header text-white">
+                <h5 class="mb-0"><i class="bi bi-graph-up me-2"></i> Generate Report</h5>
+            </div>
             <div class="card-body">
-                <h5 class="card-title mb-3">Generate Report</h5>
                 <form method="GET" action="" id="reportForm">
                     <div class="row g-3 mb-3">
                         <div class="col-md-12">
@@ -145,7 +147,7 @@ $totals = $stmt->get_result()->fetch_assoc();
             </div>
         </div>
 
-        <!-- Summary Statistics -->
+        <!-- Summary Statistics (add tab header to first card if desired) -->
         <div class="row g-4 mb-4">
             <div class="col-md-3">
                 <div class="card bg-primary text-white">
@@ -182,8 +184,8 @@ $totals = $stmt->get_result()->fetch_assoc();
         </div>
 
         <!-- Daily Appointments Report (printable) -->
-        <div class="card mb-4 printable">
-            <div class="card-header">
+        <div class="card mb-4 printable denthub-card-rounded">
+            <div class="reports-tab-header text-white">
                 <h5 class="mb-0"><?php echo htmlspecialchars($report_title); ?> — Daily breakdown</h5>
             </div>
             <div class="card-body">
@@ -219,8 +221,8 @@ $totals = $stmt->get_result()->fetch_assoc();
         </div>
 
         <!-- Service Statistics -->
-        <div class="card">
-            <div class="card-header">
+        <div class="card denthub-card-rounded">
+            <div class="reports-tab-header text-white">
                 <h5 class="mb-0">Service Statistics</h5>
             </div>
             <div class="card-body">

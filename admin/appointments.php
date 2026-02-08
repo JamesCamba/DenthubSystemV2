@@ -67,6 +67,21 @@ if ($search) {
 
 $where_clause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 20;
+$offset = ($page - 1) * $per_page;
+
+$count_sql = "SELECT COUNT(*) as total FROM appointments a JOIN patients p ON a.patient_id = p.patient_id $where_clause";
+$count_stmt = $db->prepare($count_sql);
+if (!empty($params)) {
+    $count_stmt->bind_param($types, ...$params);
+}
+$count_stmt->execute();
+$total_rows = (int)$count_stmt->get_result()->fetch_assoc()['total'];
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+$page = min($page, $total_pages);
+$offset = ($page - 1) * $per_page;
+
 $sql = "SELECT a.*, p.first_name, p.last_name, p.phone, p.email, s.service_name, u.full_name as dentist_name
         FROM appointments a
         JOIN patients p ON a.patient_id = p.patient_id
@@ -75,7 +90,7 @@ $sql = "SELECT a.*, p.first_name, p.last_name, p.phone, p.email, s.service_name,
         LEFT JOIN users u ON d.user_id = u.user_id
         $where_clause
         ORDER BY $sort_col $order_sql, a.appointment_id DESC
-        LIMIT 100";
+        LIMIT $per_page OFFSET $offset";
 
 $stmt = $db->prepare($sql);
 if (!empty($params)) {
@@ -99,8 +114,9 @@ $appointments = $stmt->get_result();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
+        <h1 class="denthub-page-title">Appointment Management</h1>
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h2>Appointment Management</h2>
+            <div></div>
             <a href="add-appointment.php" class="btn btn-primary">
                 <i class="bi bi-plus-circle"></i> Add New Appointment
             </a>
@@ -151,8 +167,18 @@ $appointments = $stmt->get_result();
         </div>
 
         <!-- Appointments Table -->
-        <div class="card">
+        <div class="card denthub-card-rounded">
             <div class="card-body">
+                <div class="denthub-table-pagination flex-wrap">
+                    <span class="page-info">Page <?php echo $page; ?> of <?php echo $total_pages; ?></span>
+                    <?php
+                    $q = $_GET;
+                    if ($total_pages > 1):
+                        if ($page > 1) { $q['page'] = $page - 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Previous</a>'; }
+                        if ($page < $total_pages) { $q['page'] = $page + 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Next</a>'; }
+                    endif;
+                    ?>
+                </div>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>

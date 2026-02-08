@@ -125,7 +125,7 @@ $today_appointments_list = $stmt->get_result();
 
         <!-- Today's Appointments -->
         <div class="card">
-            <div class="card-header denthub-card-header">
+            <div class="card-header denthub-card-header denthub-header-green">
                 <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Today's Appointments</h5>
             </div>
             <div class="card-body">
