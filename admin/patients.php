@@ -62,7 +62,7 @@ if ($types) {
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <h1 class="denthub-page-title">Patient Management</h1>
+        <h1 class="denthub-page-title"><i class="bi bi-people me-2"></i> Patient Management</h1>
 
         <!-- Search -->
         <div class="card mb-4">

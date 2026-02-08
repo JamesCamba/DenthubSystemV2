@@ -87,7 +87,7 @@ $blocked_dates = $stmt->get_result();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <h1 class="denthub-page-title">Clinic Schedule / Closed Dates</h1>
+        <h1 class="denthub-page-title"><i class="bi bi-calendar-week me-2"></i> Clinic Schedule / Closed Dates</h1>
 
         <?php if ($error): ?>
             <div class="alert alert-danger"><?php echo $error; ?></div>

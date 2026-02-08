@@ -22,7 +22,7 @@ $asset_img = '../assets/images';
             <img src="<?php echo $asset_img; ?>/logowblue.png" alt="Logo" onerror="this.style.display='none'">
             <img src="<?php echo $asset_img; ?>/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
             <span class="text-white fw-bold ms-2">DENTHUB</span>
-            <small class="d-block w-100 text-white opacity-90" style="font-size: 0.65rem;">Center for Smile<br>DENTAL CLINIC</small>
+            <!-- <small class="d-block w-100 text-white opacity-90" style="font-size: 0.65rem;">Center for Smile<br>DENTAL CLINIC</small> -->
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
@@ -52,7 +52,7 @@ $asset_img = '../assets/images';
             <img src="<?php echo $asset_img; ?>/logowblue.png" alt="Logo" onerror="this.style.display='none'">
             <img src="<?php echo $asset_img; ?>/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
         </div>
-        <small>Center for Smile<br>DENTAL CLINIC</small>
+        <!-- <small>Center for Smile<br>DENTAL CLINIC</small> -->
     </div>
     <nav class="nav flex-column py-2">
         <a class="nav-link <?php echo $current_page === 'dashboard.php' && !$is_appointments_view ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>

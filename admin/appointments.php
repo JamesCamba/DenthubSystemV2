@@ -114,7 +114,7 @@ $appointments = $stmt->get_result();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <h1 class="denthub-page-title">Appointment Management</h1>
+        <h1 class="denthub-page-title"><i class="bi bi-calendar-check me-2"></i> Appointment Management</h1>
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div></div>
             <a href="add-appointment.php" class="btn btn-primary">

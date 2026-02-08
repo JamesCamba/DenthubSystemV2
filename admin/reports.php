@@ -106,7 +106,7 @@ $totals = $stmt->get_result()->fetch_assoc();
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <h1 class="denthub-page-title">Reports</h1>
+        <h1 class="denthub-page-title"><i class="bi bi-graph-up me-2"></i> Reports</h1>
 
         <!-- Generate Report: Period + Title + Export -->
         <div class="card mb-4 no-print denthub-card-rounded shadow-sm">
