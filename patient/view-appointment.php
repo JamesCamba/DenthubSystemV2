@@ -55,9 +55,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <?php $nav_base = '../'; $nav_patient_base = ''; $nav_active = 'book'; require_once '../includes/nav-public.php'; ?>
+    <?php require_once '../includes/patient-sidebar.php'; ?>
 
-    <main class="denthub-main" style="margin-left:0;">
+    <main class="denthub-main">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-8">
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
                     <div class="card-body">
                         <div class="row mb-3">
                             <div class="col-sm-4"><strong>Reference Number:</strong></div>
-                            <div class="col-sm-8"><code><?php echo htmlspecialchars($appointment['appointment_number']); ?></code></div>
+                            <div class="col-sm-8"><span class="ref-number"><?php echo htmlspecialchars($appointment['appointment_number']); ?></span></div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-sm-4"><strong>Service:</strong></div>

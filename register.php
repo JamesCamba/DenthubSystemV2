@@ -311,13 +311,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-md-8 col-lg-6">
-                <div class="card shadow">
+                <div class="denthub-auth-wrap shadow">
+                    <div class="text-center mb-4">
+                        <i class="bi bi-tooth text-primary" style="font-size: 48px;"></i>
+                        <h2 class="mt-3 text-primary fw-bold">Create Account</h2>
+                        <p class="text-muted">Register to book appointments online</p>
+                    </div>
+                    <div class="card shadow-sm border-0 bg-white">
                     <div class="card-body p-5">
-                        <div class="text-center mb-4">
-                            <i class="bi bi-person-plus text-primary" style="font-size: 48px;"></i>
-                            <h2 class="mt-3">Create Account</h2>
-                            <p class="text-muted">Register to book appointments online</p>
-                        </div>
 
                         <?php if ($error): ?>
                             <div class="alert alert-danger"><?php echo $error; ?></div>
@@ -434,6 +435,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             <a href="index.php" class="text-muted">Back to Home</a>
                         </div>
                     </div>
+                </div>
                 </div>
             </div>
         </div>

@@ -1,23 +1,22 @@
 /**
  * Denthub Dental Clinic - Framework Theme
- * Dark blue nav/sidebar, light blue sections, green CTAs/section headers
+ * Exact palette: #004AAD nav/sidebar/headers, #BBD5F9 hero/cards, #363848 footer, #DC3545 reds, #198754 green
  */
 
 :root {
-    --denthub-dark: #1e3a5f;
-    --denthub-blue: #2563eb;
-    --denthub-light: #e0f2fe;
-    --denthub-bg: #f0f9ff;
-    --denthub-green: #059669;
-    --denthub-green-dark: #047857;
-    --denthub-orange: #ea580c;
-    --denthub-footer: #1e293b;
-    --primary-color: var(--denthub-blue);
-    --secondary-color: #64748b;
-    --success-color: var(--denthub-green);
-    --danger-color: #dc2626;
-    --warning-color: #f59e0b;
-    --info-color: #0ea5e9;
+    /* Framework palette */
+    --denthub-primary: #004AAD;
+    --denthub-hero-cards: #BBD5F9;
+    --denthub-footer: #363848;
+    --denthub-danger: #DC3545;
+    --denthub-success: #198754;
+    --denthub-bg: #f8f9fa;
+    /* Convenience */
+    --primary-color: var(--denthub-primary);
+    --success-color: var(--denthub-success);
+    --danger-color: var(--denthub-danger);
+    --warning-color: #ffc107;
+    --info-color: #0dcaf0;
 }
 
 body {
@@ -25,28 +24,44 @@ body {
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background-color: var(--denthub-bg);
+    background-color: #fff;
 }
 
-/* ========== Public pages (index, login, register, etc.) ========== */
+/* ========== Public / Landing: top navbar #004AAD ========== */
 .navbar-public {
-    background-color: var(--denthub-dark) !important;
+    background-color: var(--denthub-primary) !important;
 }
 .navbar-public .navbar-brand,
 .navbar-public .nav-link {
     color: #fff !important;
 }
 .navbar-public .nav-link:hover {
-    color: var(--denthub-light) !important;
+    color: var(--denthub-hero-cards) !important;
 }
+.navbar-public .nav-link.active {
+    color: #fff;
+    font-weight: 600;
+}
+/* Book Appointment in navbar: green #198754 */
 .navbar-public .btn-book {
-    background-color: var(--denthub-green);
-    border-color: var(--denthub-green);
+    background-color: var(--denthub-success);
+    border-color: var(--denthub-success);
     color: #fff;
 }
 .navbar-public .btn-book:hover {
-    background-color: var(--denthub-green-dark);
-    border-color: var(--denthub-green-dark);
+    background-color: #157347;
+    border-color: #157347;
+    color: #fff;
+}
+/* Login & Signup same style: outline (white border, white text on landing) */
+.navbar-public .btn-nav-auth {
+    background-color: transparent;
+    border: 1px solid #fff;
+    color: #fff;
+}
+.navbar-public .btn-nav-auth:hover {
+    background-color: rgba(255,255,255,0.15);
+    border-color: #fff;
     color: #fff;
 }
 .navbar-public .navbar-toggler {
@@ -56,60 +71,79 @@ body {
     background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 30 30'%3e%3cpath stroke='rgba%28255, 255, 255, 1%29' stroke-linecap='round' stroke-miterlimit='10' stroke-width='2' d='M4 7h22M4 15h22M4 23h22'/%3e%3c/svg%3e");
 }
 
+/* ========== Hero section #BBD5F9 ========== */
 .hero-section {
-    background: linear-gradient(135deg, var(--denthub-light) 0%, #bae6fd 100%);
+    background-color: var(--denthub-hero-cards);
     padding: 80px 0;
-    color: var(--denthub-dark);
+    color: var(--denthub-primary);
+}
+.hero-section h1,
+.hero-section .display-4 {
+    color: var(--denthub-primary);
+    font-weight: 700;
 }
 .hero-section .btn-primary {
-    background-color: var(--denthub-blue);
-    border-color: var(--denthub-blue);
-}
-.hero-section .btn-outline-light {
-    border-color: var(--denthub-dark);
-    color: var(--denthub-dark);
-}
-.hero-section .btn-outline-light:hover {
-    background-color: var(--denthub-dark);
+    background-color: var(--denthub-primary);
+    border-color: var(--denthub-primary);
     color: #fff;
 }
+.hero-section .btn-primary:hover {
+    background-color: #003d8f;
+    border-color: #003d8f;
+    color: #fff;
+}
+.hero-section .btn-outline-light {
+    border-color: var(--denthub-primary);
+    color: var(--denthub-primary);
+    background: #fff;
+}
+.hero-section .btn-outline-light:hover {
+    background-color: var(--denthub-primary);
+    color: #fff;
+    border-color: var(--denthub-primary);
+}
 
-.card {
-    border: none;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-.card:hover {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-}
-.card.denthub-card-light {
-    background-color: #fff;
-    border-left: 4px solid var(--denthub-blue);
-}
-
-.section-title {
-    color: var(--denthub-dark);
+/* ========== Home: cards #BBD5F9, section titles #004AAD ========== */
+.section-title,
+.section-title.text-center {
+    color: var(--denthub-primary);
     font-weight: 700;
     margin-bottom: 1.5rem;
 }
+.card.denthub-card-light {
+    background-color: var(--denthub-hero-cards);
+    border: none;
+    border-radius: 12px;
+    border-left: 4px solid var(--denthub-primary);
+}
+.card.denthub-card-light .card-title,
+.card.denthub-card-light h5 {
+    color: var(--denthub-primary);
+}
+.text-primary {
+    color: var(--denthub-primary) !important;
+}
 
+/* ========== Footer #363848, text white ========== */
 footer.denthub-footer {
     background-color: var(--denthub-footer);
-    color: #94a3b8;
+    color: #fff;
     margin-top: auto;
 }
 footer.denthub-footer a {
-    color: #cbd5e1;
+    color: #fff;
     text-decoration: none;
 }
 footer.denthub-footer a:hover {
-    color: #fff;
+    color: var(--denthub-hero-cards);
+}
+footer.denthub-footer .text-white {
+    color: #fff !important;
 }
 
-/* ========== Admin / Dentist sidebar layout ========== */
+/* ========== Sidebar (accounts): #004AAD, profile at BOTTOM ========== */
 .denthub-sidebar {
-    background-color: var(--denthub-dark);
+    background-color: var(--denthub-primary);
     min-height: 100vh;
     width: 260px;
     position: fixed;
@@ -124,81 +158,113 @@ footer.denthub-footer a:hover {
     color: #fff;
     font-weight: 700;
     font-size: 1.25rem;
-    border-bottom: 1px solid rgba(255,255,255,0.1);
+    border-bottom: 1px solid rgba(255,255,255,0.15);
 }
 .denthub-sidebar .sidebar-brand small {
     display: block;
     font-size: 0.7rem;
     font-weight: 400;
-    opacity: 0.9;
+    opacity: 0.95;
+}
+.denthub-sidebar .sidebar-brand i {
+    color: #fff;
+}
+.denthub-sidebar nav {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.5rem 0;
 }
 .denthub-sidebar .nav-link {
-    color: rgba(255,255,255,0.85);
+    color: rgba(255,255,255,0.9);
     padding: 0.75rem 1.25rem;
     border-left: 3px solid transparent;
+    font-weight: 500;
 }
 .denthub-sidebar .nav-link:hover {
     color: #fff;
-    background-color: rgba(255,255,255,0.08);
+    background-color: rgba(255,255,255,0.1);
 }
 .denthub-sidebar .nav-link.active {
     color: #fff;
-    background-color: rgba(255,255,255,0.12);
-    border-left-color: var(--denthub-green);
+    background-color: rgba(255,255,255,0.2);
+    border-left-color: #fff;
 }
+/* Profile block at BOTTOM of sidebar - margin-top: auto pushes it down */
 .denthub-sidebar .sidebar-user {
     margin-top: auto;
     padding: 1rem 1.25rem;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    color: rgba(255,255,255,0.9);
+    border-top: 1px solid rgba(255,255,255,0.15);
+    color: #fff;
     font-size: 0.9rem;
+    flex-shrink: 0;
+}
+.denthub-sidebar .sidebar-user a {
+    color: #fff;
+}
+.denthub-sidebar .sidebar-user .dropdown-menu {
+    background-color: var(--denthub-primary);
+    border: 1px solid rgba(255,255,255,0.2);
 }
 
 .denthub-main {
     margin-left: 260px;
     padding: 1.5rem 2rem;
     min-height: 100vh;
-    background-color: #f8fafc;
+    background-color: #fff;
 }
 
 .denthub-page-title {
-    color: var(--denthub-dark);
+    color: var(--denthub-primary);
     font-weight: 700;
     margin-bottom: 1.5rem;
 }
 
-/* Dashboard summary cards (Framework: blue, yellow/orange, light blue) */
-.denthub-stat-card {
-    border: none;
-    border-radius: 12px;
-    color: #fff;
-    overflow: hidden;
-}
-.denthub-stat-card.primary { background: linear-gradient(135deg, var(--denthub-blue), #1d4ed8); }
-.denthub-stat-card.warning { background: linear-gradient(135deg, var(--denthub-orange), #c2410c); }
-.denthub-stat-card.info { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
-.denthub-stat-card.success { background: linear-gradient(135deg, var(--denthub-green), var(--denthub-green-dark)); }
-
-/* Section headers (green bar like Framework) */
+/* ========== Card headers (forms, panels): #004AAD ========== */
 .denthub-card-header {
-    background-color: var(--denthub-green);
+    background-color: var(--denthub-primary);
     color: #fff;
     font-weight: 600;
     padding: 0.75rem 1.25rem;
     border-radius: 12px 12px 0 0;
+}
+.denthub-card-header.denthub-header-yellow {
+    background-color: var(--warning-color);
+    color: #212529;
+}
+.denthub-card-header.denthub-header-green {
+    background-color: var(--denthub-success);
+    color: #fff;
 }
 .card .denthub-card-header + .card-body,
 .card .denthub-card-header + .table-responsive {
     border-radius: 0 0 12px 12px;
 }
 
-/* Tables */
-.table {
-    border-radius: 8px;
+/* ========== Dashboard stat cards: blue, yellow, green ========== */
+.denthub-stat-card {
+    border: none;
+    border-radius: 12px;
+    color: #fff;
     overflow: hidden;
 }
+.denthub-stat-card.primary {
+    background-color: var(--denthub-primary);
+}
+.denthub-stat-card.warning {
+    background-color: var(--warning-color);
+    color: #212529;
+}
+.denthub-stat-card.success {
+    background-color: var(--denthub-success);
+}
+.denthub-stat-card.info {
+    background-color: #0dcaf0;
+    color: #212529;
+}
+
+/* ========== Tables: thead #004AAD ========== */
 .table thead {
-    background-color: var(--denthub-dark);
+    background-color: var(--denthub-primary);
     color: #fff;
 }
 .table thead th {
@@ -207,30 +273,35 @@ footer.denthub-footer a:hover {
     padding: 0.75rem 1rem;
 }
 .table tbody tr:hover {
-    background-color: var(--denthub-bg);
+    background-color: rgba(0, 74, 173, 0.04);
 }
 
-/* Buttons */
+/* ========== Buttons ========== */
 .btn-primary {
-    background-color: var(--denthub-blue);
-    border-color: var(--denthub-blue);
+    background-color: var(--denthub-primary);
+    border-color: var(--denthub-primary);
     border-radius: 8px;
 }
 .btn-primary:hover {
-    background-color: #1d4ed8;
-    border-color: #1d4ed8;
+    background-color: #003d8f;
+    border-color: #003d8f;
 }
 .btn-success {
-    background-color: var(--denthub-green);
-    border-color: var(--denthub-green);
+    background-color: var(--denthub-success);
+    border-color: var(--denthub-success);
     border-radius: 8px;
 }
 .btn-success:hover {
-    background-color: var(--denthub-green-dark);
-    border-color: var(--denthub-green-dark);
+    background-color: #157347;
+    border-color: #157347;
 }
-.btn-warning {
-    border-radius: 8px;
+.btn-outline-primary {
+    border-color: var(--denthub-primary);
+    color: var(--denthub-primary);
+}
+.btn-outline-primary:hover {
+    background-color: var(--denthub-primary);
+    color: #fff;
 }
 .btn {
     border-radius: 8px;
@@ -238,59 +309,96 @@ footer.denthub-footer a:hover {
     font-weight: 500;
 }
 
-/* Form controls */
-.form-control, .form-select {
-    border-radius: 8px;
-    border: 1px solid #e2e8f0;
-    padding: 0.5rem 0.75rem;
+/* ========== Reds #DC3545 (required asterisks, badges, danger) ========== */
+.text-danger,
+.required-asterisk,
+.form-label .text-danger {
+    color: var(--denthub-danger) !important;
 }
-.form-control:focus, .form-select:focus {
-    border-color: var(--denthub-blue);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+.badge.bg-danger,
+.alert-danger {
+    background-color: var(--denthub-danger);
+    border-color: var(--denthub-danger);
 }
 
-/* Auth cards (login, register, forgot password) */
+/* ========== Verify new email UI: green #198754 ========== */
+.denthub-verify-email .card-header,
+.denthub-verify-email .btn-verify {
+    background-color: var(--denthub-success);
+    border-color: var(--denthub-success);
+    color: #fff;
+}
+.denthub-verify-email .btn-verify:hover {
+    background-color: #157347;
+    border-color: #157347;
+    color: #fff;
+}
+
+/* ========== Auth cards (login, register): light blue container ========== */
 .denthub-auth-card {
     background: #fff;
     border-radius: 16px;
-    box-shadow: 0 4px 24px rgba(30, 58, 95, 0.12);
+    box-shadow: 0 4px 24px rgba(0, 74, 173, 0.12);
     border: none;
 }
 .denthub-auth-card .card-header {
-    background: linear-gradient(135deg, var(--denthub-light), #bae6fd);
-    color: var(--denthub-dark);
+    background-color: var(--denthub-hero-cards);
+    color: var(--denthub-primary);
     font-weight: 700;
     border-radius: 16px 16px 0 0;
     padding: 1.25rem;
     border: none;
 }
+.denthub-auth-wrap {
+    background-color: var(--denthub-hero-cards);
+    border-radius: 16px;
+    padding: 2rem;
+}
 
-/* Badges */
+/* ========== Form controls ========== */
+.form-control, .form-select {
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
+    padding: 0.5rem 0.75rem;
+}
+.form-control:focus, .form-select:focus {
+    border-color: var(--denthub-primary);
+    box-shadow: 0 0 0 3px rgba(0, 74, 173, 0.15);
+}
+
+/* ========== Cards generic ========== */
+.card {
+    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.card:hover {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* ========== Badges ========== */
 .badge {
     padding: 0.35em 0.65em;
     border-radius: 6px;
     font-weight: 500;
 }
-
-/* Alerts */
-.alert {
-    border-radius: 10px;
-    border: none;
+.badge.bg-success {
+    background-color: var(--denthub-success) !important;
 }
 
-/* Backups page */
-.denthub-backup-list thead {
-    background-color: var(--denthub-dark);
-    color: #fff;
+/* ========== Reference / ID numbers in red ========== */
+.ref-number,
+.appointment-ref,
+.patient-number {
+    color: var(--denthub-danger) !important;
+    font-weight: 600;
 }
 
-/* ========== MOBILE / RESPONSIVE (Framework/mobile) ========== */
-/* Mobile: compact header, stacked layouts, touch-friendly, hamburger menu */
-
+/* ========== Mobile: sidebar becomes top bar ========== */
 @media (max-width: 991.98px) {
     .denthub-sidebar {
         width: 100%;
-        height: auto;
+        min-height: auto;
         position: relative;
         flex-direction: row;
         flex-wrap: wrap;
@@ -305,9 +413,10 @@ footer.denthub-footer a:hover {
         padding: 0.5rem 1rem;
     }
     .denthub-sidebar nav {
+        flex: none;
         flex-basis: 100%;
         order: 3;
-        border-top: 1px solid rgba(255,255,255,0.1);
+        border-top: 1px solid rgba(255,255,255,0.15);
     }
     .denthub-main {
         margin-left: 0;
@@ -316,13 +425,6 @@ footer.denthub-footer a:hover {
     .table-responsive {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
-    }
-    .table thead th {
-        font-size: 0.8rem;
-        padding: 0.5rem 0.5rem;
-    }
-    .table td {
-        font-size: 0.875rem;
     }
 }
 
@@ -336,102 +438,26 @@ footer.denthub-footer a:hover {
     .denthub-stat-card .card-body {
         padding: 1rem !important;
     }
-    .denthub-stat-card .card-body h3 {
-        font-size: 1.5rem;
-    }
-    .denthub-stat-card .card-body i {
-        font-size: 2rem !important;
-    }
     .denthub-page-title {
         font-size: 1.25rem;
     }
     .denthub-main {
         padding: 1rem 0.75rem;
     }
-    .denthub-card-header {
-        font-size: 0.95rem;
-        padding: 0.6rem 1rem;
-    }
-    .btn {
-        padding: 0.5rem 0.75rem;
-        font-size: 0.9rem;
-    }
 }
 
-/* Mobile-first: stacked cards for services/why choose */
 @media (max-width: 576px) {
-    .navbar-public .navbar-brand span {
-        font-size: 0.9rem;
-    }
     .navbar-public .btn-book,
-    .navbar-public .btn-outline-light {
+    .navbar-public .btn-nav-auth {
         padding: 0.4rem 0.6rem;
         font-size: 0.85rem;
     }
     .hero-section h1 {
         font-size: 1.5rem;
     }
-    .hero-section .lead {
-        font-size: 0.95rem;
-    }
-    .hero-section .btn-lg {
-        padding: 0.5rem 1rem;
-        font-size: 0.95rem;
-    }
     .card.denthub-card-light {
         flex-direction: column;
         text-align: left;
-    }
-    .denthub-stat-card {
-        margin-bottom: 0.75rem;
-    }
-    .table-responsive {
-        margin: 0 -0.75rem;
-        border-radius: 0;
-    }
-    .table thead th {
-        white-space: nowrap;
-    }
-}
-
-/* Mobile table: card-style layout for small screens (optional - use .table-mobile-cards) */
-@media (max-width: 576px) {
-    .table-mobile-cards .table thead {
-        display: none;
-    }
-    .table-mobile-cards .table tbody tr {
-        display: block;
-        margin-bottom: 1rem;
-        border: 1px solid #e2e8f0;
-        border-radius: 8px;
-        padding: 0.75rem;
-        background: #fff;
-    }
-    .table-mobile-cards .table td {
-        display: block;
-        text-align: left;
-        padding: 0.25rem 0;
-        border: none;
-    }
-    .table-mobile-cards .table td::before {
-        content: attr(data-label);
-        font-weight: 600;
-        display: inline-block;
-        width: 35%;
-        color: var(--denthub-dark);
-    }
-}
-
-/* Touch-friendly */
-@media (hover: none) {
-    .btn, .nav-link, .dropdown-item {
-        min-height: 44px;
-        display: inline-flex;
-        align-items: center;
-    }
-    .form-control, .form-select {
-        min-height: 44px;
-        font-size: 16px; /* prevents zoom on iOS */
     }
 }
 
@@ -439,14 +465,7 @@ footer.denthub-footer a:hover {
 .shadow-sm {
     box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
 }
-code {
-    background-color: var(--denthub-bg);
-    padding: 0.2em 0.4em;
-    border-radius: 4px;
-    font-size: 0.9em;
-}
 
-/* Scrollbar */
 ::-webkit-scrollbar {
     width: 8px;
     height: 8px;
@@ -457,7 +476,4 @@ code {
 ::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 4px;
-}
-::-webkit-scrollbar-thumb:hover {
-    background: #94a3b8;
 }

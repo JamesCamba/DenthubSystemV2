@@ -69,22 +69,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <?php $nav_base = '../'; $nav_patient_base = ''; $nav_active = 'profile'; require_once '../includes/nav-public.php'; ?>
+    <?php require_once '../includes/patient-sidebar.php'; ?>
 
-    <main class="denthub-main" style="margin-left:0;">
+    <main class="denthub-main">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-5">
-                <div class="card shadow">
+                <div class="card shadow denthub-verify-email">
                     <div class="card-header denthub-card-header">
-                        <h5 class="mb-0"><i class="bi bi-envelope-check me-2"></i>Step 2: Verify your new email</h5>
+                        <h5 class="mb-0 text-white"><i class="bi bi-envelope-check me-2"></i>Verify New Email</h5>
                     </div>
                     <div class="card-body">
                         <?php if ($success): ?>
                             <div class="alert alert-success"><?php echo htmlspecialchars($success); ?></div>
                             <a href="profile.php" class="btn btn-primary">Back to Profile</a>
                         <?php else: ?>
-                            <p class="text-muted">We sent a 6-digit code to your new email <strong><?php echo htmlspecialchars($new_email_masked); ?></strong>. Enter it below to complete the change.</p>
+                            <p class="text-muted">We sent a 6-digit code to <?php echo htmlspecialchars($new_email_masked); ?>. Enter it below.</p>
                             <?php if ($error): ?>
                                 <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                             <?php endif; ?>
@@ -94,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <input type="text" class="form-control text-center" name="verification_code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required autofocus>
                                 </div>
                                 <div class="d-flex gap-2">
-                                    <button type="submit" class="btn btn-success">Verify and update email</button>
+                                    <button type="submit" class="btn btn-verify btn-success">Verify</button>
                                     <a href="edit-profile.php" class="btn btn-secondary">Cancel</a>
                                 </div>
                             </form>

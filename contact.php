@@ -20,7 +20,7 @@ require_once 'includes/auth.php';
 
     <section class="py-5">
         <div class="container">
-            <h1 class="text-center mb-5">Contact Us</h1>
+            <h1 class="section-title text-center mb-5">Contact Us</h1>
             <div class="row">
                 <div class="col-md-6 mb-4">
                     <div class="card h-100 denthub-card-light shadow-sm">
@@ -74,31 +74,31 @@ require_once 'includes/auth.php';
         </div>
     </section>
 
-    <!-- Footer -->
+    <!-- Footer #363848, text white -->
     <footer class="denthub-footer py-4 mt-auto">
         <div class="container">
             <div class="row">
-                <div class="col-md-4">
-                    <h5><?php echo APP_NAME; ?></h5>
-                    <p>Quality dental care for you and your family.</p>
+                <div class="col-md-4 mb-3">
+                    <h5 class="text-white"><?php echo APP_NAME; ?></h5>
+                    <p class="text-white mb-0">Quality dental care for you and your family.</p>
                 </div>
-                <div class="col-md-4">
-                    <h5>Contact Us</h5>
-                    <p><i class="bi bi-geo-alt"></i> Block 5, Lot 3 & 4, Sabalo Street, Sangandaan, Caloocan City</p>
-                    <p><i class="bi bi-telephone"></i> 0916 607 0999</p>
-                    <p><i class="bi bi-envelope"></i> denthubcenter.sdc1@gmail.com</p>
+                <div class="col-md-4 mb-3">
+                    <h5 class="text-white">Contact Us</h5>
+                    <p class="text-white mb-1"><i class="bi bi-geo-alt me-2"></i> Block 5, Lot 3 & 4, Sabalo Street, Sangandaan, Caloocan City</p>
+                    <p class="text-white mb-1"><i class="bi bi-telephone me-2"></i> 0916 607 0999</p>
+                    <p class="text-white mb-0"><i class="bi bi-envelope me-2"></i> denthubcenter.sdc1@gmail.com</p>
                 </div>
-                <div class="col-md-4">
-                    <h5>Quick Links</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="services.php">Services</a></li>
-                        <li><a href="book-appointment.php">Book Appointment</a></li>
-                        <li><a href="contact.php">Contact</a></li>
+                <div class="col-md-4 mb-3">
+                    <h5 class="text-white">Quick Links</h5>
+                    <ul class="list-unstyled mb-0">
+                        <li><a href="services.php" class="text-white">Services</a></li>
+                        <li><a href="book-appointment.php" class="text-white">Book Appointment</a></li>
+                        <li><a href="contact.php" class="text-white">Contact</a></li>
                     </ul>
                 </div>
             </div>
-            <hr class="my-3">
-            <p class="text-center mb-0">&copy; <?php echo date('Y'); ?> <?php echo APP_NAME; ?>. All rights reserved.</p>
+            <hr class="my-3 border-light opacity-25">
+            <p class="text-center mb-0 small text-white">&copy; <?php echo date('Y'); ?> <?php echo APP_NAME; ?>. All rights reserved.</p>
         </div>
     </footer>
 

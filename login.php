@@ -113,6 +113,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
 </head>
 <body style="background-color: var(--denthub-bg);">
+    <?php $nav_active = ''; require_once 'includes/nav-public.php'; ?>
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-md-5">

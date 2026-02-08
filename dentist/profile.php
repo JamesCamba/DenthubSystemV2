@@ -125,7 +125,7 @@ $masteryServices = $masteryStmt->get_result();
 <body>
     <?php require_once 'navbar.php'; ?>
 
-    <main class="denthub-main" style="margin-left:0;">
+    <main class="denthub-main">
     <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h2>My Profile</h2>

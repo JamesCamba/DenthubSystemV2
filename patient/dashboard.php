@@ -52,9 +52,9 @@ $appointment_history = $stmt->get_result();
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <?php $nav_base = '../'; $nav_patient_base = ''; $nav_active = 'dashboard'; require_once '../includes/nav-public.php'; ?>
+    <?php require_once '../includes/patient-sidebar.php'; ?>
 
-    <main class="denthub-main" style="margin-left:0;">
+    <main class="denthub-main">
     <div class="container py-5">
         <div class="row mb-4">
             <div class="col">
@@ -96,7 +96,7 @@ $appointment_history = $stmt->get_result();
 
         <!-- Upcoming Appointments -->
         <div class="card mb-4">
-            <div class="card-header denthub-card-header">
+            <div class="card-header denthub-card-header denthub-header-yellow">
                 <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Upcoming Appointments</h5>
             </div>
             <div class="card-body">
@@ -117,7 +117,7 @@ $appointment_history = $stmt->get_result();
                             <tbody>
                                 <?php while ($apt = $upcoming_appointments->fetch_assoc()): ?>
                                     <tr>
-                                        <td><code><?php echo htmlspecialchars($apt['appointment_number']); ?></code></td>
+                                        <td><span class="ref-number"><?php echo htmlspecialchars($apt['appointment_number']); ?></span></td>
                                         <td><?php echo htmlspecialchars($apt['service_name']); ?></td>
                                         <td><?php echo formatDate($apt['appointment_date']); ?></td>
                                         <td><?php echo formatTime($apt['appointment_time']); ?></td>
@@ -145,7 +145,7 @@ $appointment_history = $stmt->get_result();
 
         <!-- Appointment History -->
         <div class="card" id="history">
-            <div class="card-header denthub-card-header">
+            <div class="card-header denthub-card-header denthub-header-green">
                 <h5 class="mb-0"><i class="bi bi-clock-history me-2"></i>Appointment History</h5>
             </div>
             <div class="card-body">
@@ -165,7 +165,7 @@ $appointment_history = $stmt->get_result();
                             <tbody>
                                 <?php while ($apt = $appointment_history->fetch_assoc()): ?>
                                     <tr>
-                                        <td><code><?php echo htmlspecialchars($apt['appointment_number']); ?></code></td>
+                                        <td><span class="ref-number"><?php echo htmlspecialchars($apt['appointment_number']); ?></span></td>
                                         <td><?php echo htmlspecialchars($apt['service_name']); ?></td>
                                         <td><?php echo formatDate($apt['appointment_date']); ?></td>
                                         <td><?php echo formatTime($apt['appointment_time']); ?></td>

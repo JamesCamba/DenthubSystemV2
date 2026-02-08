@@ -76,7 +76,7 @@ $today_appointments_list = $stmt->get_result();
 <body>
     <?php require_once 'navbar.php'; ?>
 
-    <main class="denthub-main" style="margin-left:0;">
+    <main class="denthub-main">
     <div class="container-fluid py-4">
         <h2 class="denthub-page-title mb-4">Welcome, Dr. <?php echo htmlspecialchars($user['full_name']); ?></h2>
 

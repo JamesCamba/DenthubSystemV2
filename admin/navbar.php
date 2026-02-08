@@ -6,7 +6,7 @@ if (!isset($user)) {
 <aside class="denthub-sidebar">
     <div class="sidebar-brand">
         <i class="bi bi-tooth me-2"></i> DENTHUB
-        <small>CENTER FOR SMILE DENTAL CLINIC</small>
+        <small>Center for Smile<br>DENTAL CLINIC</small>
     </div>
     <nav class="nav flex-column py-2">
         <a class="nav-link <?php echo basename($_SERVER['PHP_SELF']) === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php">

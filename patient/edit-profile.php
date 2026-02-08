@@ -93,9 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <?php $nav_base = '../'; $nav_patient_base = ''; $nav_active = 'profile'; require_once '../includes/nav-public.php'; ?>
+    <?php require_once '../includes/patient-sidebar.php'; ?>
 
-    <main class="denthub-main" style="margin-left:0;">
+    <main class="denthub-main">
     <div class="container py-5">
         <div class="row justify-content-center">
             <div class="col-lg-6">

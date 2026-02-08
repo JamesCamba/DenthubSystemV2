@@ -18,26 +18,26 @@ require_once 'includes/auth.php';
 <body>
     <?php $nav_active = 'home'; require_once 'includes/nav-public.php'; ?>
 
-    <!-- Hero Section (Framework: light blue) -->
+    <!-- Hero Section #BBD5F9 -->
     <section class="hero-section py-5">
         <div class="container">
             <div class="row align-items-center">
                 <div class="col-lg-6">
                     <h1 class="display-4 fw-bold mb-4">Your Smile, Our Priority</h1>
-                    <p class="lead mb-4">Advanced dental care for a healthy smile. Book your appointment online today!</p>
+                    <p class="lead mb-4 text-dark">Advanced dental care for a healthy smile. Book your appointment online today!</p>
                     <a href="book-appointment.php" class="btn btn-primary btn-lg me-2">
-                        <i class="bi bi-calendar-check"></i> Book an Appointment
+                        <i class="bi bi-calendar-check"></i> Book Appointment
                     </a>
                     <a href="services.php" class="btn btn-outline-light btn-lg">Learn More</a>
                 </div>
                 <div class="col-lg-6 text-center">
-                    <i class="bi bi-heart-pulse-fill" style="font-size: 200px; opacity: 0.3;"></i>
+                    <i class="bi bi-heart-pulse-fill" style="font-size: 200px; opacity: 0.3; color: var(--denthub-primary);"></i>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Services Preview (Framework: light blue cards) -->
+    <!-- Services Preview #BBD5F9 cards, headers #004AAD -->
     <section class="py-5 bg-white">
         <div class="container">
             <h2 class="section-title text-center">Our Services</h2>
@@ -76,60 +76,84 @@ require_once 'includes/auth.php';
         </div>
     </section>
 
-    <!-- Why Choose Us (Framework: icon cards) -->
-    <section class="py-5" style="background-color: var(--denthub-bg);">
+    <!-- Why Choose Us #BBD5F9 cards -->
+    <section class="py-5" style="background-color: #f8f9fa;">
         <div class="container">
             <h2 class="section-title text-center">Why Choose Us?</h2>
             <div class="row g-4">
-                <div class="col-md-3 text-center">
-                    <i class="bi bi-people-fill text-primary" style="font-size: 48px;"></i>
-                    <h5 class="mt-3">Expert Team</h5>
-                    <p>Licensed and experienced dental professionals</p>
+                <div class="col-md-3">
+                    <div class="card h-100 denthub-card-light shadow-sm">
+                        <div class="card-body d-flex align-items-start">
+                            <i class="bi bi-people-fill text-primary me-3" style="font-size: 48px;"></i>
+                            <div>
+                                <h5 class="card-title">Expert Team</h5>
+                                <p class="card-text text-muted mb-0">Licensed and experienced dental professionals</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-3 text-center">
-                    <i class="bi bi-clock-history text-primary" style="font-size: 48px;"></i>
-                    <h5 class="mt-3">Easy Booking</h5>
-                    <p>Book your appointment online anytime</p>
+                <div class="col-md-3">
+                    <div class="card h-100 denthub-card-light shadow-sm">
+                        <div class="card-body d-flex align-items-start">
+                            <i class="bi bi-clock-history text-primary me-3" style="font-size: 48px;"></i>
+                            <div>
+                                <h5 class="card-title">Easy Booking</h5>
+                                <p class="card-text text-muted mb-0">Book your appointment online anytime</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-3 text-center">
-                    <i class="bi bi-shield-check text-primary" style="font-size: 48px;"></i>
-                    <h5 class="mt-3">Safe & Clean</h5>
-                    <p>Sterilized equipment and safe environment</p>
+                <div class="col-md-3">
+                    <div class="card h-100 denthub-card-light shadow-sm">
+                        <div class="card-body d-flex align-items-start">
+                            <i class="bi bi-shield-check text-primary me-3" style="font-size: 48px;"></i>
+                            <div>
+                                <h5 class="card-title">Safe & Clean</h5>
+                                <p class="card-text text-muted mb-0">Sterilized equipment and safe environment</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="col-md-3 text-center">
-                    <i class="bi bi-heart text-primary" style="font-size: 48px;"></i>
-                    <h5 class="mt-3">Patient Care</h5>
-                    <p>Comfortable and caring service</p>
+                <div class="col-md-3">
+                    <div class="card h-100 denthub-card-light shadow-sm">
+                        <div class="card-body d-flex align-items-start">
+                            <i class="bi bi-heart text-primary me-3" style="font-size: 48px;"></i>
+                            <div>
+                                <h5 class="card-title">Patient Care</h5>
+                                <p class="card-text text-muted mb-0">Comfortable and caring service</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
-    <!-- Footer (Framework: dark grey) -->
+    <!-- Footer #363848, text white -->
     <footer class="denthub-footer py-4">
         <div class="container">
             <div class="row">
                 <div class="col-md-4 mb-3">
                     <h5 class="text-white"><?php echo APP_NAME; ?></h5>
-                    <p class="mb-0">Quality dental care for you and your family.</p>
+                    <p class="mb-0 text-white">Quality dental care for you and your family.</p>
                 </div>
                 <div class="col-md-4 mb-3">
                     <h5 class="text-white">Contact Us</h5>
-                    <p class="mb-1"><i class="bi bi-geo-alt me-2"></i> Block 5, Lot 3 & 4, Sabalo Street, Sangandaan, Caloocan City</p>
-                    <p class="mb-1"><i class="bi bi-telephone me-2"></i> 0916 607 0999</p>
-                    <p class="mb-0"><i class="bi bi-envelope me-2"></i> denthubcenter.sdc1@gmail.com</p>
+                    <p class="mb-1 text-white"><i class="bi bi-geo-alt me-2"></i> Block 5, Lot 3 & 4, Sabalo Street, Sangandaan, Caloocan City</p>
+                    <p class="mb-1 text-white"><i class="bi bi-telephone me-2"></i> 0916 607 0999</p>
+                    <p class="mb-0 text-white"><i class="bi bi-envelope me-2"></i> denthubcenter.sdc1@gmail.com</p>
                 </div>
                 <div class="col-md-4 mb-3">
                     <h5 class="text-white">Quick Links</h5>
                     <ul class="list-unstyled mb-0">
-                        <li><a href="services.php">Services</a></li>
-                        <li><a href="book-appointment.php">Book Appointment</a></li>
-                        <li><a href="contact.php">Contact</a></li>
+                        <li><a href="services.php" class="text-white">Services</a></li>
+                        <li><a href="book-appointment.php" class="text-white">Book Appointment</a></li>
+                        <li><a href="contact.php" class="text-white">Contact</a></li>
                     </ul>
                 </div>
             </div>
-            <hr class="my-3 border-secondary">
-            <p class="text-center mb-0 small">&copy; <?php echo date('Y'); ?> <?php echo APP_NAME; ?>. All rights reserved.</p>
+            <hr class="my-3 border-light opacity-25">
+            <p class="text-center mb-0 small text-white">&copy; <?php echo date('Y'); ?> <?php echo APP_NAME; ?>. All rights reserved.</p>
         </div>
     </footer>
 

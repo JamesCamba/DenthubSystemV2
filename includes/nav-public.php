@@ -21,8 +21,8 @@ $nav_patient_base = $nav_patient_base ?? 'patient/';
             <ul class="navbar-nav ms-auto align-items-center">
                 <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'home' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>index.php">Home</a></li>
                 <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'services' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>services.php">Services</a></li>
-                <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'book' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>book-appointment.php">Book Appointment</a></li>
                 <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'contact' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>contact.php">Contact</a></li>
+                <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'book' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>book-appointment.php">Book Appointment</a></li>
                 <?php if (isPatientLoggedIn()): ?>
                     <?php 
                     $patient = getCurrentPatient();
@@ -40,9 +40,8 @@ $nav_patient_base = $nav_patient_base ?? 'patient/';
                         </ul>
                     </li>
                 <?php else: ?>
-                    <li class="nav-item"><a class="nav-link" href="<?php echo $nav_base; ?>login.php">Login</a></li>
-                    <li class="nav-item"><a class="btn btn-book ms-2" href="<?php echo $nav_base; ?>book-appointment.php">Book Appointment</a></li>
-                    <li class="nav-item"><a class="btn btn-outline-light ms-2" href="<?php echo $nav_base; ?>register.php">Sign Up</a></li>
+                    <li class="nav-item"><a class="btn btn-nav-auth ms-2" href="<?php echo $nav_base; ?>login.php">Login</a></li>
+                    <li class="nav-item"><a class="btn btn-nav-auth ms-2" href="<?php echo $nav_base; ?>register.php">Sign Up</a></li>
                 <?php endif; ?>
             </ul>
         </div>

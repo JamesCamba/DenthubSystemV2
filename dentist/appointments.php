@@ -145,7 +145,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
 <body>
     <?php require_once 'navbar.php'; ?>
 
-    <main class="denthub-main" style="margin-left:0;">
+    <main class="denthub-main">
     <div class="container-fluid py-4">
         <h2 class="denthub-page-title mb-4">My Appointments</h2>
 
