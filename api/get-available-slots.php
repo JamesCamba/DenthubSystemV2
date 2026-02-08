@@ -8,6 +8,7 @@ require_once '../includes/functions.php';
 
 $date = $_GET['date'] ?? '';
 $dentist_id = !empty($_GET['dentist_id']) ? intval($_GET['dentist_id']) : null;
+$branch_id = !empty($_GET['branch_id']) ? intval($_GET['branch_id']) : 1;
 
 if (empty($date)) {
     echo json_encode(['success' => false, 'message' => 'Date is required']);
@@ -26,13 +27,13 @@ if (strtotime($date) < strtotime('today')) {
     exit;
 }
 
-// Check if date is blocked
-if (isDateBlocked($date)) {
+// Check if date is blocked for this branch
+if (isDateBlocked($date, $branch_id)) {
     echo json_encode(['success' => false, 'message' => 'Date is blocked', 'slots' => []]);
     exit;
 }
 
-$slots = getAvailableTimeSlots($date, $dentist_id);
+$slots = getAvailableTimeSlots($date, $dentist_id, null, $branch_id);
 $formatted_slots = [];
 
 foreach ($slots as $slot) {

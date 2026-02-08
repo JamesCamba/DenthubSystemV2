@@ -47,6 +47,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
             $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, phone = ? WHERE user_id = ?");
             $stmt->bind_param("sssi", $full_name, $email, $phone, $_SESSION['user_id']);
             if ($stmt->execute()) {
+                if (($user['email'] ?? '') !== $email) logActivity('email_changed', '', $_SESSION['user_id']);
+                if (($user['phone'] ?? '') !== $phone) logActivity('phone_changed', '', $_SESSION['user_id']);
                 // Update dentist specialization
                 $dentistStmt = $db->prepare("UPDATE dentists SET specialization = ? WHERE user_id = ?");
                 $dentistStmt->bind_param("si", $specialization, $_SESSION['user_id']);
@@ -89,6 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE user_id = ?");
             $stmt->bind_param("si", $new_password_hash, $_SESSION['user_id']);
             if ($stmt->execute()) {
+                logActivity('password_changed', '', $_SESSION['user_id']);
                 $success = 'Password changed successfully.';
             } else {
                 $error = 'Error changing password. Please try again.';

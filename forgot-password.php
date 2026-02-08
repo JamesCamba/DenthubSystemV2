@@ -225,12 +225,20 @@ if ($step === 'reset' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $db = getDB();
         
+        // Get patient_id for logging
+        $pidStmt = $db->prepare("SELECT patient_id FROM patient_accounts WHERE email = ? AND is_verified = TRUE");
+        $pidStmt->bind_param("s", $email);
+        $pidStmt->execute();
+        $pidRow = $pidStmt->get_result()->fetch_assoc();
+        $patient_id_for_log = $pidRow ? (int)$pidRow['patient_id'] : null;
+
         // Update password
         $password_hash = password_hash($password, PASSWORD_DEFAULT);
         $stmt = $db->prepare("UPDATE patient_accounts SET password_hash = ? WHERE email = ? AND is_verified = TRUE");
         $stmt->bind_param("ss", $password_hash, $email);
         
         if ($stmt->execute()) {
+            logActivity('password_changed', 'Patient password reset via forgot-password', null, $patient_id_for_log);
             // Clear session
             unset($_SESSION['password_reset_verified']);
             unset($_SESSION['password_reset_email']);

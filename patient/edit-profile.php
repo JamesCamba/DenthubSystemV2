@@ -43,6 +43,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $upd = $db->prepare("UPDATE patients SET phone = ?, phone_hash = ?, updated_at = NOW() WHERE patient_id = ?");
                 $upd->bind_param("ssi", $new_phone, $phone_hash, $patient_id);
                 $upd->execute();
+                logActivity('phone_changed', '', null, $patient_id);
 
                 if ($new_email !== $current['email']) {
                     // Email change: 2-step — first verify OLD email, then NEW email

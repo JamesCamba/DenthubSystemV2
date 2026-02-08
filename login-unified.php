@@ -33,40 +33,77 @@ if (isLoggedIn()) {
 
 $error = '';
 $user_type = $_GET['type'] ?? 'auto'; // auto, patient, staff
+$login_identifier = getLoginClientIdentifier();
+$attempt_type = 'unified';
+$show_captcha = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email_or_username = sanitize($_POST['email_or_username'] ?? '');
     $password = $_POST['password'] ?? '';
     $login_type = $_POST['login_type'] ?? 'auto';
+    $captcha_token = $_POST['g-recaptcha-response'] ?? $_POST['recaptcha_token'] ?? '';
 
-    if (empty($email_or_username) || empty($password)) {
+    if (isLoginLocked($login_identifier, $attempt_type)) {
+        $mins = ceil((getLoginLockedUntil($login_identifier, $attempt_type) - time()) / 60);
+        $error = 'Too many failed attempts. Please try again in ' . $mins . ' minute(s).';
+    } elseif (empty($email_or_username) || empty($password)) {
         $error = 'Please enter email/username and password.';
     } else {
-        // Try patient login first
-        if ($login_type === 'auto' || $login_type === 'patient') {
-            if (patientLogin($email_or_username, $password)) {
-                header('Location: patient/dashboard.php');
-                exit;
-            }
-        }
-        
-        // Try staff/dentist/admin login
-        if ($login_type === 'auto' || $login_type === 'staff') {
-            if (login($email_or_username, $password)) {
-                $role = $_SESSION['role'];
-                if ($role === 'admin' || $role === 'staff') {
-                    header('Location: admin/dashboard.php');
-                } elseif ($role === 'dentist') {
-                    header('Location: dentist/dashboard.php');
+        if (loginNeedsCaptcha($login_identifier, $attempt_type)) {
+            $has_captcha_key = defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '';
+            if ($has_captcha_key) {
+                if ($captcha_token === '') {
+                    $error = 'Please complete the verification below.';
+                    $show_captcha = true;
+                } elseif (!verifyRecaptchaV3($captcha_token, 'login')) {
+                    $error = 'Verification failed. Please try again.';
+                    $show_captcha = true;
                 } else {
-                    header('Location: admin/dashboard.php');
+                    recordLoginCaptchaPassed($login_identifier, $attempt_type);
                 }
-                exit;
+            } else {
+                recordLoginCaptchaPassed($login_identifier, $attempt_type);
             }
         }
-        
-        $error = 'Invalid email/username or password.';
+
+        if ($error === '') {
+            $logged_in = false;
+            if ($login_type === 'auto' || $login_type === 'patient') {
+                if (patientLogin($email_or_username, $password)) {
+                    clearLoginAttempts($login_identifier, $attempt_type);
+                    header('Location: patient/dashboard.php');
+                    exit;
+                }
+                $logged_in = false;
+            }
+            if (!$logged_in && ($login_type === 'auto' || $login_type === 'staff')) {
+                if (login($email_or_username, $password)) {
+                    clearLoginAttempts($login_identifier, $attempt_type);
+                    $role = $_SESSION['role'];
+                    if ($role === 'admin' || $role === 'staff') {
+                        header('Location: admin/dashboard.php');
+                    } elseif ($role === 'dentist') {
+                        header('Location: dentist/dashboard.php');
+                    } else {
+                        header('Location: admin/dashboard.php');
+                    }
+                    exit;
+                }
+            }
+            $just_locked = recordFailedLoginAttempt($login_identifier, $attempt_type);
+            if ($just_locked) {
+                $mins = defined('LOGIN_LOCKOUT_MINUTES') ? LOGIN_LOCKOUT_MINUTES : 15;
+                $error = 'Too many failed attempts. This device is temporarily locked for ' . $mins . ' minutes.';
+            } else {
+                $error = 'Invalid email/username or password.';
+                if (loginNeedsCaptcha($login_identifier, $attempt_type)) {
+                    $show_captcha = true;
+                }
+            }
+        }
     }
+} else {
+    $show_captcha = loginNeedsCaptcha($login_identifier, $attempt_type);
 }
 ?>
 <!DOCTYPE html>
@@ -92,11 +129,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <?php if ($error): ?>
-                            <div class="alert alert-danger"><?php echo $error; ?></div>
+                            <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
+                        <?php endif; ?>
+                        <?php if ($show_captcha && defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
+                            <div class="alert alert-info small">Please complete the verification before signing in.</div>
                         <?php endif; ?>
 
-                        <form method="POST" action="">
+                        <form method="POST" action="" id="loginForm">
                             <input type="hidden" name="login_type" value="<?php echo htmlspecialchars($user_type); ?>">
+                            <input type="hidden" name="recaptcha_token" id="recaptcha_token" value="">
                             
                             <div class="mb-3">
                                 <label class="form-label">Email or Username</label>
@@ -138,6 +179,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
+    <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
+    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo htmlspecialchars(RECAPTCHA_SITE_KEY); ?>"></script>
+    <?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function togglePassword(fieldId) {
@@ -153,6 +197,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 icon.classList.add('bi-eye');
             }
         }
+        <?php if ($show_captcha && defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            var tok = document.getElementById('recaptcha_token');
+            if (tok && tok.value === '' && typeof grecaptcha !== 'undefined') {
+                e.preventDefault();
+                grecaptcha.ready(function() {
+                    grecaptcha.execute('<?php echo addslashes(RECAPTCHA_SITE_KEY); ?>', { action: 'login' }).then(function(token) {
+                        document.getElementById('recaptcha_token').value = token;
+                        document.getElementById('loginForm').submit();
+                    });
+                });
+            }
+        });
+        <?php endif; ?>
     </script>
 </body>
 </html>

@@ -78,8 +78,69 @@ function maskPhone($phone) {
     return substr($digits, 0, 2) . str_repeat('*', $len - 3) . substr($digits, -1);
 }
 
+/**
+ * Log activity for admin audit (who did what). Uses activity_log table.
+ * @param string $action_type e.g. login_success, login_failed, password_changed, email_changed, phone_changed, appointment_status_changed
+ * @param string $details Optional description (e.g. "Appointment APT000001 → confirmed")
+ * @param int|null $actor_user_id Staff/dentist/admin user_id (fetches username, full_name, role if not provided)
+ * @param int|null $actor_patient_id Patient id (stores as Patient role)
+ * @param string|null $actor_username Override username (e.g. for failed login we have identifier)
+ * @param string|null $actor_full_name Override full name
+ * @param string|null $actor_role Override role (e.g. 'Patient', 'guest')
+ */
+function logActivity($action_type, $details = '', $actor_user_id = null, $actor_patient_id = null, $actor_username = null, $actor_full_name = null, $actor_role = null) {
+    try {
+        $db = getDB();
+        $ip = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '';
+        if (is_string($ip) && strpos($ip, ',') !== false) $ip = trim(explode(',', $ip)[0]);
+        $ua = $_SERVER['HTTP_USER_AGENT'] ?? '';
+
+        if ($actor_user_id && $actor_username === null) {
+            $stmt = $db->prepare("SELECT username, full_name, role FROM users WHERE user_id = ?");
+            $stmt->bind_param("i", $actor_user_id);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            if ($row) {
+                $actor_username = $row['username'];
+                $actor_full_name = $row['full_name'];
+                $actor_role = $row['role'];
+            }
+        }
+        if ($actor_patient_id && $actor_full_name === null) {
+            $stmt = $db->prepare("SELECT first_name, last_name FROM patients WHERE patient_id = ?");
+            $stmt->bind_param("i", $actor_patient_id);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            if ($row) {
+                $actor_full_name = trim($row['first_name'] . ' ' . $row['last_name']);
+                $actor_role = $actor_role ?: 'Patient';
+            }
+        }
+
+        $actor_type = $actor_patient_id ? 'patient' : ($actor_user_id ? 'user' : 'guest');
+        $aid = $actor_patient_id ?: $actor_user_id;
+        $aid = $aid !== null ? (int)$aid : null;
+
+        $stmt = $db->prepare("INSERT INTO activity_log (action_type, actor_type, actor_id, username, full_name, role, details, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+        $stmt->bind_param("ssissssss",
+            $action_type,
+            $actor_type,
+            $aid,
+            $actor_username ?? '',
+            $actor_full_name ?? '',
+            $actor_role ?? '',
+            $details,
+            substr($ip, 0, 45),
+            substr($ua, 0, 500)
+        );
+        $stmt->execute();
+    } catch (Exception $e) {
+        error_log('logActivity failed: ' . $e->getMessage());
+    }
+}
+
 // Get available time slots for a date ////////////////////////////////////////
-function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null) {
+function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $branch_id = 1) {
     $db = getDB();
 
     // Get day of week (0 = Sunday)
@@ -128,18 +189,19 @@ function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null) {
         }
 
         /* ============================
-           Check if slot is booked
+           Check if slot is booked (same branch)
         ============================ */
         $sql = "
             SELECT COUNT(*) AS count
             FROM appointments
             WHERE appointment_date = ?
               AND appointment_time = ?
+              AND branch_id = ?
               AND status IN ('pending', 'confirmed')
         ";
 
-        $params = [$date, $slot['slot_time']];
-        $types  = "ss";
+        $params = [$date, $slot['slot_time'], $branch_id];
+        $types  = "ssi";
 
         if ($dentist_id !== null) {
             $sql .= " AND dentist_id = ?";
@@ -302,6 +364,8 @@ function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $c
     if (!$ok) {
         return false;
     }
+
+    logActivity('appointment_status_changed', "Appointment {$apt['appointment_number']} → " . $new_status, $changed_by_user_id, null);
 
     // Send confirmation email when status changes to 'confirmed'
     if ($new_status === 'confirmed' && $current !== 'confirmed' && !empty($apt['patient_email'])) {

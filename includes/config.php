@@ -45,6 +45,10 @@ define('SESSION_LIFETIME', 3600); // 1 hour
 
 // Security
 define('PASSWORD_MIN_LENGTH', 8);
+define('LOGIN_MAX_ATTEMPTS', 5);
+define('LOGIN_LOCKOUT_MINUTES', 15);
+define('RECAPTCHA_SITE_KEY', getenv('RECAPTCHA_SITE_KEY') ?: '');
+define('RECAPTCHA_SECRET_KEY', getenv('RECAPTCHA_SECRET_KEY') ?: '');
 
 // Date/Time Format
 define('DATE_FORMAT', 'Y-m-d');

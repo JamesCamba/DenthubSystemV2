@@ -210,3 +210,8 @@ CREATE UNIQUE INDEX "time_slots_slot_time_key" ON "time_slots" ("slot_time");
 CREATE UNIQUE INDEX "users_email_key" ON "users" ("email");
 CREATE UNIQUE INDEX "users_pkey" ON "users" ("user_id");
 CREATE UNIQUE INDEX "users_username_key" ON "users" ("username");
+
+-- Activity log (see database/migration_activity_log_and_branch.sql)
+-- activity_log: log_id, action_type, actor_type, actor_id, username, full_name, role, details, ip_address, user_agent, created_at
+-- login_attempts: attempt_id, identifier, attempt_type, failed_count, captcha_passed_at, locked_until, last_attempt_at, created_at
+-- Second branch: Denthub Tondo, 1876 Velasquez Street Barangay 92 Zone 8 Tondo, Manila, Philippines, 1013

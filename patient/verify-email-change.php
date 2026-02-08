@@ -48,6 +48,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt2->bind_param("si", $new_email, $patient_id);
             $stmt2->execute();
 
+            logActivity('email_changed', '', null, $patient_id);
             unset($_SESSION['pending_email_old'], $_SESSION['pending_email_new'], $_SESSION['pending_email_new_code'], $_SESSION['pending_email_new_expires']);
             $success = 'Your email has been updated successfully.';
         } catch (Exception $e) {

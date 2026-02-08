@@ -11,9 +11,15 @@ $error = '';
 $success = '';
 $selected_service = $_GET['service'] ?? '';
 
-// Get services
+// Get services and branches
 $services = getServices();
-$dentists = null; // Will be loaded based on selected service
+$dentists = null;
+$db = getDB();
+$branchesResult = $db->query("SELECT branch_id, branch_name, address FROM branches WHERE is_active = TRUE ORDER BY branch_name");
+$branches = [];
+while ($row = $branchesResult->fetch_assoc()) {
+    $branches[] = $row;
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Check if user is logged in
@@ -26,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $appointment_date = $_POST['appointment_date'];
         $appointment_time = $_POST['appointment_time'];
         $reason_for_visit = sanitize($_POST['reason_for_visit'] ?? '');
-        $branch_id = 1; // Default branch
+        $branch_id = !empty($_POST['branch_id']) ? intval($_POST['branch_id']) : 1;
 
         // Validation
         if (empty($service_id) || empty($appointment_date) || empty($appointment_time)) {
@@ -40,18 +46,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $db = getDB();
 
             if ($dentist_id === null) {
-                // Any dentist – don't bind a NULL dentist_id parameter (PostgreSQL cannot infer type)
                 $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                                     WHERE appointment_date = ? AND appointment_time = ? 
+                                     WHERE appointment_date = ? AND appointment_time = ? AND branch_id = ?
                                      AND status IN ('pending', 'confirmed')");
-                $stmt->bind_param("ss", $appointment_date, $appointment_time);
+                $stmt->bind_param("ssi", $appointment_date, $appointment_time, $branch_id);
             } else {
-                // Specific dentist
                 $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                                     WHERE appointment_date = ? AND appointment_time = ? 
+                                     WHERE appointment_date = ? AND appointment_time = ? AND branch_id = ?
                                      AND status IN ('pending', 'confirmed') 
                                      AND dentist_id = ?");
-                $stmt->bind_param("ssi", $appointment_date, $appointment_time, $dentist_id);
+                $stmt->bind_param("ssii", $appointment_date, $appointment_time, $branch_id, $dentist_id);
             }
 
             $stmt->execute();
@@ -163,6 +167,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <?php else: ?>
                             <form method="POST" action="" id="appointmentForm">
                                 <div class="mb-3">
+                                    <label class="form-label">Branch <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="branch_id" id="branch_id" required>
+                                        <?php foreach ($branches as $b): ?>
+                                            <option value="<?php echo (int)$b['branch_id']; ?>"><?php echo htmlspecialchars($b['branch_name']); ?><?php if (!empty($b['address'])): ?> — <?php echo htmlspecialchars($b['address']); ?><?php endif; ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="mb-3">
                                     <label class="form-label">Service Type <span class="text-danger">*</span></label>
                                     <select class="form-select" name="service_id" id="service_id" required>
                                         <option value="">Select a service...</option>
@@ -254,9 +266,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         });
         
         // Load available time slots when date is selected
-        document.getElementById('appointment_date').addEventListener('change', function() {
-            const date = this.value;
+        function loadSlots() {
+            const date = document.getElementById('appointment_date').value;
             const dentistId = document.getElementById('dentist_id').value;
+            const branchId = document.getElementById('branch_id') ? document.getElementById('branch_id').value : '1';
             const timeSelect = document.getElementById('appointment_time');
             
             if (!date) {
@@ -264,8 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 return;
             }
 
-            // Fetch available slots
-            fetch(`api/get-available-slots.php?date=${date}&dentist_id=${dentistId}`)
+            fetch(`api/get-available-slots.php?date=${date}&dentist_id=${dentistId}&branch_id=${branchId}`)
                 .then(response => response.json())
                 .then(data => {
                     timeSelect.innerHTML = '<option value="">Select time...</option>';
@@ -287,15 +299,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     console.error('Error:', error);
                     timeSelect.innerHTML = '<option value="">Error loading slots</option>';
                 });
-        });
+        }
 
-        // Reload slots when dentist changes
+        document.getElementById('appointment_date').addEventListener('change', loadSlots);
+
         document.getElementById('dentist_id').addEventListener('change', function() {
             const date = document.getElementById('appointment_date').value;
-            if (date) {
-                document.getElementById('appointment_date').dispatchEvent(new Event('change'));
-            }
+            if (date) loadSlots();
         });
+
+        if (document.getElementById('branch_id')) {
+            document.getElementById('branch_id').addEventListener('change', function() {
+                const date = document.getElementById('appointment_date').value;
+                if (date) loadSlots();
+            });
+        }
     </script>
 </body>
 </html>

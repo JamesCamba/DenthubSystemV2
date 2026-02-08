@@ -32,9 +32,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_profile'])) {
         if ($stmt->get_result()->num_rows > 0) {
             $error = 'Email is already in use by another user.';
         } else {
+            $old_email = $user['email'] ?? '';
+            $old_phone = $user['phone'] ?? '';
             $stmt = $db->prepare("UPDATE users SET full_name = ?, email = ?, phone = ? WHERE user_id = ?");
             $stmt->bind_param("sssi", $full_name, $email, $phone, $_SESSION['user_id']);
             if ($stmt->execute()) {
+                if ($old_email !== $email) logActivity('email_changed', '', $_SESSION['user_id']);
+                if ($old_phone !== $phone) logActivity('phone_changed', '', $_SESSION['user_id']);
                 $_SESSION['full_name'] = $full_name;
                 $user['full_name'] = $full_name;
                 $user['email'] = $email;
@@ -71,6 +75,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_password'])) {
             $stmt = $db->prepare("UPDATE users SET password_hash = ? WHERE user_id = ?");
             $stmt->bind_param("si", $new_password_hash, $_SESSION['user_id']);
             if ($stmt->execute()) {
+                logActivity('password_changed', '', $_SESSION['user_id']);
                 $success = 'Password changed successfully.';
             } else {
                 $error = 'Error changing password. Please try again.';
