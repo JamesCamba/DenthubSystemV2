@@ -100,7 +100,7 @@ if (!$appointment) {
                         <div class="alert alert-info">
                             <i class="bi bi-info-circle"></i> 
                             <strong>Important:</strong> Your appointment is pending confirmation. Our staff will contact you at 
-                            <strong><?php echo htmlspecialchars($appointment['phone']); ?></strong> to confirm your appointment.
+                            <strong><?php echo htmlspecialchars(maskPhone($appointment['phone'] ?? '')); ?></strong> to confirm your appointment.
                         </div>
 
                         <div class="d-grid gap-2 d-md-flex justify-content-md-center">

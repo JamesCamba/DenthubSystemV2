@@ -65,7 +65,7 @@ CREATE TABLE "email_verification_codes" (
 	"expires_at" timestamp NOT NULL,
 	"is_used" boolean DEFAULT false,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY (ARRAY[('registration'::character varying)::text, ('password_reset'::character varying)::text]))))
+	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying, 'email_change'::character varying])::text[]))))
 );
 CREATE TABLE "lab_cases" (
 	"case_id" serial PRIMARY KEY,

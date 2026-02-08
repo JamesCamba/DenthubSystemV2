@@ -45,26 +45,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $upd->execute();
 
                 if ($new_email !== $current['email']) {
-                    // Email change: require verification
+                    // Email change: 2-step — first verify OLD email, then NEW email
                     $check = $db->prepare("SELECT account_id FROM patient_accounts WHERE email = ? AND patient_id != ?");
                     $check->bind_param("si", $new_email, $patient_id);
                     $check->execute();
                     if ($check->get_result()->num_rows > 0) {
                         $error = 'That email is already in use by another account.';
+                    } elseif (empty($current['email'])) {
+                        $error = 'You do not have a current email on file. Please contact the clinic.';
                     } else {
-                        $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                        $expires_at = time() + 600; // 10 minutes
-
+                        $code_old = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
                         $mailer = getMailer();
                         $name = $patient['first_name'] . ' ' . $patient['last_name'];
-                        if ($mailer->sendVerificationCode($new_email, $verification_code, $name, 'email_change')) {
-                            $_SESSION['pending_email_change'] = $new_email;
-                            $_SESSION['pending_email_code'] = $verification_code;
-                            $_SESSION['pending_email_expires'] = $expires_at;
-                            header('Location: verify-email-change.php?email=' . urlencode($new_email));
+                        if ($mailer->sendVerificationCode($current['email'], $code_old, $name, 'email_change_old')) {
+                            $_SESSION['pending_email_old'] = $current['email'];
+                            $_SESSION['pending_email_new'] = $new_email;
+                            $_SESSION['pending_email_old_code'] = $code_old;
+                            $_SESSION['pending_email_old_expires'] = time() + 600;
+                            header('Location: verify-old-email.php');
                             exit;
                         }
-                        $error = 'We could not send the verification email. Please try again.';
+                        $error = 'We could not send the verification code to your current email. Please try again.';
                     }
                 } else {
                     $success = 'Profile updated successfully.';

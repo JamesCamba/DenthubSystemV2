@@ -54,28 +54,28 @@ function formatDateTime($datetime) {
 }
 
 /**
- * Mask email for display (e.g. j***@example.com) - protects sensitive info on profiles.
+ * Mask email for display: first char + *** + last char of local + @domain (e.g. j***n@example.com)
  */
 function maskEmail($email) {
     if (empty($email) || !is_string($email)) return '-';
     $at = strpos($email, '@');
-    if ($at === false) return substr($email, 0, 2) . '***';
+    if ($at === false) return substr($email, 0, 1) . '***';
     $local = substr($email, 0, $at);
     $domain = substr($email, $at);
     $len = strlen($local);
-    if ($len <= 2) return $local . '***' . $domain;
-    return substr($local, 0, 1) . str_repeat('*', min($len - 1, 5)) . substr($local, -1) . $domain;
+    if ($len <= 1) return $local . '***' . $domain;
+    return substr($local, 0, 1) . '***' . substr($local, -1) . $domain;
 }
 
 /**
- * Mask phone for display (e.g. 09***123) - Philippines style; protects sensitive info.
+ * Mask phone for display: first 2 digits + asterisks + last digit (e.g. 09********3)
  */
 function maskPhone($phone) {
     if (empty($phone) || !is_string($phone)) return '-';
     $digits = preg_replace('/\D/', '', $phone);
     $len = strlen($digits);
-    if ($len <= 4) return str_repeat('*', $len);
-    return substr($digits, 0, 2) . '***' . substr($digits, -3);
+    if ($len <= 3) return str_repeat('*', $len);
+    return substr($digits, 0, 2) . str_repeat('*', $len - 3) . substr($digits, -1);
 }
 
 // Get available time slots for a date ////////////////////////////////////////

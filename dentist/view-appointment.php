@@ -191,9 +191,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_status'])) {
                     <div class="card-body">
                         <p><strong>Name:</strong><br><?php echo htmlspecialchars($appointment['first_name'] . ' ' . $appointment['last_name']); ?></p>
                         <p><strong>Patient #:</strong><br><code><?php echo htmlspecialchars($appointment['patient_number']); ?></code></p>
-                        <p><strong>Phone:</strong><br><?php echo htmlspecialchars($appointment['phone']); ?></p>
-                        <?php if ($appointment['email']): ?>
-                        <p><strong>Email:</strong><br><?php echo htmlspecialchars($appointment['email']); ?></p>
+                        <p><strong>Phone:</strong><br><?php echo htmlspecialchars(maskPhone($appointment['phone'] ?? '')); ?></p>
+                        <?php if (!empty($appointment['email'])): ?>
+                        <p><strong>Email:</strong><br><?php echo htmlspecialchars(maskEmail($appointment['email'])); ?></p>
                         <?php endif; ?>
                     </div>
                 </div>

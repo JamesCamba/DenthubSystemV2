@@ -110,6 +110,9 @@ class Mailer {
         if ($purpose === 'password_reset') {
             $subject = 'Password Reset Verification Code - Denthub Dental Clinic';
             $text    = "Your password reset verification code is: $code\n\nThis code will expire in 10 minutes.\n\nIf you did not request a password reset, please ignore this email.";
+        } elseif ($purpose === 'email_change_old') {
+            $subject = 'Verify Your Current Email - Denthub Dental Clinic';
+            $text    = "You requested to change your email. Your verification code is: $code\n\nThis code will expire in 10 minutes.\n\nIf you did not request this, please secure your account.";
         } elseif ($purpose === 'email_change') {
             $subject = 'Verify Your New Email - Denthub Dental Clinic';
             $text    = "Your verification code to confirm your new email is: $code\n\nThis code will expire in 10 minutes.";
@@ -278,6 +281,13 @@ class Mailer {
         $template = str_replace('{{CODE}}', htmlspecialchars($code), $template);
 
         // Add purpose-specific badge and colors
+        if ($purpose === 'email_change_old') {
+            $template = str_replace('Email Verification', 'Verify Current Email', $template);
+            $template = str_replace('#0d6efd', '#fd7e14', $template);
+            $badgeHtml = '<div style="margin-bottom: 10px;"><strong style="display:inline-block;padding:6px 12px;border-radius:999px;background-color:#fd7e14;color:#ffffff;font-size:12px;">VERIFY CURRENT EMAIL</strong></div>';
+            $template = preg_replace('/<p style="color: #666666; font-size: 16px; line-height: 1.6;">/', $badgeHtml . '$0', $template, 1);
+            return $template;
+        }
         if ($purpose === 'email_change') {
             $template = str_replace('Email Verification', 'Verify New Email', $template);
             $template = str_replace('#0d6efd', '#198754', $template);

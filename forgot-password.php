@@ -275,7 +275,7 @@ if ($step === 'reset' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                         <?php if ($step === 'verify'): ?>
                             <div class="alert alert-info">
-                                <i class="bi bi-envelope-check"></i> A verification code has been sent to <strong><?php echo htmlspecialchars($_GET['email'] ?? ''); ?></strong>
+                                <i class="bi bi-envelope-check"></i> A verification code has been sent to <strong><?php echo htmlspecialchars(maskEmail($_GET['email'] ?? '')); ?></strong>
                             </div>
                             <form method="POST" action="" id="verifyForm">
                                 <input type="hidden" name="email" value="<?php echo htmlspecialchars($_GET['email'] ?? ''); ?>">
