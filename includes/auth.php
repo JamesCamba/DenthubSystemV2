@@ -166,88 +166,106 @@ function getLoginClientIdentifier() {
 
 /** @return array|null { failed_count, captcha_passed_at, locked_until } */
 function getLoginAttemptRecord($identifier, $attempt_type = 'unified') {
-    $db = getDB();
-    $stmt = $db->prepare("SELECT failed_count, captcha_passed_at, locked_until FROM login_attempts WHERE identifier = ? AND attempt_type = ?");
-    $stmt->bind_param("ss", $identifier, $attempt_type);
-    $stmt->execute();
-    $r = $stmt->get_result()->fetch_assoc();
-    return $r ?: null;
+    try {
+        $db = getDB();
+        $stmt = $db->prepare("SELECT failed_count, captcha_passed_at, locked_until FROM login_attempts WHERE identifier = ? AND attempt_type = ?");
+        $stmt->bind_param("ss", $identifier, $attempt_type);
+        $stmt->execute();
+        $r = $stmt->get_result()->fetch_assoc();
+        return $r ?: null;
+    } catch (Throwable $e) {
+        error_log('getLoginAttemptRecord: ' . $e->getMessage());
+        return null;
+    }
 }
 
 function isLoginLocked($identifier, $attempt_type = 'unified') {
-    $r = getLoginAttemptRecord($identifier, $attempt_type);
-    if (!$r || empty($r['locked_until'])) return false;
-    return strtotime($r['locked_until']) > time();
+    try {
+        $r = getLoginAttemptRecord($identifier, $attempt_type);
+        if (!$r || empty($r['locked_until'])) return false;
+        return strtotime($r['locked_until']) > time();
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 function getLoginLockedUntil($identifier, $attempt_type = 'unified') {
-    $r = getLoginAttemptRecord($identifier, $attempt_type);
-    return ($r && !empty($r['locked_until'])) ? strtotime($r['locked_until']) : 0;
+    try {
+        $r = getLoginAttemptRecord($identifier, $attempt_type);
+        return ($r && !empty($r['locked_until'])) ? strtotime($r['locked_until']) : 0;
+    } catch (Throwable $e) {
+        return 0;
+    }
 }
 
 /** Call after a failed login. Returns true if we just triggered lockout. */
 function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
-    $db = getDB();
-    $now = date('Y-m-d H:i:s');
-    $lock_minutes = defined('LOGIN_LOCKOUT_MINUTES') ? (int)LOGIN_LOCKOUT_MINUTES : 15;
-    $max_attempts = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 5;
     try {
+        $db = getDB();
+        $now = date('Y-m-d H:i:s');
+        $lock_minutes = defined('LOGIN_LOCKOUT_MINUTES') ? (int)LOGIN_LOCKOUT_MINUTES : 15;
+        $max_attempts = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 5;
         $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, last_attempt_at) VALUES (?, ?, 1, ?)
                               ON CONFLICT (identifier, attempt_type) DO UPDATE SET
                               failed_count = login_attempts.failed_count + 1,
                               last_attempt_at = EXCLUDED.last_attempt_at");
         $stmt->bind_param("sss", $identifier, $attempt_type, $now);
         $stmt->execute();
-    } catch (Exception $e) {
-        return false;
-    }
-    $r = getLoginAttemptRecord($identifier, $attempt_type);
-    $failed = (int)($r['failed_count'] ?? 0);
-    $captcha_passed = !empty($r['captcha_passed_at']);
-    if ($failed >= $max_attempts && $captcha_passed) {
-        $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
-        $upd = $db->prepare("UPDATE login_attempts SET locked_until = ?, failed_count = 0, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
-        $upd->bind_param("sss", $locked_until, $identifier, $attempt_type);
-        $upd->execute();
-        return true;
+        $r = getLoginAttemptRecord($identifier, $attempt_type);
+        $failed = (int)($r['failed_count'] ?? 0);
+        $captcha_passed = !empty($r['captcha_passed_at']);
+        if ($failed >= $max_attempts && $captcha_passed) {
+            $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
+            $upd = $db->prepare("UPDATE login_attempts SET locked_until = ?, failed_count = 0, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
+            $upd->bind_param("sss", $locked_until, $identifier, $attempt_type);
+            $upd->execute();
+            return true;
+        }
+    } catch (Throwable $e) {
+        error_log('recordFailedLoginAttempt: ' . $e->getMessage());
     }
     return false;
 }
 
 function clearLoginAttempts($identifier, $attempt_type = 'unified') {
-    $db = getDB();
     try {
+        $db = getDB();
         $stmt = $db->prepare("DELETE FROM login_attempts WHERE identifier = ? AND attempt_type = ?");
         $stmt->bind_param("ss", $identifier, $attempt_type);
         $stmt->execute();
-    } catch (Exception $e) {
+    } catch (Throwable $e) {
         // ignore
     }
 }
 
 /** True if we need to show/solve captcha before next attempt (5 failures, no recent captcha). */
 function loginNeedsCaptcha($identifier, $attempt_type = 'unified') {
-    $r = getLoginAttemptRecord($identifier, $attempt_type);
-    if (!$r) return false;
-    $max = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 5;
-    if ((int)$r['failed_count'] < $max) return false;
-    if (!empty($r['captcha_passed_at'])) return false;
-    return true;
+    try {
+        $r = getLoginAttemptRecord($identifier, $attempt_type);
+        if (!$r) return false;
+        $max = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 5;
+        if ((int)$r['failed_count'] < $max) return false;
+        if (!empty($r['captcha_passed_at'])) return false;
+        return true;
+    } catch (Throwable $e) {
+        return false;
+    }
 }
 
 function recordLoginCaptchaPassed($identifier, $attempt_type = 'unified') {
-    $db = getDB();
-    $now = date('Y-m-d H:i:s');
     try {
+        $db = getDB();
+        $now = date('Y-m-d H:i:s');
         $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at) VALUES (?, ?, 0, ?, ?)
                               ON CONFLICT (identifier, attempt_type) DO UPDATE SET
                               failed_count = 0, captcha_passed_at = EXCLUDED.captcha_passed_at, last_attempt_at = EXCLUDED.last_attempt_at");
         $stmt->bind_param("ssss", $identifier, $attempt_type, $now, $now);
         $stmt->execute();
-    } catch (Exception $e) {
+        return true;
+    } catch (Throwable $e) {
+        error_log('recordLoginCaptchaPassed: ' . $e->getMessage());
         return false;
     }
-    return true;
 }
 
 function verifyRecaptchaV3($token, $action = 'login') {

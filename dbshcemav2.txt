@@ -1,4 +1,17 @@
 CREATE SCHEMA "public";
+CREATE TABLE "activity_log" (
+	"log_id" serial PRIMARY KEY,
+	"action_type" varchar(50) NOT NULL,
+	"actor_type" varchar(20) DEFAULT 'user' NOT NULL,
+	"actor_id" integer,
+	"username" varchar(50),
+	"full_name" varchar(100),
+	"role" varchar(20),
+	"details" text,
+	"ip_address" varchar(45),
+	"user_agent" text,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE "appointments" (
 	"appointment_id" serial PRIMARY KEY,
 	"appointment_number" varchar(20) NOT NULL CONSTRAINT "appointments_appointment_number_key" UNIQUE,
@@ -14,7 +27,7 @@ CREATE TABLE "appointments" (
 	"created_by" integer,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "appointments_status_check" CHECK (CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('confirmed'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text, ('no_show'::character varying)::text]))))
+	CONSTRAINT "appointments_status_check" CHECK (CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'confirmed'::character varying, 'completed'::character varying, 'cancelled'::character varying, 'no_show'::character varying])::text[]))))
 );
 CREATE TABLE "blocked_dates" (
 	"block_id" serial PRIMARY KEY,
@@ -65,7 +78,7 @@ CREATE TABLE "email_verification_codes" (
 	"expires_at" timestamp NOT NULL,
 	"is_used" boolean DEFAULT false,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying, 'email_change'::character varying])::text[]))))
+	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying])::text[]))))
 );
 CREATE TABLE "lab_cases" (
 	"case_id" serial PRIMARY KEY,
@@ -82,7 +95,17 @@ CREATE TABLE "lab_cases" (
 	"notes" text,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "lab_cases_status_check" CHECK (CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('in_progress'::character varying)::text, ('ready_for_pickup'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text]))))
+	CONSTRAINT "lab_cases_status_check" CHECK (CHECK (((status)::text = ANY ((ARRAY['pending'::character varying, 'in_progress'::character varying, 'ready_for_pickup'::character varying, 'completed'::character varying, 'cancelled'::character varying])::text[]))))
+);
+CREATE TABLE "login_attempts" (
+	"attempt_id" serial PRIMARY KEY,
+	"identifier" varchar(64) NOT NULL,
+	"attempt_type" varchar(20) DEFAULT 'staff' NOT NULL,
+	"failed_count" integer DEFAULT 0,
+	"captcha_passed_at" timestamp,
+	"locked_until" timestamp,
+	"last_attempt_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE "patient_accounts" (
 	"account_id" serial PRIMARY KEY,
@@ -93,15 +116,6 @@ CREATE TABLE "patient_accounts" (
 	"verification_token" varchar(100),
 	"last_login" timestamp,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
-);
-CREATE TABLE "patient_audit_log" (
-	"log_id" serial PRIMARY KEY,
-	"patient_id" integer NOT NULL,
-	"changed_field" varchar(50) NOT NULL,
-	"old_value" text,
-	"new_value" text,
-	"changed_by" integer,
-	"changed_at" timestamp DEFAULT now()
 );
 CREATE TABLE "patients" (
 	"patient_id" serial PRIMARY KEY,
@@ -120,12 +134,7 @@ CREATE TABLE "patients" (
 	"allergies" text,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"phone_hash" varchar(64),
-	"no_show_count" integer DEFAULT 0,
-	"last_no_show_date" date,
-	"first_name_metaphone" varchar(20),
-	"last_name_metaphone" varchar(20),
-	CONSTRAINT "patients_gender_check" CHECK (CHECK ((((gender)::text = ANY (ARRAY[('Male'::character varying)::text, ('Female'::character varying)::text, ('Other'::character varying)::text])) OR (gender IS NULL))))
+	CONSTRAINT "patients_gender_check" CHECK (CHECK ((((gender)::text = ANY ((ARRAY['Male'::character varying, 'Female'::character varying, 'Other'::character varying])::text[])) OR (gender IS NULL))))
 );
 CREATE TABLE "services" (
 	"service_id" serial PRIMARY KEY,
@@ -153,9 +162,7 @@ CREATE TABLE "users" (
 	"phone" varchar(20),
 	"is_active" boolean DEFAULT true,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"phone_hash" varchar(64),
-	"must_change_password" boolean DEFAULT false
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
 );
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
 ALTER TABLE "appointments" ADD CONSTRAINT "appointments_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("user_id") ON DELETE SET NULL;
@@ -173,6 +180,10 @@ ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_dentist_id_fkey" FOREIGN KEY (
 ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
 ALTER TABLE "patient_accounts" ADD CONSTRAINT "patient_accounts_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
 ALTER TABLE "users" ADD CONSTRAINT "users_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
+CREATE UNIQUE INDEX "activity_log_pkey" ON "activity_log" ("log_id");
+CREATE INDEX "idx_activity_log_action" ON "activity_log" ("action_type");
+CREATE INDEX "idx_activity_log_actor" ON "activity_log" ("actor_type","actor_id");
+CREATE INDEX "idx_activity_log_created_at" ON "activity_log" ("created_at");
 CREATE UNIQUE INDEX "appointments_appointment_number_key" ON "appointments" ("appointment_number");
 CREATE UNIQUE INDEX "appointments_pkey" ON "appointments" ("appointment_id");
 CREATE INDEX "idx_appointments_date" ON "appointments" ("appointment_date");
@@ -194,10 +205,12 @@ CREATE INDEX "idx_lab_cases_number" ON "lab_cases" ("case_number");
 CREATE INDEX "idx_lab_cases_status" ON "lab_cases" ("status");
 CREATE UNIQUE INDEX "lab_cases_case_number_key" ON "lab_cases" ("case_number");
 CREATE UNIQUE INDEX "lab_cases_pkey" ON "lab_cases" ("case_id");
+CREATE UNIQUE INDEX "idx_login_attempts_identifier_type" ON "login_attempts" ("identifier","attempt_type");
+CREATE INDEX "idx_login_attempts_locked" ON "login_attempts" ("locked_until");
+CREATE UNIQUE INDEX "login_attempts_pkey" ON "login_attempts" ("attempt_id");
 CREATE UNIQUE INDEX "patient_accounts_email_key" ON "patient_accounts" ("email");
 CREATE UNIQUE INDEX "patient_accounts_patient_id_key" ON "patient_accounts" ("patient_id");
 CREATE UNIQUE INDEX "patient_accounts_pkey" ON "patient_accounts" ("account_id");
-CREATE UNIQUE INDEX "patient_audit_log_pkey" ON "patient_audit_log" ("log_id");
 CREATE INDEX "idx_patients_email" ON "patients" ("email");
 CREATE INDEX "idx_patients_number" ON "patients" ("patient_number");
 CREATE INDEX "idx_patients_phone" ON "patients" ("phone");
@@ -210,8 +223,3 @@ CREATE UNIQUE INDEX "time_slots_slot_time_key" ON "time_slots" ("slot_time");
 CREATE UNIQUE INDEX "users_email_key" ON "users" ("email");
 CREATE UNIQUE INDEX "users_pkey" ON "users" ("user_id");
 CREATE UNIQUE INDEX "users_username_key" ON "users" ("username");
-
--- Activity log (see database/migration_activity_log_and_branch.sql)
--- activity_log: log_id, action_type, actor_type, actor_id, username, full_name, role, details, ip_address, user_agent, created_at
--- login_attempts: attempt_id, identifier, attempt_type, failed_count, captcha_passed_at, locked_until, last_attempt_at, created_at
--- Second branch: Denthub Tondo, 1876 Velasquez Street Barangay 92 Zone 8 Tondo, Manila, Philippines, 1013

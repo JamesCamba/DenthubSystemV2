@@ -73,7 +73,25 @@ if (file_exists($autoloadPath)) {
 // Set timezone
 date_default_timezone_set(TIMEZONE);
 
-// Error Reporting (Set to 0 in production)
+// Error Reporting (Set to 0 in production to hide errors from users)
+$display_errors = (getenv('APP_DEBUG') === '1' || getenv('APP_DEBUG') === 'true');
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', $display_errors ? '1' : '0');
+ini_set('log_errors', '1');
+
+// Friendly global exception handler: do not expose database or backend details to users
+set_exception_handler(function (Throwable $e) {
+    error_log('Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    error_log($e->getTraceAsString());
+    if (getenv('APP_DEBUG') === '1' || getenv('APP_DEBUG') === 'true') {
+        throw $e;
+    }
+    header('Content-Type: text/html; charset=utf-8');
+    header('HTTP/1.1 500 Internal Server Error');
+    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Error</title></head><body>';
+    echo '<h1>Something went wrong</h1>';
+    echo '<p>We\'re sorry. Please try again later or contact support.</p>';
+    echo '</body></html>';
+    exit(1);
+});
 
