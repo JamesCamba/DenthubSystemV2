@@ -34,13 +34,17 @@ $error = '';
 $login_identifier = getLoginClientIdentifier();
 $attempt_type = 'unified';
 $show_captcha = false;
+$ip_address = getClientIpAddress();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $identifier = sanitize($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    $captcha_token = $_POST['g-recaptcha-response'] ?? $_POST['recaptcha_token'] ?? '';
+    // For reCAPTCHA v2 we only care about g-recaptcha-response.
+    $captcha_token = $_POST['g-recaptcha-response'] ?? '';
 
-    if (isLoginLocked($login_identifier, $attempt_type)) {
+    if (isIpLoginBlocked($ip_address)) {
+        $error = 'Too many failed attempts from this network. Please try again later.';
+    } elseif (isLoginLocked($login_identifier, $attempt_type)) {
         $mins = ceil((getLoginLockedUntil($login_identifier, $attempt_type) - time()) / 60);
         $error = 'Too many failed attempts. Please try again in ' . $mins . ' minute(s).';
     } elseif (empty($identifier) || empty($password)) {
@@ -52,13 +56,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($captcha_token === '') {
                     $error = 'Please complete the verification below.';
                     $show_captcha = true;
-                } elseif (!verifyRecaptchaV3($captcha_token, 'login')) {
+                    recordCaptchaFailureAndMaybeLock($login_identifier, $attempt_type);
+                } elseif (!verifyRecaptchaV2($captcha_token)) {
                     $error = 'Verification failed. Please try again.';
                     $show_captcha = true;
+                    recordCaptchaFailureAndMaybeLock($login_identifier, $attempt_type);
                 } else {
+                    // CAPTCHA solved – reset attempt counter for this device.
                     recordLoginCaptchaPassed($login_identifier, $attempt_type, true);
+                    clearCaptchaFailures($login_identifier, $attempt_type);
                 }
             } else {
+                // No configured key; treat as passed but still record marker.
                 recordLoginCaptchaPassed($login_identifier, $attempt_type, false);
             }
         }
@@ -86,8 +95,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 exit;
             }
             $just_locked = recordFailedLoginAttempt($login_identifier, $attempt_type);
+            // IP-level tracking for global abuse detection
+            recordFailedLoginIp($ip_address);
             if ($just_locked) {
-                $mins = defined('LOGIN_LOCKOUT_MINUTES') ? LOGIN_LOCKOUT_MINUTES : 15;
+                $mins = defined('LOGIN_LOCKOUT_MINUTES') ? LOGIN_LOCKOUT_MINUTES : 30;
                 $error = 'Too many failed attempts. This device is temporarily locked for ' . $mins . ' minutes.';
             } else {
                 $error = 'Invalid email/username or password.';
@@ -132,11 +143,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="alert alert-danger"><?php echo htmlspecialchars($error); ?></div>
                         <?php endif; ?>
                         <?php if (!empty($show_captcha) && defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
-                            <div class="alert alert-info small">Please complete the verification before signing in.</div>
+                            <div class="alert alert-info small mb-3">
+                                Please complete the verification below to continue.
+                            </div>
                         <?php endif; ?>
 
                         <form method="POST" action="" id="loginForm">
-                            <input type="hidden" name="recaptcha_token" id="recaptcha_token" value="">
                             <div class="mb-3">
                                 <label class="form-label">Email or Username</label>
                                 <input type="text" class="form-control" name="email" required autofocus placeholder="Email or username">
@@ -153,6 +165,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <div class="mb-3 text-end">
                                 <a href="forgot-password.php" class="text-muted small">Forgot Password?</a>
                             </div>
+                            <?php if (!empty($show_captcha) && defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
+                                <div class="mb-3">
+                                    <div class="g-recaptcha" data-sitekey="<?php echo htmlspecialchars(RECAPTCHA_SITE_KEY); ?>"></div>
+                                </div>
+                            <?php endif; ?>
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-primary btn-lg">Login</button>
                             </div>
@@ -169,7 +186,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
-    <script src="https://www.google.com/recaptcha/api.js?render=<?php echo htmlspecialchars(RECAPTCHA_SITE_KEY); ?>"></script>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
@@ -186,20 +203,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 icon.classList.add('bi-eye');
             }
         }
-        <?php if (!empty($show_captcha) && defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
-        document.getElementById('loginForm').addEventListener('submit', function(e) {
-            var tok = document.getElementById('recaptcha_token');
-            if (tok && tok.value === '' && typeof grecaptcha !== 'undefined') {
-                e.preventDefault();
-                grecaptcha.ready(function() {
-                    grecaptcha.execute('<?php echo addslashes(RECAPTCHA_SITE_KEY); ?>', { action: 'login' }).then(function(token) {
-                        document.getElementById('recaptcha_token').value = token;
-                        document.getElementById('loginForm').submit();
-                    });
-                });
-            }
-        });
-        <?php endif; ?>
     </script>
 </body>
 </html>

@@ -20,6 +20,11 @@ $error = '';
 $success = '';
 $step = $_GET['step'] ?? 'register'; // register, verify
 
+$reg_ip = getClientIpAddress();
+if ($step === 'register' && isIpRegistrationBlocked($reg_ip)) {
+    $error = 'Too many registrations from this network. Please try again later.';
+}
+
 // Handle resend code request
 if ($step === 'verify' && isset($_POST['resend_code'])) {
     $email = sanitize($_POST['email'] ?? '');
@@ -182,6 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     $address = sanitize($_POST['address'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
+    $captcha_token = $_POST['g-recaptcha-response'] ?? '';
     $accept_terms = isset($_POST['accept_terms']) ? (bool)$_POST['accept_terms'] : false;
 
     // Validation
@@ -191,6 +197,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
         $error = 'Invalid email address.';
     } elseif (!validatePhone($phone)) {
         $error = 'Invalid phone number.';
+    } elseif (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '' && $captcha_token === '') {
+        $error = 'Please complete the verification below.';
+    } elseif (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '' && !verifyRecaptchaV2($captcha_token)) {
+        $error = 'Verification failed. Please try again.';
+    } elseif (isIpRegistrationBlocked($reg_ip)) {
+        $error = 'Too many registrations from this network. Please try again later.';
     } elseif (!$accept_terms) {
         $error = 'You must read and agree to the Terms & Agreement before creating an account.';
     } elseif (strlen($password) < PASSWORD_MIN_LENGTH) {
@@ -280,9 +292,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                         $patient_name = $first_name . ' ' . $last_name;
                         
                         if ($mailer->sendVerificationCode($email, $verification_code, $patient_name, 'registration')) {
+                            // Count successful "start registration" events per IP (OTP sent).
+                            if (!recordRegistrationForIp($reg_ip)) {
+                                // Roll back code/session if IP just got blocked at threshold
+                                $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
+                                $deleteCodeStmt->bind_param("ss", $email, $verification_code);
+                                $deleteCodeStmt->execute();
+                                unset($_SESSION['pending_registration']);
+                                $error = 'Too many registrations from this network. Please try again later.';
+                            } else {
                             // Email sent successfully - Redirect to verification step
                             header('Location: register.php?step=verify&email=' . urlencode($email));
                             exit;
+                            }
                         } else {
                             // Email sending failed - delete verification code
                             $deleteCodeStmt = $db->prepare("DELETE FROM email_verification_codes WHERE email = ? AND verification_code = ?");
@@ -439,6 +461,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                     </label>
                                 </div>
                             </div>
+                            <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
+                            <div class="mb-3">
+                                <div class="g-recaptcha" data-sitekey="<?php echo htmlspecialchars(RECAPTCHA_SITE_KEY); ?>"></div>
+                            </div>
+                            <?php endif; ?>
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-primary btn-lg">Register</button>
                             </div>
@@ -520,6 +547,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
         </div>
     </div>
 
+    <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
+    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <?php endif; ?>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function togglePassword(fieldId) {

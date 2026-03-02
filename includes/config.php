@@ -47,7 +47,8 @@ define('SESSION_LIFETIME', 3600); // 1 hour
 // Security
 define('PASSWORD_MIN_LENGTH', 8);
 define('LOGIN_MAX_ATTEMPTS', 3);
-define('LOGIN_LOCKOUT_MINUTES', 15);
+// Account lockout duration after 3 failed logins
+define('LOGIN_LOCKOUT_MINUTES', 30);
 define('RECAPTCHA_SITE_KEY', getenv('RECAPTCHA_SITE_KEY') ?: '');
 define('RECAPTCHA_SECRET_KEY', getenv('RECAPTCHA_SECRET_KEY') ?: '');
 
