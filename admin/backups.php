@@ -239,7 +239,7 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
                             <tr>
                                 <td><code><?php echo htmlspecialchars($row['backup_name']); ?></code></td>
                                 <td><?php echo formatDateTimeUtcToApp($row['created_at']); ?></td>
-                                <td><?php echo number_format($row['backup_size'] / 1024, 1); ?> KB</td>
+                                <td><?php echo htmlspecialchars(formatBytes((int)$row['backup_size'])); ?></td>
                                 <td>
                                     <a href="?download=1&id=<?php echo $row['backup_id']; ?>" class="btn btn-sm btn-success"><i class="bi bi-download"></i> Download</a>
                                     <form method="POST" class="d-inline" onsubmit="return confirm('Delete this backup?');">

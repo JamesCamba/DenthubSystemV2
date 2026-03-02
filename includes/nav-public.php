@@ -12,7 +12,7 @@ $nav_patient_base = $nav_patient_base ?? 'patient/';
         <a class="navbar-brand fw-bold d-flex align-items-center brand-img-wrap text-white text-decoration-none" href="<?php echo $nav_base; ?>index.php">
             <img src="<?php echo $nav_base; ?>assets/images/logowblue.png" alt="Logo" onerror="this.style.display='none'">
             <img src="<?php echo $nav_base; ?>assets/images/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
-            <span class="ms-1">DENTHUB</span>
+            <!-- <span class="ms-1">DENTHUB</span> -->
         </a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>

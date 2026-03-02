@@ -215,7 +215,7 @@ function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
         $db = getDB();
         $now = date('Y-m-d H:i:s');
         $lock_minutes = defined('LOGIN_LOCKOUT_MINUTES') ? (int)LOGIN_LOCKOUT_MINUTES : 15;
-        $max_attempts = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 5;
+        $max_attempts = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 3;
         $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, last_attempt_at) VALUES (?, ?, 1, ?)
                               ON CONFLICT (identifier, attempt_type) DO UPDATE SET
                               failed_count = login_attempts.failed_count + 1,
@@ -225,9 +225,11 @@ function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         $failed = (int)($r['failed_count'] ?? 0);
         $captcha_passed = !empty($r['captcha_passed_at']);
-        $lock_threshold = isset($r['lock_at_count']) ? (int)$r['lock_at_count'] : 5;
+        $lock_threshold = isset($r['lock_at_count']) ? (int)$r['lock_at_count'] : $max_attempts;
         if ($captcha_passed && $failed >= $lock_threshold) {
-            $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
+            // After captcha has been passed and user still fails enough times,
+            // treat this as high-risk and lock the identifier for 1 day.
+            $locked_until = date('Y-m-d H:i:s', time() + 60 * 60 * 24);
             $upd = $db->prepare("UPDATE login_attempts SET locked_until = ?, failed_count = 0, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
             $upd->bind_param("sss", $locked_until, $identifier, $attempt_type);
             $upd->execute();
@@ -255,7 +257,7 @@ function loginNeedsCaptcha($identifier, $attempt_type = 'unified') {
     try {
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         if (!$r) return false;
-        $max = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 5;
+        $max = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 3;
         if ((int)$r['failed_count'] < $max) return false;
         if (!empty($r['captcha_passed_at'])) return false;
         return true;

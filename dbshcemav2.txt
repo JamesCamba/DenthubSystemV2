@@ -27,7 +27,7 @@ CREATE TABLE "appointments" (
 	"created_by" integer,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "appointments_status_check" CHECK (CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('confirmed'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text, ('no_show'::character varying)::text]))))
+	CONSTRAINT "appointments_status_check" CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('confirmed'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text, ('no_show'::character varying)::text])))
 );
 CREATE TABLE "blocked_dates" (
 	"block_id" serial PRIMARY KEY,
@@ -60,7 +60,7 @@ CREATE TABLE "dentist_schedules" (
 	"start_time" time NOT NULL,
 	"end_time" time NOT NULL,
 	"is_available" boolean DEFAULT true,
-	CONSTRAINT "day_of_week_check" CHECK (CHECK (((day_of_week >= 0) AND (day_of_week <= 6))))
+	CONSTRAINT "day_of_week_check" CHECK (((day_of_week >= 0) AND (day_of_week <= 6)))
 );
 CREATE TABLE "dentist_service_mastery" (
 	"mastery_id" serial PRIMARY KEY,
@@ -85,7 +85,7 @@ CREATE TABLE "email_verification_codes" (
 	"expires_at" timestamp NOT NULL,
 	"is_used" boolean DEFAULT false,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "purpose_check" CHECK (CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying, 'email_change'::character varying])::text[]))))
+	CONSTRAINT "purpose_check" CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying, 'email_change'::character varying])::text[])))
 );
 CREATE TABLE "lab_cases" (
 	"case_id" serial PRIMARY KEY,
@@ -102,7 +102,7 @@ CREATE TABLE "lab_cases" (
 	"notes" text,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	CONSTRAINT "lab_cases_status_check" CHECK (CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('in_progress'::character varying)::text, ('ready_for_pickup'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text]))))
+	CONSTRAINT "lab_cases_status_check" CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('in_progress'::character varying)::text, ('ready_for_pickup'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text])))
 );
 CREATE TABLE "login_attempts" (
 	"attempt_id" serial PRIMARY KEY,
@@ -156,7 +156,7 @@ CREATE TABLE "patients" (
 	"last_no_show_date" date,
 	"first_name_metaphone" varchar(20),
 	"last_name_metaphone" varchar(20),
-	CONSTRAINT "patients_gender_check" CHECK (CHECK ((((gender)::text = ANY (ARRAY[('Male'::character varying)::text, ('Female'::character varying)::text, ('Other'::character varying)::text])) OR (gender IS NULL))))
+	CONSTRAINT "patients_gender_check" CHECK ((((gender)::text = ANY (ARRAY[('Male'::character varying)::text, ('Female'::character varying)::text, ('Other'::character varying)::text])) OR (gender IS NULL)))
 );
 CREATE TABLE "services" (
 	"service_id" serial PRIMARY KEY,
@@ -188,22 +188,6 @@ CREATE TABLE "users" (
 	"phone_hash" varchar(64),
 	"must_change_password" boolean DEFAULT false
 );
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("user_id") ON DELETE SET NULL;
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
-ALTER TABLE "appointments" ADD CONSTRAINT "appointments_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id");
-ALTER TABLE "blocked_dates" ADD CONSTRAINT "blocked_dates_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id") ON DELETE CASCADE;
-ALTER TABLE "dentist_schedules" ADD CONSTRAINT "dentist_schedules_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE CASCADE;
-ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE CASCADE;
-ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id") ON DELETE CASCADE;
-ALTER TABLE "dentists" ADD CONSTRAINT "dentists_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
-ALTER TABLE "dentists" ADD CONSTRAINT "dentists_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("user_id");
-ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("appointment_id") ON DELETE SET NULL;
-ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
-ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
-ALTER TABLE "patient_accounts" ADD CONSTRAINT "patient_accounts_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
-ALTER TABLE "users" ADD CONSTRAINT "users_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
 CREATE UNIQUE INDEX "activity_log_pkey" ON "activity_log" ("log_id");
 CREATE INDEX "idx_activity_log_action" ON "activity_log" ("action_type");
 CREATE INDEX "idx_activity_log_actor" ON "activity_log" ("actor_type","actor_id");
@@ -249,3 +233,19 @@ CREATE UNIQUE INDEX "time_slots_slot_time_key" ON "time_slots" ("slot_time");
 CREATE UNIQUE INDEX "users_email_key" ON "users" ("email");
 CREATE UNIQUE INDEX "users_pkey" ON "users" ("user_id");
 CREATE UNIQUE INDEX "users_username_key" ON "users" ("username");
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_created_by_fkey" FOREIGN KEY ("created_by") REFERENCES "users"("user_id") ON DELETE SET NULL;
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
+ALTER TABLE "appointments" ADD CONSTRAINT "appointments_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id");
+ALTER TABLE "blocked_dates" ADD CONSTRAINT "blocked_dates_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id") ON DELETE CASCADE;
+ALTER TABLE "dentist_schedules" ADD CONSTRAINT "dentist_schedules_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE CASCADE;
+ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE CASCADE;
+ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id") ON DELETE CASCADE;
+ALTER TABLE "dentists" ADD CONSTRAINT "dentists_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
+ALTER TABLE "dentists" ADD CONSTRAINT "dentists_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("user_id");
+ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("appointment_id") ON DELETE SET NULL;
+ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
+ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
+ALTER TABLE "patient_accounts" ADD CONSTRAINT "patient_accounts_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;
+ALTER TABLE "users" ADD CONSTRAINT "users_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");

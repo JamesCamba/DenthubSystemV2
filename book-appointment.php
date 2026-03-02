@@ -10,6 +10,7 @@ require_once 'includes/functions.php';
 $error = '';
 $success = '';
 $selected_service = $_GET['service'] ?? '';
+$hasUpcomingAppointment = false;
 
 // Get services and branches
 $services = getServices();
@@ -19,6 +20,12 @@ $branchesResult = $db->query("SELECT branch_id, branch_name, address FROM branch
 $branches = [];
 while ($row = $branchesResult->fetch_assoc()) {
     $branches[] = $row;
+}
+
+// Pre-check for upcoming appointments (used for UX + client-side guard)
+if (isPatientLoggedIn()) {
+    $patient_id = $_SESSION['patient_id'];
+    $hasUpcomingAppointment = hasUpcomingAppointment($patient_id);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -37,6 +44,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Validation
         if (empty($service_id) || empty($appointment_date) || empty($appointment_time)) {
             $error = 'Please fill in all required fields.';
+        } elseif (hasUpcomingAppointment($patient_id)) {
+            $error = 'You already have an upcoming appointment. Please complete or cancel it before booking a new one.';
         } elseif (!canBookOnline($patient_id)) {
             $error = 'You have multiple recent no-shows. Please call the clinic to book a new appointment.';
         } elseif (isDateBlocked($appointment_date, $branch_id)) {
@@ -114,6 +123,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <i class="bi bi-info-circle"></i> Please <a href="login.php">login</a> or <a href="register.php">register</a> to book an appointment.
                             </div>
                         <?php else: ?>
+                            <?php if ($hasUpcomingAppointment): ?>
+                                <div class="alert alert-info">
+                                    <i class="bi bi-exclamation-circle"></i>
+                                    You already have an upcoming appointment. Please complete or cancel it before booking a new one.
+                                </div>
+                            <?php endif; ?>
                             <form method="POST" action="" id="appointmentForm">
                                 <div class="mb-3">
                                     <label class="form-label">Branch <span class="text-danger">*</span></label>
@@ -206,6 +221,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Load dentists based on branch + service (order: branch, then service)
+        const HAS_UPCOMING_APPOINTMENT = <?php echo isPatientLoggedIn() ? ($hasUpcomingAppointment ? 'true' : 'false') : 'false'; ?>;
+
         function loadDentists() {
             const branchId = document.getElementById('branch_id').value;
             const serviceId = document.getElementById('service_id').value;
@@ -293,6 +310,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (date) loadSlots();
             });
         }
+
+        // Client-side guard: prevent submitting when an upcoming appointment already exists
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('appointmentForm');
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    if (HAS_UPCOMING_APPOINTMENT) {
+                        e.preventDefault();
+                        alert('You already have an upcoming appointment. Please complete or cancel it before booking a new one.');
+                    }
+                });
+            }
+        });
     </script>
 </body>
 </html>

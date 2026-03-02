@@ -182,6 +182,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     $address = sanitize($_POST['address'] ?? '');
     $password = $_POST['password'] ?? '';
     $confirm_password = $_POST['confirm_password'] ?? '';
+    $accept_terms = isset($_POST['accept_terms']) ? (bool)$_POST['accept_terms'] : false;
 
     // Validation
     if (empty($first_name) || empty($last_name) || empty($email) || empty($phone) || empty($password)) {
@@ -190,6 +191,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
         $error = 'Invalid email address.';
     } elseif (!validatePhone($phone)) {
         $error = 'Invalid phone number.';
+    } elseif (!$accept_terms) {
+        $error = 'You must read and agree to the Terms & Agreement before creating an account.';
     } elseif (strlen($password) < PASSWORD_MIN_LENGTH) {
         $error = 'Password must be at least ' . PASSWORD_MIN_LENGTH . ' characters long.';
     } elseif ($password !== $confirm_password) {
@@ -424,6 +427,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                     </button>
                                 </div>
                             </div>
+                            <div class="mb-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" name="accept_terms" id="accept_terms" value="1" <?php echo !empty($_POST['accept_terms']) ? 'checked' : ''; ?> required>
+                                    <label class="form-check-label small" for="accept_terms">
+                                        I have read and agree to the
+                                        <button type="button" class="btn btn-link p-0 align-baseline" data-bs-toggle="modal" data-bs-target="#termsModal">
+                                            Terms &amp; Agreement
+                                        </button>
+                                        for using <?php echo APP_NAME; ?>.
+                                    </label>
+                                </div>
+                            </div>
                             <div class="d-grid">
                                 <button type="submit" class="btn btn-primary btn-lg">Register</button>
                             </div>
@@ -436,6 +451,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                         </div>
                     </div>
                 </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Terms & Agreement Modal -->
+    <div class="modal fade" id="termsModal" tabindex="-1" aria-labelledby="termsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="termsModalLabel">Terms &amp; Agreement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">
+                        Please read these terms carefully. By creating an account and booking appointments, you agree to the conditions below.
+                    </p>
+
+                    <h6 class="fw-bold">1. Acceptable Use</h6>
+                    <p class="mb-3">
+                        You agree to use <?php echo APP_NAME; ?> only for legitimate dental appointment scheduling.
+                        Creating fake accounts or <strong>submitting spam, fake bookings, or abusive content</strong> is strictly prohibited.
+                        We reserve the right to review suspicious activity and take appropriate action, including account suspension.
+                    </p>
+
+                    <h6 class="fw-bold">2. Appointment Policies</h6>
+                    <p class="mb-3">
+                        When you book an appointment, you agree to our scheduling rules, including any
+                        <strong>cancellation windows and no-show policies</strong> set by the clinic.
+                        Repeated no-shows or late cancellations may limit your ability to book online and can affect future scheduling privileges.
+                    </p>
+
+                    <h6 class="fw-bold">3. Data Handling &amp; Privacy</h6>
+                    <p class="mb-3">
+                        We collect your personal information (such as name, contact details, and appointment history)
+                        <strong>only for clinic operations, appointment scheduling, and communication about your care</strong>.
+                        Your data is stored in secure systems with access limited to authorized clinic personnel.
+                        We do not sell your personal data, and we only share it when required for providing services or when required by law.
+                    </p>
+
+                    <h6 class="fw-bold">4. Medical &amp; Emergency Disclaimer</h6>
+                    <p class="mb-3">
+                        This system is intended <strong>only for scheduling and managing dental appointments</strong>.
+                        It does not provide medical diagnosis, treatment, or emergency services.
+                        For emergencies or urgent medical concerns, contact your local emergency services or visit the nearest emergency facility instead of using this system.
+                    </p>
+
+                    <h6 class="fw-bold">5. Account Suspension &amp; Termination</h6>
+                    <p class="mb-3">
+                        The clinic reserves the right to <strong>suspend or delete accounts</strong> that violate these terms,
+                        including but not limited to abusive behavior, fraudulent use, security violations, or attempts to disrupt system operations.
+                        Actions may also include blocking further access from associated devices or networks where necessary to protect the system.
+                    </p>
+
+                    <h6 class="fw-bold">6. Security, Logging &amp; IP Address</h6>
+                    <p class="mb-0">
+                        For security and fraud prevention, the system may record device and network details such as
+                        <strong>IP address, browser information, and login activity</strong>.
+                        These logs are visible only to authorized administrators and are used solely to
+                        <strong>detect suspicious activity or possible attacks</strong>, investigate incidents, and protect patient accounts.
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>
         </div>

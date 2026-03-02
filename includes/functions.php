@@ -173,86 +173,78 @@ function logActivity($action_type, $details = '', $actor_user_id = null, $actor_
 function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $branch_id = 1, $exclude_appointment_id = null) {
     $db = getDB();
 
-    // Get day of week (0 = Sunday)
+    // Let PostgreSQL do the heavy lifting: start from active time slots,
+    // filter by dentist schedule (if any), then exclude booked slots.
     $day_of_week = date('w', strtotime($date));
 
-    // Get all active time slots
-    $slots = $db->query("
-        SELECT slot_id, slot_time
-        FROM time_slots
-        WHERE is_active = TRUE
-        ORDER BY slot_time
-    ");
+    $sql = "
+        SELECT ts.slot_id, ts.slot_time
+        FROM time_slots ts
+        WHERE ts.is_active = TRUE
+    ";
+
+    $params = [];
+    $types  = "";
+
+    // If a specific dentist is selected, only include slots where the dentist is scheduled
+    if ($dentist_id !== null) {
+        $sql .= "
+          AND EXISTS (
+              SELECT 1
+              FROM dentist_schedules ds
+              WHERE ds.dentist_id = ?
+                AND ds.day_of_week = ?
+                AND ds.is_available = TRUE
+                AND ds.start_time <= ts.slot_time
+                AND ds.end_time   > ts.slot_time
+          )
+        ";
+        $params[] = $dentist_id;
+        $params[] = $day_of_week;
+        $types   .= "ii";
+    }
+
+    // Exclude slots that are already booked (for this date/branch and optional dentist)
+    $sql .= "
+      AND NOT EXISTS (
+          SELECT 1
+          FROM appointments a
+          WHERE a.appointment_date = ?
+            AND a.appointment_time = ts.slot_time
+            AND a.branch_id = ?
+            AND a.status IN ('pending', 'confirmed')
+    ";
+    $params[] = $date;
+    $params[] = $branch_id;
+    $types   .= "si";
+
+    if ($dentist_id !== null) {
+        $sql .= " AND a.dentist_id = ?";
+        $params[] = $dentist_id;
+        $types   .= "i";
+    }
+
+    if ($exclude_appointment_id !== null) {
+        $sql .= " AND a.appointment_id != ?";
+        $params[] = $exclude_appointment_id;
+        $types   .= "i";
+    }
+
+    $sql .= "
+      )
+      ORDER BY ts.slot_time
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!empty($params)) {
+        $stmt->bind_param($types, ...$params);
+    }
+    $stmt->execute();
+    $result = $stmt->get_result();
 
     $availableSlots = [];
-
-    while ($slot = $slots->fetch_assoc()) {
-
-        /* ============================
-           Check dentist availability
-        ============================ */
-        if ($dentist_id !== null) {
-            $scheduleSql = "
-                SELECT COUNT(*) AS count
-                FROM dentist_schedules
-                WHERE dentist_id = ?
-                  AND day_of_week = ?
-                  AND start_time <= ?
-                  AND end_time > ?
-                  AND is_available = TRUE
-            ";
-
-            $scheduleStmt = $db->prepare($scheduleSql);
-            $scheduleStmt->bind_param(
-                "iiss",
-                $dentist_id,
-                $day_of_week,
-                $slot['slot_time'],
-                $slot['slot_time']
-            );
-            $scheduleStmt->execute();
-            $scheduleResult = $scheduleStmt->get_result()->fetch_assoc();
-
-            if ($scheduleResult['count'] == 0) {
-                continue; // Dentist not working at this time
-            }
-        }
-
-        /* ============================
-           Check if slot is booked (same branch)
-        ============================ */
-        $sql = "
-            SELECT COUNT(*) AS count
-            FROM appointments
-            WHERE appointment_date = ?
-              AND appointment_time = ?
-              AND branch_id = ?
-              AND status IN ('pending', 'confirmed')
-        ";
-
-        $params = [$date, $slot['slot_time'], $branch_id];
-        $types  = "ssi";
-
-        if ($dentist_id !== null) {
-            $sql .= " AND dentist_id = ?";
-            $params[] = $dentist_id;
-            $types   .= "i";
-        }
-
-        if ($exclude_appointment_id !== null) {
-            $sql .= " AND appointment_id != ?";
-            $params[] = $exclude_appointment_id;
-            $types   .= "i";
-        }
-
-        $stmt = $db->prepare($sql);
-        $stmt->bind_param($types, ...$params);
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_assoc();
-
-        if ($result['count'] == 0) {
-            $availableSlots[] = $slot;
-        }
+    while ($row = $result->fetch_assoc()) {
+        $availableSlots[] = $row;
     }
 
     return $availableSlots;
@@ -575,6 +567,33 @@ function getLabStatusBadge($status) {
     return $badges[$status] ?? 'secondary';
 }
 
+/**
+ * Format bytes into human-readable size.
+ * - &lt; 1 MB  → KB
+ * - 1–999 MB → MB
+ * - ≥ 1 GB   → GB
+ */
+function formatBytes($bytes) {
+    $bytes = (float)$bytes;
+    if ($bytes <= 0) {
+        return '0 KB';
+    }
+
+    $kb = $bytes / 1024;
+    $mb = $kb / 1024;
+    $gb = $mb / 1024;
+
+    if ($mb < 1) {
+        return number_format(max($kb, 1), 0) . ' KB';
+    }
+
+    if ($gb < 1) {
+        return number_format($mb, 1) . ' MB';
+    }
+
+    return number_format($gb, 2) . ' GB';
+}
+
 // Get available status options based on current status and appointment date
 function getAvailableStatusOptions($current_status, $appointment_date = null) {
     $options = [];
@@ -722,6 +741,30 @@ function canBookOnline($patient_id) {
     $stmt->execute();
     $res = $stmt->get_result();
     return $res->num_rows === 0;
+}
+
+/**
+ * Check if patient already has an upcoming appointment with status pending or confirmed.
+ * Upcoming = appointment_date in the future, or today with time in the future.
+ */
+function hasUpcomingAppointment($patient_id) {
+    $db = getDB();
+    $sql = "
+        SELECT 1
+        FROM appointments
+        WHERE patient_id = ?
+          AND status IN ('pending', 'confirmed')
+          AND (
+                appointment_date > CURRENT_DATE
+             OR (appointment_date = CURRENT_DATE AND appointment_time >= CURRENT_TIME)
+          )
+        LIMIT 1
+    ";
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param("i", $patient_id);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    return $res->num_rows > 0;
 }
 
 /**
