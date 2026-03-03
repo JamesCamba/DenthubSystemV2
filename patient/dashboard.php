@@ -12,6 +12,14 @@ requirePatientLogin();
 $db = getDB();
 $patient_id = $_SESSION['patient_id'];
 
+// Active branches for slot widgets
+$branches = [];
+$res = $db->query("SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE ORDER BY branch_name");
+while ($row = $res->fetch_assoc()) {
+    $branches[] = $row;
+}
+$defaultBranchId = count($branches) ? (int)$branches[0]['branch_id'] : 0;
+
 // Get patient info
 $patient = getCurrentPatient();
 
@@ -89,6 +97,52 @@ $appointment_history = $stmt->get_result();
                         <i class="bi bi-clock-history text-success" style="font-size: 48px;"></i>
                         <h5 class="mt-3">Appointment History</h5>
                         <a href="#history" class="btn btn-success">View History</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4 g-3">
+            <div class="col-md-4">
+                <div class="mb-3">
+                    <label class="form-label">Branch for Slot Summary</label>
+                    <select class="form-select" id="patientDashboardBranch">
+                        <?php foreach ($branches as $b): ?>
+                            <option value="<?php echo (int)$b['branch_id']; ?>" <?php echo $defaultBranchId === (int)$b['branch_id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($b['branch_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-4 g-3">
+            <div class="col-md-6">
+                <div class="card denthub-card-light h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Today's Available Slots</h6>
+                                <h3 class="mb-0" id="todaySlotsCountPatient">--</h3>
+                                <small class="text-muted" id="todaySlotsBranchLabelPatient"></small>
+                            </div>
+                            <i class="bi bi-clock-history text-primary" style="font-size: 40px; opacity: 0.8;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card denthub-card-light h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Tomorrow's Available Slots</h6>
+                                <h3 class="mb-0" id="tomorrowSlotsCountPatient">--</h3>
+                                <small class="text-muted" id="tomorrowSlotsBranchLabelPatient"></small>
+                            </div>
+                            <i class="bi bi-clock text-success" style="font-size: 40px; opacity: 0.8;"></i>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -189,6 +243,32 @@ $appointment_history = $stmt->get_result();
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function loadSlotSummaryPatient() {
+            const select = document.getElementById('patientDashboardBranch');
+            if (!select || !select.value) return;
+            const branchId = select.value;
+            fetch(`../api/get-slot-summary.php?role=patient&branch_id=${encodeURIComponent(branchId)}`)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success || !data.branches.length) return;
+                    const b = data.branches[0];
+                    document.getElementById('todaySlotsCountPatient').textContent = b.today;
+                    document.getElementById('tomorrowSlotsCountPatient').textContent = b.tomorrow;
+                    const label = b.branch_name || ('Branch ' + b.branch_id);
+                    document.getElementById('todaySlotsBranchLabelPatient').textContent = label;
+                    document.getElementById('tomorrowSlotsBranchLabelPatient').textContent = label;
+                })
+                .catch(() => {});
+        }
+
+        const branchSelect = document.getElementById('patientDashboardBranch');
+        if (branchSelect) {
+            branchSelect.addEventListener('change', loadSlotSummaryPatient);
+        }
+
+        loadSlotSummaryPatient();
+    </script>
 </body>
 </html>
 

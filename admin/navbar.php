@@ -14,7 +14,7 @@ $current = basename($_SERVER['PHP_SELF']);
         <img src="<?php echo $asset_img; ?>/logowblue.png" alt="Logo" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
         <span class="d-none"><i class="bi bi-tooth me-1"></i></span>
         <img src="<?php echo $asset_img; ?>/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'; this.nextElementSibling.style.display='inline';">
-        <span class="d-none fw-bold ms-1">DENTHUB</span>
+        <!-- <span class="d-none fw-bold ms-1">DENTHUB</span> -->
     </a>
 </div>
 
@@ -24,7 +24,7 @@ $current = basename($_SERVER['PHP_SELF']);
         <div class="sidebar-brand d-flex align-items-center brand-img-wrap">
             <img src="<?php echo $asset_img; ?>/logowblue.png" alt="Logo" onerror="this.style.display='none'">
             <img src="<?php echo $asset_img; ?>/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
-            <span class="text-white fw-bold ms-2">DENTHUB</span>
+            <!-- <span class="text-white fw-bold ms-2">DENTHUB</span> -->
             <!-- <small class="d-block w-100 text-white opacity-90" style="font-size: 0.65rem;">Center for Smile<br>DENTAL CLINIC</small> -->
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
@@ -33,6 +33,7 @@ $current = basename($_SERVER['PHP_SELF']);
         <nav class="nav flex-column py-2">
             <a class="nav-link <?php echo $current === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
             <a class="nav-link <?php echo $current === 'appointments.php' ? 'active' : ''; ?>" href="appointments.php"><i class="bi bi-calendar-check me-2"></i> Appointments</a>
+            <a class="nav-link <?php echo $current === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3 me-2"></i> Calendar</a>
             <a class="nav-link <?php echo $current === 'patients.php' ? 'active' : ''; ?>" href="patients.php"><i class="bi bi-people me-2"></i> Patients</a>
             <?php if (hasRole('admin')): ?>
             <a class="nav-link <?php echo $current === 'schedule.php' ? 'active' : ''; ?>" href="schedule.php"><i class="bi bi-calendar-week me-2"></i> Schedule</a>
@@ -68,6 +69,7 @@ $current = basename($_SERVER['PHP_SELF']);
     <nav class="nav flex-column py-2">
         <a class="nav-link <?php echo $current === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
         <a class="nav-link <?php echo $current === 'appointments.php' ? 'active' : ''; ?>" href="appointments.php"><i class="bi bi-calendar-check me-2"></i> Appointments</a>
+        <a class="nav-link <?php echo $current === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3 me-2"></i> Calendar</a>
         <a class="nav-link <?php echo $current === 'patients.php' ? 'active' : ''; ?>" href="patients.php"><i class="bi bi-people me-2"></i> Patients</a>
         <?php if (hasRole('admin')): ?>
         <a class="nav-link <?php echo $current === 'schedule.php' ? 'active' : ''; ?>" href="schedule.php"><i class="bi bi-calendar-week me-2"></i> Schedule</a>

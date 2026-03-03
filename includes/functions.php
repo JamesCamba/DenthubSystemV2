@@ -261,6 +261,80 @@ function isDateBlocked($date, $branch_id = 1) {
     return $result['count'] > 0;
 }
 
+/**
+ * Optional helper: get block reason for a date/branch (used for calendar tooltips).
+ */
+function getBlockReason($date, $branch_id = 1) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT reason FROM blocked_dates WHERE block_date = ? AND branch_id = ? AND is_active = TRUE LIMIT 1");
+    $stmt->bind_param("si", $date, $branch_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+    return $row['reason'] ?? '';
+}
+
+/**
+ * Get total available bookable slots for a date and branch.
+ * A "slot" is a time_slots entry where:
+ * - there is at least one active dentist scheduled at that time for that branch
+ * - AND there is no pending/confirmed appointment for that dentist at that time
+ * - AND the date is not blocked for that branch.
+ *
+ * When $dentist_id is provided, only that dentist's slots are counted.
+ */
+function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = null) {
+    $db = getDB();
+
+    if (isDateBlocked($date, $branch_id)) {
+        return 0;
+    }
+
+    $day_of_week = date('w', strtotime($date));
+
+    $sql = "
+        SELECT COUNT(*) AS slots_count
+        FROM time_slots ts
+        JOIN dentist_schedules ds
+          ON ds.day_of_week = ?
+         AND ds.is_available = TRUE
+         AND ds.start_time <= ts.slot_time
+         AND ds.end_time   > ts.slot_time
+        JOIN dentists d
+          ON d.dentist_id = ds.dentist_id
+        JOIN users u
+          ON u.user_id = d.user_id
+        WHERE ts.is_active = TRUE
+          AND d.branch_id = ?
+          AND d.is_active = TRUE
+          AND u.is_active = TRUE
+          AND NOT EXISTS (
+                SELECT 1
+                FROM appointments a
+                WHERE a.appointment_date = ?
+                  AND a.appointment_time = ts.slot_time
+                  AND a.branch_id = d.branch_id
+                  AND a.status IN ('pending', 'confirmed')
+                  AND a.dentist_id = d.dentist_id
+          )
+    ";
+
+    $params = [$day_of_week, $branch_id, $date];
+    $types  = "iis";
+
+    if ($dentist_id !== null) {
+        $sql .= " AND d.dentist_id = ?";
+        $params[] = $dentist_id;
+        $types   .= "i";
+    }
+
+    $stmt = $db->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+
+    return (int)($row['slots_count'] ?? 0);
+}
+
 // Get services list
 function getServices($active_only = true) {
     $db = getDB();

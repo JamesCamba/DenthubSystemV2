@@ -22,6 +22,10 @@ while ($row = $branchesResult->fetch_assoc()) {
     $branches[] = $row;
 }
 
+// Optional prefill from query string (used by calendar "Book" shortcuts)
+$prefill_branch_id = isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : null;
+$prefill_date = isset($_GET['date']) ? $_GET['date'] : '';
+
 // Pre-check for upcoming appointments (used for UX + client-side guard)
 if (isPatientLoggedIn()) {
     $patient_id = $_SESSION['patient_id'];
@@ -134,7 +138,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <label class="form-label">Branch <span class="text-danger">*</span></label>
                                     <select class="form-select" name="branch_id" id="branch_id" required>
                                         <?php foreach ($branches as $b): ?>
-                                            <option value="<?php echo (int)$b['branch_id']; ?>"><?php echo htmlspecialchars($b['branch_name']); ?><?php if (!empty($b['address'])): ?> — <?php echo htmlspecialchars($b['address']); ?><?php endif; ?></option>
+                                            <option value="<?php echo (int)$b['branch_id']; ?>" <?php echo ($prefill_branch_id && $prefill_branch_id === (int)$b['branch_id']) ? 'selected' : ''; ?>>
+                                                <?php echo htmlspecialchars($b['branch_name']); ?><?php if (!empty($b['address'])): ?> — <?php echo htmlspecialchars($b['address']); ?><?php endif; ?>
+                                            </option>
                                         <?php endforeach; ?>
                                     </select>
                                 </div>
@@ -165,7 +171,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 <div class="mb-3">
                                     <label class="form-label">Preferred Date <span class="text-danger">*</span></label>
                                     <input type="date" class="form-control" name="appointment_date" id="appointment_date" 
-                                           min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" required>
+                                           min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" required
+                                           value="<?php echo htmlspecialchars($prefill_date); ?>">
                                     <small class="text-muted">Select a date (tomorrow onwards)</small>
                                 </div>
 

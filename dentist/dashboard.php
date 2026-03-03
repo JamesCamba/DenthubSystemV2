@@ -123,6 +123,35 @@ $today_appointments_list = $stmt->get_result();
             </div>
         </div>
 
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <div class="card denthub-stat-card success">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 opacity-75">Today's Available Slots</h6>
+                                <h3 class="mb-0" id="todaySlotsCountDentist">--</h3>
+                            </div>
+                            <i class="bi bi-clock-history" style="font-size: 48px; opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card denthub-stat-card secondary">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="card-subtitle mb-2 opacity-75">Tomorrow's Available Slots</h6>
+                                <h3 class="mb-0" id="tomorrowSlotsCountDentist">--</h3>
+                            </div>
+                            <i class="bi bi-clock" style="font-size: 48px; opacity: 0.5;"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Today's Appointments -->
         <div class="card">
             <div class="card-header denthub-card-header denthub-header-green">
@@ -141,24 +170,8 @@ $today_appointments_list = $stmt->get_result();
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <?php while ($apt = $today_appointments_list->fetch_assoc()): ?>
-                                    <tr>
-                                        <td><?php echo formatTime($apt['appointment_time']); ?></td>
-                                        <td><?php echo htmlspecialchars($apt['first_name'] . ' ' . $apt['last_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($apt['service_name']); ?></td>
-                                        <td>
-                                            <span class="badge bg-<?php echo getStatusBadge($apt['status']); ?>">
-                                                <?php echo ucfirst($apt['status']); ?>
-                                            </span>
-                                        </td>
-                                        <td>
-                                            <a href="view-appointment.php?id=<?php echo $apt['appointment_id']; ?>" class="btn btn-sm btn-outline-primary">
-                                                View
-                                            </a>
-                                        </td>
-                                    </tr>
-                                <?php endwhile; ?>
+                            <tbody id="todayAppointmentsBodyDentist">
+                                <tr><td colspan="5" class="text-center text-muted py-3">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -171,5 +184,31 @@ $today_appointments_list = $stmt->get_result();
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function loadSlotSummaryDentist() {
+            fetch('../api/get-slot-summary.php?role=dentist')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success || !data.branches.length) return;
+                    const b = data.branches[0];
+                    document.getElementById('todaySlotsCountDentist').textContent = b.today;
+                    document.getElementById('tomorrowSlotsCountDentist').textContent = b.tomorrow;
+                })
+                .catch(() => {});
+        }
+
+        function loadTodayAppointmentsDentist() {
+            fetch('api-today-appointments.php')
+                .then(r => r.text())
+                .then(html => {
+                    document.getElementById('todayAppointmentsBodyDentist').innerHTML = html;
+                })
+                .catch(() => {});
+        }
+
+        loadSlotSummaryDentist();
+        loadTodayAppointmentsDentist();
+        setInterval(loadTodayAppointmentsDentist, 30000);
+    </script>
 </body>
 </html>

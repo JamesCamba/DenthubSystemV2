@@ -123,7 +123,7 @@ try {
 
         <div class="card mb-4">
             <div class="card-body">
-                <form method="get" class="row g-3">
+                <form method="get" class="row g-3" id="logsFilterForm">
                     <div class="col-md-2">
                         <label class="form-label">Action</label>
                         <select name="action" class="form-select">
@@ -150,15 +150,8 @@ try {
 
         <div class="card denthub-card-rounded">
             <div class="card-body">
-                <div class="denthub-table-pagination">
+                <div class="denthub-table-pagination" id="logsPagination">
                     <span class="page-info">Page <?php echo $page; ?> of <?php echo $total_pages; ?></span>
-                    <?php
-                    $q = $_GET;
-                    if ($total_pages > 1) {
-                        if ($page > 1) { $q['page'] = $page - 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Previous</a>'; }
-                        if ($page < $total_pages) { $q['page'] = $page + 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Next</a>'; }
-                    }
-                    ?>
                 </div>
                 <div class="table-scroll-wrapper">
                 <table class="table table-hover mb-0">
@@ -173,7 +166,7 @@ try {
                             <th>IP</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="logsBody">
                         <?php foreach ($logs as $row): ?>
                         <tr>
                             <td><?php echo htmlspecialchars(formatDateTimeUtcToApp($row['created_at'])); ?></td>
@@ -197,5 +190,36 @@ try {
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function buildLogsQuery(page) {
+            const form = document.getElementById('logsFilterForm');
+            const params = new URLSearchParams(new FormData(form));
+            if (page) params.set('page', page);
+            return params.toString();
+        }
+
+        function loadLogs(page) {
+            const qs = buildLogsQuery(page);
+            fetch('api-activity-logs.php?' + qs)
+                .then(r => r.json())
+                .then(data => {
+                    if (!data.success) return;
+                    document.getElementById('logsBody').innerHTML = data.tbody;
+                    document.getElementById('logsPagination').innerHTML =
+                        '<span class="page-info">Page ' + data.page + ' of ' + data.total_pages + '</span>';
+                })
+                .catch(() => {});
+        }
+
+        document.getElementById('logsFilterForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            loadLogs(1);
+        });
+
+        // Periodic refresh
+        setInterval(function () {
+            loadLogs();
+        }, 30000);
+    </script>
 </body>
 </html>

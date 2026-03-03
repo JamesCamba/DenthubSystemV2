@@ -87,6 +87,33 @@ CREATE TABLE "email_verification_codes" (
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT "purpose_check" CHECK (((purpose)::text = ANY ((ARRAY['registration'::character varying, 'password_reset'::character varying, 'email_change'::character varying])::text[])))
 );
+CREATE TABLE "identifier_lockout_limits" (
+	"identifier" varchar(64),
+	"attempt_type" varchar(20),
+	"lockouts_count" integer DEFAULT 0,
+	"window_start" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "identifier_lockout_limits_pkey" PRIMARY KEY("identifier","attempt_type")
+);
+CREATE TABLE "ip_login_limits" (
+	"ip_address" varchar(45) PRIMARY KEY,
+	"failed_15m" integer DEFAULT 0,
+	"window_start_15m" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"failed_1h" integer DEFAULT 0,
+	"window_start_1h" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"locked_until" timestamp,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE "ip_registration_limits" (
+	"ip_address" varchar(45) PRIMARY KEY,
+	"day_date" date DEFAULT CURRENT_DATE,
+	"reg_count" integer DEFAULT 0,
+	"locked_until" timestamp,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE "lab_cases" (
 	"case_id" serial PRIMARY KEY,
 	"case_number" varchar(20) NOT NULL CONSTRAINT "lab_cases_case_number_key" UNIQUE,
@@ -210,6 +237,9 @@ CREATE UNIQUE INDEX "dentists_pkey" ON "dentists" ("dentist_id");
 CREATE UNIQUE INDEX "email_verification_codes_pkey" ON "email_verification_codes" ("code_id");
 CREATE INDEX "idx_email_verification_codes" ON "email_verification_codes" ("email","verification_code");
 CREATE INDEX "idx_email_verification_expires" ON "email_verification_codes" ("expires_at");
+CREATE UNIQUE INDEX "identifier_lockout_limits_pkey" ON "identifier_lockout_limits" ("identifier","attempt_type");
+CREATE UNIQUE INDEX "ip_login_limits_pkey" ON "ip_login_limits" ("ip_address");
+CREATE UNIQUE INDEX "ip_registration_limits_pkey" ON "ip_registration_limits" ("ip_address");
 CREATE INDEX "idx_lab_cases_number" ON "lab_cases" ("case_number");
 CREATE INDEX "idx_lab_cases_status" ON "lab_cases" ("status");
 CREATE UNIQUE INDEX "lab_cases_case_number_key" ON "lab_cases" ("case_number");
