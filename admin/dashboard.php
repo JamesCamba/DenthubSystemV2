@@ -109,7 +109,7 @@ $defaultBranchId = count($branches) ? (int)$branches[0]['branch_id'] : 0;
                 </div>
             </div>
             <div class="col-md-3 mt-3 mt-md-0">
-                <div class="card denthub-stat-card secondary text-white" id="tomorrowSlotsCard" style="cursor:pointer;">
+                <div class="card denthub-stat-card success text-white" id="tomorrowSlotsCard" style="cursor:pointer;">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>

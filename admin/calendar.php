@@ -40,10 +40,10 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
             display: block;
             font-size: 0.75rem;
         }
-        .cal-day-green { background-color: rgba(25,135,84,0.1); }
-        .cal-day-orange { background-color: rgba(255,193,7,0.15); }
-        .cal-day-red { background-color: rgba(220,53,69,0.15); }
-        .cal-day-blocked { background-color: rgba(108,117,125,0.15); color: #6c757d; }
+        .cal-day-green { background-color: rgba(25,135,84,0.18) !important; }
+        .cal-day-orange { background-color: rgba(255,193,7,0.25) !important; }
+        .cal-day-red { background-color: rgba(220,53,69,0.22) !important; }
+        .cal-day-blocked { background-color: rgba(108,117,125,0.25) !important; color: #6c757d !important; }
     </style>
 </head>
 <body>

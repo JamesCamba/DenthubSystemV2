@@ -205,8 +205,19 @@ try {
                 .then(data => {
                     if (!data.success) return;
                     document.getElementById('logsBody').innerHTML = data.tbody;
-                    document.getElementById('logsPagination').innerHTML =
-                        '<span class="page-info">Page ' + data.page + ' of ' + data.total_pages + '</span>';
+                    const pag = document.getElementById('logsPagination');
+                    let html = '<span class="page-info">Page ' + data.page + ' of ' + data.total_pages + '</span>';
+                    if (data.page > 1) {
+                        html += ' <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-page="' + (data.page - 1) + '" id="logsPrevBtn">Previous</button>';
+                    }
+                    if (data.page < data.total_pages) {
+                        html += ' <button type="button" class="btn btn-sm btn-outline-primary ms-2" data-page="' + (data.page + 1) + '" id="logsNextBtn">Next</button>';
+                    }
+                    pag.innerHTML = html;
+                    const prev = document.getElementById('logsPrevBtn');
+                    const next = document.getElementById('logsNextBtn');
+                    if (prev) prev.addEventListener('click', () => loadLogs(prev.getAttribute('data-page')));
+                    if (next) next.addEventListener('click', () => loadLogs(next.getAttribute('data-page')));
                 })
                 .catch(() => {});
         }

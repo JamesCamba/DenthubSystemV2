@@ -345,6 +345,11 @@ function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
         $now = date('Y-m-d H:i:s');
         $lock_minutes = defined('LOGIN_LOCKOUT_MINUTES') ? (int)LOGIN_LOCKOUT_MINUTES : 30;
         $max_attempts = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 3;
+        // If already locked, respect existing lockout and do not shorten it.
+        if (isLoginLocked($identifier, $attempt_type)) {
+            return true;
+        }
+
         $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, last_attempt_at) VALUES (?, ?, 1, ?)
                               ON CONFLICT (identifier, attempt_type) DO UPDATE SET
                               failed_count = login_attempts.failed_count + 1,

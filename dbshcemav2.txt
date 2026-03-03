@@ -46,6 +46,16 @@ CREATE TABLE "branches" (
 	"is_active" boolean DEFAULT true,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE "captcha_fail_limits" (
+	"identifier" varchar(64),
+	"attempt_type" varchar(20),
+	"failed_count" integer DEFAULT 0,
+	"window_start" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"locked_until" timestamp,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT "captcha_fail_limits_pkey" PRIMARY KEY("identifier","attempt_type")
+);
 CREATE TABLE "database_backups" (
 	"backup_id" serial PRIMARY KEY,
 	"backup_name" varchar(255) NOT NULL,
@@ -229,6 +239,7 @@ CREATE INDEX "idx_appointments_status" ON "appointments" ("status");
 CREATE UNIQUE INDEX "blocked_dates_pkey" ON "blocked_dates" ("block_id");
 CREATE UNIQUE INDEX "unique_block_date_branch" ON "blocked_dates" ("block_date","branch_id");
 CREATE UNIQUE INDEX "branches_pkey" ON "branches" ("branch_id");
+CREATE UNIQUE INDEX "captcha_fail_limits_pkey" ON "captcha_fail_limits" ("identifier","attempt_type");
 CREATE UNIQUE INDEX "database_backups_pkey" ON "database_backups" ("backup_id");
 CREATE UNIQUE INDEX "dentist_schedules_pkey" ON "dentist_schedules" ("schedule_id");
 CREATE UNIQUE INDEX "dentist_service_mastery_pkey" ON "dentist_service_mastery" ("mastery_id");
