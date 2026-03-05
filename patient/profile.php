@@ -50,11 +50,27 @@ $patient = getCurrentPatient();
                         <?php endif; ?>
                         <div class="row mb-3">
                             <div class="col-sm-4"><strong>Email:</strong></div>
-                            <div class="col-sm-8"><?php echo htmlspecialchars(maskEmail($patient['email'] ?? '')); ?></div>
+                            <div class="col-sm-8">
+                                <span class="sensitive-value">
+                                    <span class="sensitive-masked"><?php echo htmlspecialchars(maskEmail($patient['email'] ?? '')); ?></span>
+                                    <span class="sensitive-full d-none"><?php echo htmlspecialchars($patient['email'] ?? ''); ?></span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </span>
+                            </div>
                         </div>
                         <div class="row mb-3">
                             <div class="col-sm-4"><strong>Phone:</strong></div>
-                            <div class="col-sm-8"><?php echo htmlspecialchars(maskPhone($patient['phone'] ?? '')); ?></div>
+                            <div class="col-sm-8">
+                                <span class="sensitive-value">
+                                    <span class="sensitive-masked"><?php echo htmlspecialchars(maskPhone($patient['phone'] ?? '')); ?></span>
+                                    <span class="sensitive-full d-none"><?php echo htmlspecialchars($patient['phone'] ?? ''); ?></span>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </span>
+                            </div>
                         </div>
                         <?php if ($patient['birthdate']): ?>
                         <div class="row mb-3">
@@ -89,6 +105,33 @@ $patient = getCurrentPatient();
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.sensitive-toggle');
+            if (!btn) return;
+            const container = btn.closest('.sensitive-value');
+            if (!container) return;
+            const masked = container.querySelector('.sensitive-masked');
+            const full = container.querySelector('.sensitive-full');
+            const icon = btn.querySelector('i');
+            const isShowing = full && !full.classList.contains('d-none');
+            if (isShowing) {
+                if (full) full.classList.add('d-none');
+                if (masked) masked.classList.remove('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
+                }
+            } else {
+                if (full) full.classList.remove('d-none');
+                if (masked) masked.classList.add('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
+                }
+            }
+        });
+    </script>
 </body>
 </html>
 

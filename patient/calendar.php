@@ -146,6 +146,9 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
             const monthLabel = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
             document.getElementById('monthLabel').textContent = monthLabel;
 
+            const today = new Date();
+            const todayStr = today.toISOString().slice(0, 10);
+
             let day = 1;
             for (let week = 0; week < 6; week++) {
                 const tr = document.createElement('tr');
@@ -157,23 +160,31 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
                     } else {
                         const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
                         const info = dayMap[dateStr] || { slots: 0, blocked: false };
+                        const isPastDate = dateStr <= todayStr;
                         let cls = '';
-                        if (info.blocked) {
+                        if (isPastDate) {
                             cls = 'cal-day-blocked';
-                        } else if (info.slots >= 10) {
-                            cls = 'cal-day-green';
-                        } else if (info.slots >= 3) {
-                            cls = 'cal-day-orange';
+                            td.classList.add('text-muted');
+                            td.dataset.date = '';
+                            td.innerHTML = `<div class="fw-semibold">${day}</div><small>Past</small>`;
                         } else {
-                            cls = 'cal-day-red';
+                            if (info.blocked) {
+                                cls = 'cal-day-blocked';
+                            } else if (info.slots >= 10) {
+                                cls = 'cal-day-green';
+                            } else if (info.slots >= 3) {
+                                cls = 'cal-day-orange';
+                            } else {
+                                cls = 'cal-day-red';
+                            }
+                            td.classList.add(cls);
+                            td.dataset.date = dateStr;
+                            td.innerHTML = `<div class="fw-semibold">${day}</div><small>${info.blocked ? 'Blocked' : (info.slots + ' slots')}</small>`;
+                            if (info.blocked && info.reason) {
+                                td.title = info.reason;
+                            }
+                            td.addEventListener('click', () => loadDayDetails(dateStr));
                         }
-                        td.classList.add(cls);
-                        td.dataset.date = dateStr;
-                        td.innerHTML = `<div class="fw-semibold">${day}</div><small>${info.blocked ? 'Blocked' : (info.slots + ' slots')}</small>`;
-                        if (info.blocked && info.reason) {
-                            td.title = info.reason;
-                        }
-                        td.addEventListener('click', () => loadDayDetails(dateStr));
                         day++;
                     }
                     tr.appendChild(td);

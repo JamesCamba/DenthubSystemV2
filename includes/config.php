@@ -46,9 +46,8 @@ define('SESSION_LIFETIME', 3600); // 1 hour
 
 // Security
 define('PASSWORD_MIN_LENGTH', 8);
-define('LOGIN_MAX_ATTEMPTS', 3);
-// Account lockout duration after 3 failed logins
-define('LOGIN_LOCKOUT_MINUTES', 30);
+// First 5 failures just trigger CAPTCHA; see rate limiting logic in auth.php
+define('LOGIN_MAX_ATTEMPTS', 5);
 define('RECAPTCHA_SITE_KEY', getenv('RECAPTCHA_SITE_KEY') ?: '');
 define('RECAPTCHA_SECRET_KEY', getenv('RECAPTCHA_SECRET_KEY') ?: '');
 

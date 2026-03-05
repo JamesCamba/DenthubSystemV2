@@ -207,7 +207,7 @@ function isIpLoginBlocked($ip) {
     }
 }
 
-function recordFailedLoginIp($ip) {
+function recordFailedLoginIp($ip, $lock_minutes = 0) {
     try {
         $db = getDB();
         $db->query("
@@ -224,64 +224,32 @@ function recordFailedLoginIp($ip) {
         ");
 
         $now = date('Y-m-d H:i:s');
-        $stmt = $db->prepare("SELECT failed_15m, window_start_15m, failed_1h, window_start_1h, locked_until FROM ip_login_limits WHERE ip_address = ?");
+        $stmt = $db->prepare("SELECT locked_until FROM ip_login_limits WHERE ip_address = ?");
         $stmt->bind_param("s", $ip);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
 
-        $failed_15m = 0;
-        $failed_1h = 0;
-        $ws_15m = $now;
-        $ws_1h = $now;
-
-        if ($row) {
-            $ws_15m = $row['window_start_15m'];
-            $ws_1h = $row['window_start_1h'];
-            // Reset 15m window if expired
-            if (strtotime($ws_15m) < time() - 15 * 60) {
-                $failed_15m = 0;
-                $ws_15m = $now;
-            } else {
-                $failed_15m = (int)$row['failed_15m'];
-            }
-            // Reset 1h window if expired
-            if (strtotime($ws_1h) < time() - 60 * 60) {
-                $failed_1h = 0;
-                $ws_1h = $now;
-            } else {
-                $failed_1h = (int)$row['failed_1h'];
-            }
-        }
-
-        $failed_15m++;
-        $failed_1h++;
-
-        $locked_until = $row['locked_until'] ?? null;
-
-        // Apply thresholds
-        // 10 failures in 15 minutes -> 1 hour block
-        if ($failed_15m >= 10) {
-            $locked_until = date('Y-m-d H:i:s', time() + 60 * 60);
-        }
-        // 50 failures in 1 hour -> 24 hour block
-        if ($failed_1h >= 50) {
-            $locked_until = date('Y-m-d H:i:s', time() + 60 * 60 * 24);
+        $locked_until = null;
+        if ($lock_minutes > 0) {
+            $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
+        } else {
+            $locked_until = $row['locked_until'] ?? null;
         }
 
         if ($row) {
             $upd = $db->prepare("
                 UPDATE ip_login_limits
-                SET failed_15m = ?, window_start_15m = ?, failed_1h = ?, window_start_1h = ?, locked_until = ?, updated_at = ?
+                SET locked_until = ?, updated_at = ?
                 WHERE ip_address = ?
             ");
-            $upd->bind_param("isissss", $failed_15m, $ws_15m, $failed_1h, $ws_1h, $locked_until, $now, $ip);
+            $upd->bind_param("sss", $locked_until, $now, $ip);
             $upd->execute();
         } else {
             $ins = $db->prepare("
                 INSERT INTO ip_login_limits (ip_address, failed_15m, window_start_15m, failed_1h, window_start_1h, locked_until, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, 0, ?, 0, ?, ?, ?, ?)
             ");
-            $ins->bind_param("sisissss", $ip, $failed_15m, $ws_15m, $failed_1h, $ws_1h, $locked_until, $now, $now);
+            $ins->bind_param("sssssss", $ip, $now, $now, $locked_until, $now, $now);
             $ins->execute();
         }
     } catch (Throwable $e) {
@@ -338,16 +306,26 @@ function getLoginLockedUntil($identifier, $attempt_type = 'unified') {
     }
 }
 
-/** Call after a failed login. Returns true if we just triggered lockout. */
+/**
+ * Call after a failed login.
+ * Returns an array: ['locked' => bool, 'lock_minutes' => int].
+ *
+ * Lockout policy (per identifier/account):
+ * - First 5 failed attempts: require CAPTCHA, no lock.
+ * - 6–10 failed attempts (2nd set of 5): lock for 15 minutes.
+ * - 11–15 failed attempts (3rd set of 5): lock for 30 minutes.
+ * - 16–20 failed attempts (4th set of 5): lock for 60 minutes.
+ * Counts reset when a login succeeds (via clearLoginAttempts).
+ */
 function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
     try {
         $db = getDB();
         $now = date('Y-m-d H:i:s');
-        $lock_minutes = defined('LOGIN_LOCKOUT_MINUTES') ? (int)LOGIN_LOCKOUT_MINUTES : 30;
-        $max_attempts = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 3;
-        // If already locked, respect existing lockout and do not shorten it.
+        // If already locked, respect existing lockout and do not shorten it here.
         if (isLoginLocked($identifier, $attempt_type)) {
-            return true;
+            $lockedUntilTs = getLoginLockedUntil($identifier, $attempt_type);
+            $remainingMinutes = $lockedUntilTs > time() ? (int)ceil(($lockedUntilTs - time()) / 60) : 0;
+            return ['locked' => true, 'lock_minutes' => max($remainingMinutes, 0)];
         }
 
         $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, last_attempt_at) VALUES (?, ?, 1, ?)
@@ -358,28 +336,31 @@ function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
         $stmt->execute();
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         $failed = (int)($r['failed_count'] ?? 0);
-
-        // Phase 1: After N failures, require CAPTCHA (handled by loginNeedsCaptcha).
-        // We DO NOT lock yet if CAPTCHA hasn't been passed.
-        if (empty($r['captcha_passed_at'])) {
-            return false;
+        // Determine lock duration based on total failed attempts.
+        $lock_minutes = 0;
+        if ($failed >= 20) {
+            $lock_minutes = 60;
+        } elseif ($failed >= 15) {
+            $lock_minutes = 30;
+        } elseif ($failed >= 10) {
+            $lock_minutes = 15;
+        } else {
+            $lock_minutes = 0;
         }
 
-        // Phase 2: After CAPTCHA was passed, allow another N failures, then lock the account/device.
-        $lock_threshold = isset($r['lock_at_count']) && (int)$r['lock_at_count'] > 0 ? (int)$r['lock_at_count'] : $max_attempts;
-        if ($failed >= $lock_threshold) {
+        if ($lock_minutes > 0) {
             $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
-            $upd = $db->prepare("UPDATE login_attempts SET locked_until = ?, failed_count = 0, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
+            $upd = $db->prepare("UPDATE login_attempts SET locked_until = ?, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
             $upd->bind_param("sss", $locked_until, $identifier, $attempt_type);
             $upd->execute();
-            // Track lockouts in a 24h window; 3 lockouts => 24h lock.
+            // Track lockouts in a 24h window.
             recordIdentifierLockout($identifier, $attempt_type);
-            return true;
+            return ['locked' => true, 'lock_minutes' => $lock_minutes];
         }
     } catch (Throwable $e) {
         error_log('recordFailedLoginAttempt: ' . $e->getMessage());
     }
-    return false;
+    return ['locked' => false, 'lock_minutes' => 0];
 }
 
 function clearLoginAttempts($identifier, $attempt_type = 'unified') {
@@ -393,15 +374,14 @@ function clearLoginAttempts($identifier, $attempt_type = 'unified') {
     }
 }
 
-/** True if we need to show/solve captcha before next attempt (3 failures, no recent captcha). */
+/** True if we need to show/solve captcha before next attempt (>=5 failures). */
 function loginNeedsCaptcha($identifier, $attempt_type = 'unified') {
     try {
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         if (!$r) return false;
-        $max = defined('LOGIN_MAX_ATTEMPTS') ? (int)LOGIN_MAX_ATTEMPTS : 3;
-        if ((int)$r['failed_count'] < $max) return false;
-        if (!empty($r['captcha_passed_at'])) return false;
-        return true;
+        // First 5 failed attempts trigger CAPTCHA; continue requiring while failed_count >= 5.
+        if ((int)$r['failed_count'] < 5) return false;
+        return !isLoginLocked($identifier, $attempt_type);
     } catch (Throwable $e) {
         return false;
     }
@@ -414,21 +394,14 @@ function recordLoginCaptchaPassed($identifier, $attempt_type = 'unified', $reset
     try {
         $db = getDB();
         $now = date('Y-m-d H:i:s');
-        if ($reset_count) {
-            $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at, lock_at_count) VALUES (?, ?, 0, ?, ?, 3)
-                                  ON CONFLICT (identifier, attempt_type) DO UPDATE SET
-                                  failed_count = 0, captcha_passed_at = EXCLUDED.captcha_passed_at, last_attempt_at = EXCLUDED.last_attempt_at, lock_at_count = 3");
-            $stmt->bind_param("ssss", $identifier, $attempt_type, $now, $now);
-            $stmt->execute();
-        } else {
-            // Fallback path retained for compatibility, but we do not
-            // change lock_at_count or lockout behaviour here anymore.
-            $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at) VALUES (?, ?, 0, ?, ?)
-                                  ON CONFLICT (identifier, attempt_type) DO UPDATE SET
-                                  captcha_passed_at = EXCLUDED.captcha_passed_at, last_attempt_at = EXCLUDED.last_attempt_at");
-            $stmt->bind_param("ssss", $identifier, $attempt_type, $now, $now);
-            $stmt->execute();
-        }
+        // For the new policy we no longer reset failed_count on CAPTCHA pass;
+        // we only record that CAPTCHA was solved recently.
+        $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at) VALUES (?, ?, 0, ?, ?)
+                              ON CONFLICT (identifier, attempt_type) DO UPDATE SET
+                              captcha_passed_at = EXCLUDED.captcha_passed_at,
+                              last_attempt_at = EXCLUDED.last_attempt_at");
+        $stmt->bind_param("ssss", $identifier, $attempt_type, $now, $now);
+        $stmt->execute();
         return true;
     } catch (Throwable $e) {
         error_log('recordLoginCaptchaPassed: ' . $e->getMessage());

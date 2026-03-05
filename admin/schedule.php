@@ -6,12 +6,14 @@ require_once '../includes/config.php';
 require_once '../includes/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/mailer.php';
 
 requireRole('admin');
 
 $db = getDB();
 $error = '';
 $success = '';
+$pending_block_confirmation = null;
 
 // Branch list for tabs and dropdown
 $branches_list = [];
@@ -28,6 +30,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $block_date = $_POST['block_date'] ?? '';
         $reason = sanitize($_POST['reason'] ?? '');
         $branch_id = isset($_POST['branch_id']) ? (int)$_POST['branch_id'] : 0;
+        $confirm_block = !empty($_POST['confirm_block']);
+        $notify_patients = isset($_POST['notify_patients']) && $_POST['notify_patients'] === '1';
 
         if (empty($block_date)) {
             $error = 'Please select a date to block.';
@@ -40,13 +44,107 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($check->get_result()->num_rows > 0) {
                 $error = 'This date is already configured for this branch.';
             } else {
-                $stmt = $db->prepare("INSERT INTO blocked_dates (block_date, reason, branch_id, is_active) 
-                                      VALUES (?, ?, ?, TRUE)");
-                $stmt->bind_param("ssi", $block_date, $reason, $branch_id);
-                if ($stmt->execute()) {
-                    $success = 'Date blocked successfully.';
+                // Check for existing appointments on this date/branch that will be affected
+                $confStmt = $db->prepare("
+                    SELECT COUNT(*) AS cnt
+                    FROM appointments
+                    WHERE appointment_date = ?
+                      AND branch_id = ?
+                      AND status IN ('pending', 'confirmed')
+                ");
+                $confStmt->bind_param("si", $block_date, $branch_id);
+                $confStmt->execute();
+                $confRow = $confStmt->get_result()->fetch_assoc();
+                $affected_count = (int)($confRow['cnt'] ?? 0);
+
+                if ($affected_count > 0 && !$confirm_block) {
+                    // Show confirmation UI to admin before proceeding
+                    $pending_block_confirmation = [
+                        'block_date' => $block_date,
+                        'reason' => $reason,
+                        'branch_id' => $branch_id,
+                        'affected_count' => $affected_count,
+                    ];
                 } else {
-                    $error = 'Error blocking date. Please try again.';
+                    // Proceed with blocking the date
+                    $stmt = $db->prepare("INSERT INTO blocked_dates (block_date, reason, branch_id, is_active) 
+                                          VALUES (?, ?, ?, TRUE)");
+                    $stmt->bind_param("ssi", $block_date, $reason, $branch_id);
+                    if ($stmt->execute()) {
+                        $success = 'Date blocked successfully.';
+
+                        // If there are affected appointments and admin confirmed, cancel them
+                        if ($affected_count > 0 && $confirm_block) {
+                            $mailer = getMailer();
+                            $cancelReason = $reason ?: 'Clinic is closed on this date.';
+
+                            // Fetch all affected appointments with patient & service details
+                            $aptStmt = $db->prepare("
+                                SELECT a.appointment_id,
+                                       a.appointment_number,
+                                       a.appointment_date,
+                                       a.appointment_time,
+                                       a.patient_id,
+                                       p.first_name,
+                                       p.last_name,
+                                       COALESCE(p.email, pa.email) AS patient_email,
+                                       s.service_name,
+                                       u.full_name AS dentist_name
+                                FROM appointments a
+                                JOIN patients p ON a.patient_id = p.patient_id
+                                LEFT JOIN patient_accounts pa ON pa.patient_id = p.patient_id
+                                JOIN services s ON a.service_id = s.service_id
+                                LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
+                                LEFT JOIN users u ON d.user_id = u.user_id
+                                WHERE a.appointment_date = ?
+                                  AND a.branch_id = ?
+                                  AND a.status IN ('pending', 'confirmed')
+                            ");
+                            $aptStmt->bind_param("si", $block_date, $branch_id);
+                            $aptStmt->execute();
+                            $aptResult = $aptStmt->get_result();
+
+                            while ($apt = $aptResult->fetch_assoc()) {
+                                $appointment_id = (int)$apt['appointment_id'];
+
+                                // Cancel the appointment and record the cancellation reason
+                                $upd = $db->prepare("
+                                    UPDATE appointments
+                                    SET status = 'cancelled',
+                                        cancellation_reason = ?,
+                                        updated_at = NOW()
+                                    WHERE appointment_id = ?
+                                      AND status IN ('pending', 'confirmed')
+                                ");
+                                $upd->bind_param("si", $cancelReason, $appointment_id);
+                                $upd->execute();
+
+                                // Optionally notify the patient via email
+                                if ($notify_patients && !empty($apt['patient_email'])) {
+                                    $patient_name = trim(($apt['first_name'] ?? '') . ' ' . ($apt['last_name'] ?? ''));
+                                    $appointmentData = [
+                                        'appointment_number' => $apt['appointment_number'],
+                                        'service' => $apt['service_name'],
+                                        'date' => formatDate($apt['appointment_date']),
+                                        'time' => formatTime($apt['appointment_time']),
+                                        'dentist' => $apt['dentist_name'] ?? 'TBD',
+                                    ];
+                                    try {
+                                        $mailer->sendBlockedDateCancellation(
+                                            $apt['patient_email'],
+                                            $patient_name,
+                                            $appointmentData,
+                                            $cancelReason
+                                        );
+                                    } catch (Exception $e) {
+                                        error_log('Failed to send blocked-date cancellation email: ' . $e->getMessage());
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        $error = 'Error blocking date. Please try again.';
+                    }
                 }
             }
         }
@@ -104,6 +202,40 @@ $blocked_dates = $stmt->get_result();
                         <h5 class="mb-0"><i class="bi bi-calendar-x me-2"></i> Block a Date</h5>
                     </div>
                     <div class="card-body">
+                        <?php if (!empty($pending_block_confirmation)): ?>
+                            <div class="alert alert-warning">
+                                <p class="mb-2">
+                                    This will affect <strong><?php echo (int)$pending_block_confirmation['affected_count']; ?></strong>
+                                    patient(s) with appointments on
+                                    <strong><?php echo formatDate($pending_block_confirmation['block_date']); ?></strong>.
+                                </p>
+                                <p class="mb-3">Do you want to proceed and cancel those appointments?</p>
+                                <div class="d-flex flex-wrap gap-2">
+                                    <form method="POST" action="">
+                                        <input type="hidden" name="branch_id" value="<?php echo (int)$pending_block_confirmation['branch_id']; ?>">
+                                        <input type="hidden" name="block_date" value="<?php echo htmlspecialchars($pending_block_confirmation['block_date']); ?>">
+                                        <input type="hidden" name="reason" value="<?php echo htmlspecialchars($pending_block_confirmation['reason']); ?>">
+                                        <input type="hidden" name="add_block" value="1">
+                                        <input type="hidden" name="confirm_block" value="1">
+                                        <input type="hidden" name="notify_patients" value="1">
+                                        <button type="submit" class="btn btn-danger btn-sm">
+                                            Cancel &amp; Notify Patients
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="">
+                                        <input type="hidden" name="branch_id" value="<?php echo (int)$pending_block_confirmation['branch_id']; ?>">
+                                        <input type="hidden" name="block_date" value="<?php echo htmlspecialchars($pending_block_confirmation['block_date']); ?>">
+                                        <input type="hidden" name="reason" value="<?php echo htmlspecialchars($pending_block_confirmation['reason']); ?>">
+                                        <input type="hidden" name="add_block" value="1">
+                                        <input type="hidden" name="confirm_block" value="1">
+                                        <input type="hidden" name="notify_patients" value="0">
+                                        <button type="submit" class="btn btn-outline-danger btn-sm">
+                                            Cancel Without Email
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                        <?php endif; ?>
                         <form method="POST" action="">
                             <div class="mb-3">
                                 <label class="form-label">Branch <span class="text-danger">*</span></label>

@@ -73,8 +73,24 @@ $appointments = $stmt->get_result();
                         <?php if ($patient['middle_name']): ?>
                         <p><strong>Middle Name:</strong><br><?php echo htmlspecialchars($patient['middle_name']); ?></p>
                         <?php endif; ?>
-                        <p><strong>Email:</strong><br><?php echo htmlspecialchars(maskEmail($patient['email'])); ?></p>
-                        <p><strong>Phone:</strong><br><?php echo htmlspecialchars(maskPhone($patient['phone'])); ?></p>
+                        <p><strong>Email:</strong><br>
+                            <span class="sensitive-value">
+                                <span class="sensitive-masked"><?php echo htmlspecialchars(maskEmail($patient['email'])); ?></span>
+                                <span class="sensitive-full d-none"><?php echo htmlspecialchars($patient['email']); ?></span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </span>
+                        </p>
+                        <p><strong>Phone:</strong><br>
+                            <span class="sensitive-value">
+                                <span class="sensitive-masked"><?php echo htmlspecialchars(maskPhone($patient['phone'])); ?></span>
+                                <span class="sensitive-full d-none"><?php echo htmlspecialchars($patient['phone']); ?></span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </span>
+                        </p>
                         <?php if ($patient['birthdate']): ?>
                         <p><strong>Birthdate:</strong><br><?php echo formatDate($patient['birthdate']); ?></p>
                         <?php endif; ?>
@@ -148,6 +164,33 @@ $appointments = $stmt->get_result();
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.sensitive-toggle');
+            if (!btn) return;
+            const container = btn.closest('.sensitive-value');
+            if (!container) return;
+            const masked = container.querySelector('.sensitive-masked');
+            const full = container.querySelector('.sensitive-full');
+            const icon = btn.querySelector('i');
+            const isShowing = full && !full.classList.contains('d-none');
+            if (isShowing) {
+                if (full) full.classList.add('d-none');
+                if (masked) masked.classList.remove('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
+                }
+            } else {
+                if (full) full.classList.remove('d-none');
+                if (masked) masked.classList.add('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
+                }
+            }
+        });
+    </script>
 </body>
 </html>
 

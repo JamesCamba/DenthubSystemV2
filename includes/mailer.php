@@ -297,6 +297,46 @@ class Mailer {
             return false;
         }
     }
+
+    /**
+     * Send appointment cancellation due to a blocked clinic date.
+     * Uses existing drivers (including Brevo) just like other templates.
+     */
+    public function sendBlockedDateCancellation($to, $name, $appointmentData, $reason) {
+        $subject = 'Your Denthub appointment has been cancelled';
+        $html    = $this->getBlockedDateCancellationTemplate($name, $appointmentData, $reason);
+        $text    = "Dear " . ($name ?: 'Valued Patient') . ", your appointment on " .
+                   ($appointmentData['date'] ?? '') . " at " . ($appointmentData['time'] ?? '') .
+                   " has been cancelled because: " . ($reason ?: 'clinic is closed') .
+                   ". Please log in to rebook at your convenience.";
+
+        if ($this->driver === 'maileroo' && $this->apiKey) {
+            return $this->sendViaMaileroo($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'sendgrid' && $this->apiKey) {
+            return $this->sendViaSendGrid($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'brevo' && $this->apiKey) {
+            return $this->sendViaBrevo($to, $subject, $html, $text, $name);
+        }
+        if ($this->driver === 'resend' && $this->apiKey) {
+            return $this->sendViaResend($to, $subject, $html, $text, $name);
+        }
+
+        try {
+            $this->mail->clearAddresses();
+            $this->mail->addAddress($to, $name);
+            $this->mail->isHTML(true);
+            $this->mail->Subject = $subject;
+            $this->mail->Body    = $html;
+            $this->mail->AltBody = $text;
+            $this->mail->send();
+            return true;
+        } catch (Exception $e) {
+            error_log("Mailer Error: {$this->mail->ErrorInfo}");
+            return false;
+        }
+    }
     
     /**
      * Get verification code email template
@@ -422,6 +462,31 @@ class Mailer {
         $template = str_replace('{{TIME}}', htmlspecialchars($appointmentData['time'] ?? ''), $template);
         $dentistRow = !empty($appointmentData['dentist']) ? '<tr><td style="padding: 8px 0; color: #333333; font-weight: bold;">Dentist:</td><td style="padding: 8px 0; color: #666666;">' . htmlspecialchars($appointmentData['dentist']) . '</td></tr>' : '';
         $template = str_replace('{{DENTIST_ROW}}', $dentistRow, $template);
+        return $template;
+    }
+
+    /**
+     * Get blocked-date cancellation email template.
+     * Fallbacks to a simple text-style HTML if the template file is missing.
+     */
+    private function getBlockedDateCancellationTemplate($name, $appointmentData, $reason) {
+        $templatePath = __DIR__ . '/../templates/appointment_blocked_date_cancelled.html';
+        $safeName  = htmlspecialchars($name ?: 'Valued Patient');
+        $safeDate  = htmlspecialchars($appointmentData['date'] ?? '');
+        $safeTime  = htmlspecialchars($appointmentData['time'] ?? '');
+        $safeReason = htmlspecialchars($reason ?: 'clinic is closed');
+
+        if (!file_exists($templatePath)) {
+            return "Dear {$safeName},<br><br>" .
+                "Your appointment on {$safeDate} at {$safeTime} has been cancelled because: {$safeReason}.<br><br>" .
+                "Please log in to rebook at your convenience.";
+        }
+
+        $template = file_get_contents($templatePath);
+        $template = str_replace('{{NAME}}', $safeName, $template);
+        $template = str_replace('{{DATE}}', $safeDate, $template);
+        $template = str_replace('{{TIME}}', $safeTime, $template);
+        $template = str_replace('{{REASON}}', $safeReason, $template);
         return $template;
     }
 

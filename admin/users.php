@@ -63,8 +63,24 @@ $users = $db->query("SELECT u.*, b.branch_name
                                     <tr>
                                         <td><?php echo htmlspecialchars($user['username']); ?></td>
                                         <td><?php echo htmlspecialchars($user['full_name']); ?></td>
-                                        <td><?php echo htmlspecialchars(maskEmail($user['email'])); ?></td>
-                                        <td><?php echo htmlspecialchars(maskPhone($user['phone'] ?? '')); ?></td>
+                                        <td>
+                                            <span class="sensitive-value">
+                                                <span class="sensitive-masked"><?php echo htmlspecialchars(maskEmail($user['email'])); ?></span>
+                                                <span class="sensitive-full d-none"><?php echo htmlspecialchars($user['email']); ?></span>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <span class="sensitive-value">
+                                                <span class="sensitive-masked"><?php echo htmlspecialchars(maskPhone($user['phone'] ?? '')); ?></span>
+                                                <span class="sensitive-full d-none"><?php echo htmlspecialchars($user['phone'] ?? ''); ?></span>
+                                                <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                                    <i class="bi bi-eye"></i>
+                                                </button>
+                                            </span>
+                                        </td>
                                         <td>
                                             <span class="badge bg-<?php echo $user['role'] === 'admin' ? 'danger' : ($user['role'] === 'dentist' ? 'info' : 'secondary'); ?>">
                                                 <?php echo ucfirst($user['role']); ?>
@@ -98,6 +114,33 @@ $users = $db->query("SELECT u.*, b.branch_name
     </main>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.sensitive-toggle');
+            if (!btn) return;
+            const container = btn.closest('.sensitive-value');
+            if (!container) return;
+            const masked = container.querySelector('.sensitive-masked');
+            const full = container.querySelector('.sensitive-full');
+            const icon = btn.querySelector('i');
+            const isShowing = full && !full.classList.contains('d-none');
+            if (isShowing) {
+                if (full) full.classList.add('d-none');
+                if (masked) masked.classList.remove('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
+                }
+            } else {
+                if (full) full.classList.remove('d-none');
+                if (masked) masked.classList.add('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
+                }
+            }
+        });
+    </script>
 </body>
 </html>
 

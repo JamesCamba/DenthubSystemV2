@@ -204,9 +204,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
                     <div class="card-body">
                         <p><strong>Name:</strong><br><?php echo htmlspecialchars($appointment['first_name'] . ' ' . $appointment['last_name']); ?></p>
                         <p><strong>Patient #:</strong><br><code><?php echo htmlspecialchars($appointment['patient_number']); ?></code></p>
-                        <p><strong>Phone:</strong><br><?php echo htmlspecialchars(maskPhone($appointment['phone'] ?? '')); ?></p>
+                        <p><strong>Phone:</strong><br>
+                            <span class="sensitive-value">
+                                <span class="sensitive-masked"><?php echo htmlspecialchars(maskPhone($appointment['phone'] ?? '')); ?></span>
+                                <span class="sensitive-full d-none"><?php echo htmlspecialchars($appointment['phone'] ?? ''); ?></span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </span>
+                        </p>
                         <?php if (!empty($appointment['email'])): ?>
-                        <p><strong>Email:</strong><br><?php echo htmlspecialchars(maskEmail($appointment['email'])); ?></p>
+                        <p><strong>Email:</strong><br>
+                            <span class="sensitive-value">
+                                <span class="sensitive-masked"><?php echo htmlspecialchars(maskEmail($appointment['email'])); ?></span>
+                                <span class="sensitive-full d-none"><?php echo htmlspecialchars($appointment['email']); ?></span>
+                                <button type="button" class="btn btn-sm btn-outline-secondary sensitive-toggle ms-1">
+                                    <i class="bi bi-eye"></i>
+                                </button>
+                            </span>
+                        </p>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -216,6 +232,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        document.addEventListener('click', function (e) {
+            const btn = e.target.closest('.sensitive-toggle');
+            if (!btn) return;
+            const container = btn.closest('.sensitive-value');
+            if (!container) return;
+            const masked = container.querySelector('.sensitive-masked');
+            const full = container.querySelector('.sensitive-full');
+            const icon = btn.querySelector('i');
+            const isShowing = full && !full.classList.contains('d-none');
+            if (isShowing) {
+                if (full) full.classList.add('d-none');
+                if (masked) masked.classList.remove('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye-slash');
+                    icon.classList.add('bi-eye');
+                }
+            } else {
+                if (full) full.classList.remove('d-none');
+                if (masked) masked.classList.add('d-none');
+                if (icon) {
+                    icon.classList.remove('bi-eye');
+                    icon.classList.add('bi-eye-slash');
+                }
+            }
+        });
+
         document.addEventListener('DOMContentLoaded', function() {
             var rescheduleDate = document.getElementById('reschedule_date');
             var rescheduleTime = document.getElementById('reschedule_time');

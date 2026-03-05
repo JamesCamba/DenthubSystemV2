@@ -24,6 +24,7 @@ CREATE TABLE "appointments" (
 	"status" varchar(20) DEFAULT 'pending',
 	"reason_for_visit" text,
 	"notes" text,
+	"cancellation_reason" text,
 	"created_by" integer,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,

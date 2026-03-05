@@ -94,12 +94,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 exit;
             }
-            $just_locked = recordFailedLoginAttempt($login_identifier, $attempt_type);
-            // IP-level tracking for global abuse detection
-            recordFailedLoginIp($ip_address);
-            if ($just_locked) {
-                $mins = defined('LOGIN_LOCKOUT_MINUTES') ? LOGIN_LOCKOUT_MINUTES : 30;
-                $error = 'Too many failed attempts. This device is temporarily locked for ' . $mins . ' minutes.';
+            $lockInfo = recordFailedLoginAttempt($login_identifier, $attempt_type);
+            $just_locked = !empty($lockInfo['locked']);
+            $lock_minutes = (int)($lockInfo['lock_minutes'] ?? 0);
+            // IP-level tracking for global abuse detection (mirror account lock duration)
+            recordFailedLoginIp($ip_address, $lock_minutes);
+            if ($just_locked && $lock_minutes > 0) {
+                $error = 'Too many failed attempts. This device is temporarily locked for ' . $lock_minutes . ' minute(s).';
             } else {
                 $error = 'Invalid email/username or password.';
                 logActivity('login_failed', 'Attempt: ' . substr($identifier, 0, 100), null, null, $identifier, null, 'guest');
