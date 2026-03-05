@@ -12,7 +12,7 @@ $current = basename($_SERVER['PHP_SELF']);
     <a href="dashboard.php" class="d-flex align-items-center text-white text-decoration-none brand-img-wrap">
         <img src="<?php echo $asset_img; ?>/logowblue.png" alt="Logo" onerror="this.style.display='none'">
         <img src="<?php echo $asset_img; ?>/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
-        <span class="fw-bold ms-1">DENTHUB</span>
+        <!-- <span class="fw-bold ms-1">DENTHUB</span> -->
     </a>
 </div>
 
@@ -21,7 +21,7 @@ $current = basename($_SERVER['PHP_SELF']);
         <div class="sidebar-brand d-flex align-items-center brand-img-wrap">
             <img src="<?php echo $asset_img; ?>/logowblue.png" alt="Logo" onerror="this.style.display='none'">
             <img src="<?php echo $asset_img; ?>/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
-            <span class="text-white fw-bold ms-2">DENTHUB</span>
+            <!-- <span class="text-white fw-bold ms-2">DENTHUB</span> -->
             <!-- <small class="d-block w-100 text-white opacity-90" style="font-size: 0.65rem;">Center for Smile<br>DENTAL CLINIC</small> -->
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
