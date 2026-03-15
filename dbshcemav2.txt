@@ -57,6 +57,13 @@ CREATE TABLE "captcha_fail_limits" (
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	CONSTRAINT "captcha_fail_limits_pkey" PRIMARY KEY("identifier","attempt_type")
 );
+CREATE TABLE "clinic_operating_hours" (
+	"branch_id" integer PRIMARY KEY,
+	"open_time" time DEFAULT '10:00:00' NOT NULL,
+	"close_time" time DEFAULT '18:00:00' NOT NULL,
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE "database_backups" (
 	"backup_id" serial PRIMARY KEY,
 	"backup_name" varchar(255) NOT NULL,
@@ -90,21 +97,14 @@ CREATE TABLE "dentists" (
 );
 CREATE TABLE "doctor_monthly_schedules" (
 	"schedule_id" serial PRIMARY KEY,
-	"doctor_id" integer NOT NULL,
-	"schedule_date" date NOT NULL,
+	"doctor_id" integer NOT NULL UNIQUE,
+	"schedule_date" date NOT NULL UNIQUE,
 	"branch_id" integer NOT NULL,
 	"start_time" time NOT NULL,
 	"end_time" time NOT NULL,
 	"created_at" timestamp DEFAULT now(),
 	"updated_at" timestamp DEFAULT now(),
 	CONSTRAINT "doctor_monthly_schedules_doctor_id_schedule_date_key" UNIQUE("doctor_id","schedule_date")
-);
-CREATE TABLE "clinic_operating_hours" (
-	"branch_id" integer PRIMARY KEY,
-	"open_time" time NOT NULL DEFAULT '10:00:00',
-	"close_time" time NOT NULL DEFAULT '18:00:00',
-	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
-	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE "email_verification_codes" (
 	"code_id" serial PRIMARY KEY,
@@ -260,6 +260,7 @@ CREATE UNIQUE INDEX "blocked_dates_pkey" ON "blocked_dates" ("block_id");
 CREATE UNIQUE INDEX "unique_block_date_branch" ON "blocked_dates" ("block_date","branch_id");
 CREATE UNIQUE INDEX "branches_pkey" ON "branches" ("branch_id");
 CREATE UNIQUE INDEX "captcha_fail_limits_pkey" ON "captcha_fail_limits" ("identifier","attempt_type");
+CREATE UNIQUE INDEX "clinic_operating_hours_pkey" ON "clinic_operating_hours" ("branch_id");
 CREATE UNIQUE INDEX "database_backups_pkey" ON "database_backups" ("backup_id");
 CREATE UNIQUE INDEX "dentist_schedules_pkey" ON "dentist_schedules" ("schedule_id");
 CREATE UNIQUE INDEX "dentist_service_mastery_pkey" ON "dentist_service_mastery" ("mastery_id");
@@ -307,9 +308,6 @@ ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_de
 ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id") ON DELETE CASCADE;
 ALTER TABLE "dentists" ADD CONSTRAINT "dentists_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
 ALTER TABLE "dentists" ADD CONSTRAINT "dentists_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("user_id");
-ALTER TABLE "doctor_monthly_schedules" ADD CONSTRAINT "doctor_monthly_schedules_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
-ALTER TABLE "doctor_monthly_schedules" ADD CONSTRAINT "doctor_monthly_schedules_doctor_id_fkey" FOREIGN KEY ("doctor_id") REFERENCES "dentists"("dentist_id");
-ALTER TABLE "clinic_operating_hours" ADD CONSTRAINT "clinic_operating_hours_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id") ON DELETE CASCADE;
 ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("appointment_id") ON DELETE SET NULL;
 ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
 ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;

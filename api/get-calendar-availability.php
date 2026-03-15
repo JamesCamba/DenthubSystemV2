@@ -46,6 +46,9 @@ try {
     $days_in_month = (int)date('t', strtotime($start));
     $end = sprintf('%04d-%02d-%02d', $year, $month, $days_in_month);
 
+    // Resolve clinic operating hours once per request (with PHP fallback defaults).
+    [$open_time, $close_time] = getClinicOperatingHours($branch_id);
+
     // Use a set-based query to compute daily availability with the hierarchical schedule model.
     $sql = "
         WITH days AS (
@@ -70,24 +73,18 @@ try {
 
     $sql .= "
         ),
-        coh AS (
-            SELECT open_time, close_time
-            FROM clinic_operating_hours
-            WHERE branch_id = ?
-        ),
         windows AS (
             SELECT
                 ad.dentist_id,
                 dd.d AS date,
                 COALESCE(ms.start_time,
                          ds.start_time,
-                         GREATEST(coh.open_time, TIME '10:00:00')) AS start_time,
+                         GREATEST(?::time, TIME '10:00:00')) AS start_time,
                 COALESCE(ms.end_time,
                          ds.end_time,
-                         LEAST(coh.close_time, TIME '18:00:00')) AS end_time
+                         LEAST(?::time, TIME '18:00:00')) AS end_time
             FROM active_dentists ad
             CROSS JOIN days dd
-            CROSS JOIN coh
             LEFT JOIN doctor_monthly_schedules ms
               ON ms.doctor_id = ad.dentist_id
              AND ms.schedule_date = dd.d
@@ -136,13 +133,14 @@ try {
         ORDER BY d.d
     ";
 
-    $params[] = $branch_id; // coh
-    $params[] = $branch_id; // ms.branch_id
+    $params[] = $open_time;  // for GREATEST(open_time, '10:00')
+    $params[] = $close_time; // for LEAST(close_time, '18:00')
+    $params[] = $branch_id;  // ms.branch_id
     $params[] = $branch_id; // appointments.branch_id
     $params[] = $branch_id; // blocks.branch_id
     $params[] = $start;
     $params[] = $end;
-    $types   .= "iiiiss";
+    $types   .= "ssiiiss";
 
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);

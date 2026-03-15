@@ -57,14 +57,12 @@ try {
         exit;
     }
 
+    // Resolve clinic operating hours once (with PHP fallback defaults).
+    [$open_time, $close_time] = getClinicOperatingHours($branch_id);
+
     // Build slots per dentist using the hierarchical schedule logic.
     $sql = "
-        WITH coh AS (
-            SELECT open_time, close_time
-            FROM clinic_operating_hours
-            WHERE branch_id = ?
-        ),
-        active_dentists AS (
+        WITH active_dentists AS (
             SELECT d.dentist_id, u.full_name
             FROM dentists d
             JOIN users u ON u.user_id = d.user_id
@@ -72,8 +70,8 @@ try {
               AND u.is_active = TRUE
     ";
 
-    $params = [$branch_id];
-    $types  = "i";
+    $params = [];
+    $types  = "";
 
     if ($dentist_id_filter !== null) {
         $sql .= " AND d.dentist_id = ? ";
@@ -89,12 +87,11 @@ try {
                 ad.full_name,
                 COALESCE(ms.start_time,
                          ds.start_time,
-                         GREATEST(coh.open_time, TIME '10:00:00')) AS start_time,
+                         GREATEST(?::time, TIME '10:00:00')) AS start_time,
                 COALESCE(ms.end_time,
                          ds.end_time,
-                         LEAST(coh.close_time, TIME '18:00:00')) AS end_time
+                         LEAST(?::time, TIME '18:00:00')) AS end_time
             FROM active_dentists ad
-            CROSS JOIN coh
             LEFT JOIN doctor_monthly_schedules ms
               ON ms.doctor_id = ad.dentist_id
              AND ms.schedule_date = ?
@@ -126,12 +123,14 @@ try {
         ORDER BY w.full_name, ts.slot_time
     ";
 
+    $params[] = $open_time;   // for GREATEST(open_time, '10:00')
+    $params[] = $close_time;  // for LEAST(close_time, '18:00')
     $params[] = $date;
     $params[] = $branch_id;
     $params[] = $date;
     $params[] = $date;
     $params[] = $branch_id;
-    $types   .= "sisss";
+    $types   .= "ssisss";
 
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);

@@ -368,6 +368,9 @@ function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = 
         return 0;
     }
 
+    // Resolve clinic operating hours once (with PHP fallback defaults).
+    [$open_time, $close_time] = getClinicOperatingHours($branch_id);
+
     // Count distinct (dentist, slot_time) pairs that are inside each doctor's working window
     // and not already booked. Let PostgreSQL handle the heavy lifting with a set-based query.
     $sql = "
@@ -395,21 +398,19 @@ function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = 
                 ad.dentist_id,
                 COALESCE(ms.start_time,
                          ds.start_time,
-                         GREATEST(coh.open_time, TIME '10:00:00')) AS start_time,
+                         GREATEST(?::time, TIME '10:00:00')) AS start_time,
                 COALESCE(ms.end_time,
                          ds.end_time,
-                         LEAST(coh.close_time, TIME '18:00:00')) AS end_time
+                         LEAST(?::time, TIME '18:00:00')) AS end_time
             FROM active_dentists ad
-            CROSS JOIN clinic_operating_hours coh
             LEFT JOIN doctor_monthly_schedules ms
               ON ms.doctor_id = ad.dentist_id
              AND ms.schedule_date = ?
-             AND ms.branch_id = coh.branch_id
+             AND ms.branch_id = ?
             LEFT JOIN dentist_schedules ds
               ON ds.dentist_id = ad.dentist_id
              AND ds.day_of_week = EXTRACT(DOW FROM ?::date)
              AND ds.is_available = TRUE
-            WHERE coh.branch_id = ?
         )
         SELECT COUNT(*) AS slots_count
         FROM time_slots ts
@@ -428,7 +429,8 @@ function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = 
           )
     ";
 
-    $params[] = $date;
+    $params[] = $open_time;   // for GREATEST(open_time, '10:00')
+    $params[] = $close_time;  // for LEAST(close_time, '18:00')
     $params[] = $date;
     $params[] = $branch_id;
     $params[] = $date;
