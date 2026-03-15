@@ -88,6 +88,24 @@ CREATE TABLE "dentists" (
 	"branch_id" integer,
 	"is_active" boolean DEFAULT true
 );
+CREATE TABLE "doctor_monthly_schedules" (
+	"schedule_id" serial PRIMARY KEY,
+	"doctor_id" integer NOT NULL,
+	"schedule_date" date NOT NULL,
+	"branch_id" integer NOT NULL,
+	"start_time" time NOT NULL,
+	"end_time" time NOT NULL,
+	"created_at" timestamp DEFAULT now(),
+	"updated_at" timestamp DEFAULT now(),
+	CONSTRAINT "doctor_monthly_schedules_doctor_id_schedule_date_key" UNIQUE("doctor_id","schedule_date")
+);
+CREATE TABLE "clinic_operating_hours" (
+	"branch_id" integer PRIMARY KEY,
+	"open_time" time NOT NULL DEFAULT '10:00:00',
+	"close_time" time NOT NULL DEFAULT '18:00:00',
+	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP
+);
 CREATE TABLE "email_verification_codes" (
 	"code_id" serial PRIMARY KEY,
 	"email" varchar(100) NOT NULL,
@@ -247,6 +265,8 @@ CREATE UNIQUE INDEX "dentist_schedules_pkey" ON "dentist_schedules" ("schedule_i
 CREATE UNIQUE INDEX "dentist_service_mastery_pkey" ON "dentist_service_mastery" ("mastery_id");
 CREATE UNIQUE INDEX "unique_dentist_service" ON "dentist_service_mastery" ("dentist_id","service_id");
 CREATE UNIQUE INDEX "dentists_pkey" ON "dentists" ("dentist_id");
+CREATE UNIQUE INDEX "doctor_monthly_schedules_doctor_id_schedule_date_key" ON "doctor_monthly_schedules" ("doctor_id","schedule_date");
+CREATE UNIQUE INDEX "doctor_monthly_schedules_pkey" ON "doctor_monthly_schedules" ("schedule_id");
 CREATE UNIQUE INDEX "email_verification_codes_pkey" ON "email_verification_codes" ("code_id");
 CREATE INDEX "idx_email_verification_codes" ON "email_verification_codes" ("email","verification_code");
 CREATE INDEX "idx_email_verification_expires" ON "email_verification_codes" ("expires_at");
@@ -287,6 +307,9 @@ ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_de
 ALTER TABLE "dentist_service_mastery" ADD CONSTRAINT "dentist_service_mastery_service_id_fkey" FOREIGN KEY ("service_id") REFERENCES "services"("service_id") ON DELETE CASCADE;
 ALTER TABLE "dentists" ADD CONSTRAINT "dentists_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
 ALTER TABLE "dentists" ADD CONSTRAINT "dentists_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("user_id");
+ALTER TABLE "doctor_monthly_schedules" ADD CONSTRAINT "doctor_monthly_schedules_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id");
+ALTER TABLE "doctor_monthly_schedules" ADD CONSTRAINT "doctor_monthly_schedules_doctor_id_fkey" FOREIGN KEY ("doctor_id") REFERENCES "dentists"("dentist_id");
+ALTER TABLE "clinic_operating_hours" ADD CONSTRAINT "clinic_operating_hours_branch_id_fkey" FOREIGN KEY ("branch_id") REFERENCES "branches"("branch_id") ON DELETE CASCADE;
 ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_appointment_id_fkey" FOREIGN KEY ("appointment_id") REFERENCES "appointments"("appointment_id") ON DELETE SET NULL;
 ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_dentist_id_fkey" FOREIGN KEY ("dentist_id") REFERENCES "dentists"("dentist_id") ON DELETE SET NULL;
 ALTER TABLE "lab_cases" ADD CONSTRAINT "lab_cases_patient_id_fkey" FOREIGN KEY ("patient_id") REFERENCES "patients"("patient_id") ON DELETE CASCADE;

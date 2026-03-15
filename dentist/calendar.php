@@ -11,13 +11,19 @@ requireRole('dentist');
 
 $db = getDB();
 
-// Determine dentist branch for label
-$stmt = $db->prepare("SELECT d.branch_id, b.branch_name FROM dentists d JOIN branches b ON d.branch_id = b.branch_id WHERE d.user_id = ?");
+// Load branches for selection
+$branches = [];
+$res = $db->query("SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE ORDER BY branch_name");
+while ($row = $res->fetch_assoc()) {
+    $branches[] = $row;
+}
+
+// Determine initial branch from dentist profile or first active branch
+$stmt = $db->prepare("SELECT branch_id FROM dentists WHERE user_id = ?");
 $stmt->bind_param("i", $_SESSION['user_id']);
 $stmt->execute();
 $dent = $stmt->get_result()->fetch_assoc();
-$branchName = $dent ? $dent['branch_name'] : 'My Branch';
-$branchId = $dent ? (int)$dent['branch_id'] : 0;
+$branchId = $dent ? (int)$dent['branch_id'] : (count($branches) ? (int)$branches[0]['branch_id'] : 0);
 
 $year = isset($_GET['year']) ? (int)$_GET['year'] : (int)date('Y');
 $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
@@ -56,7 +62,13 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
             <div class="row g-3 mb-3 align-items-end">
                 <div class="col-md-4">
                     <label class="form-label">Branch</label>
-                    <input type="text" class="form-control" value="<?php echo htmlspecialchars($branchName); ?>" disabled>
+                    <select class="form-select" id="calendarBranch">
+                        <?php foreach ($branches as $b): ?>
+                            <option value="<?php echo (int)$b['branch_id']; ?>" <?php echo $branchId === (int)$b['branch_id'] ? 'selected' : ''; ?>>
+                                <?php echo htmlspecialchars($b['branch_name']); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
                 </div>
                 <div class="col-md-4">
                     <label class="form-label">Month</label>
@@ -111,7 +123,10 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        const branchId = <?php echo (int)$branchId; ?>;
+        function getBranchId() {
+            const sel = document.getElementById('calendarBranch');
+            return sel ? parseInt(sel.value || '0', 10) || 0 : 0;
+        }
         let currentYear = <?php echo (int)$year; ?>;
         let currentMonth = <?php echo (int)$month; ?>;
         const minYear = 2026;
@@ -132,6 +147,7 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
         })();
 
         function loadCalendar() {
+            const branchId = getBranchId();
             if (!branchId) return;
             fetch(`../api/get-calendar-availability.php?role=dentist&branch_id=${branchId}&year=${currentYear}&month=${currentMonth}`)
                 .then(r => r.json())
@@ -194,6 +210,7 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
         }
 
         function loadDayDetails(dateStr) {
+            const branchId = getBranchId();
             if (!branchId) return;
             const container = document.getElementById('dayDetails');
             container.innerHTML = '<p class="text-muted mb-0">Loading...</p>';
@@ -224,6 +241,10 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
                     container.innerHTML = '<p class="text-muted mb-0">Unable to load slots.</p>';
                 });
         }
+
+        document.getElementById('calendarBranch').addEventListener('change', () => {
+            loadCalendar();
+        });
 
         document.getElementById('prevMonthBtn').addEventListener('click', () => {
             let y = currentYear;

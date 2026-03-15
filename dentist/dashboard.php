@@ -74,11 +74,48 @@ $today_appointments_list = $stmt->get_result();
     <link rel="stylesheet" href="../assets/css/style.css">
 </head>
 <body>
-    <?php require_once 'navbar.php'; ?>
+<?php require_once 'navbar.php'; ?>
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
         <h2 class="denthub-page-title mb-4"><i class="bi bi-grid-1x2 me-2"></i> Welcome, Dr. <?php echo htmlspecialchars($user['full_name']); ?></h2>
+
+        <!-- Branch selector -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <div class="card denthub-card-rounded shadow-sm">
+                    <div class="denthub-card-header text-white">
+                        <h5 class="mb-0"><i class="bi bi-building me-2"></i>My Active Branch</h5>
+                    </div>
+                    <div class="card-body">
+                        <form id="dentistBranchForm">
+                            <div class="row align-items-center">
+                                <div class="col-8">
+                                    <select class="form-select" id="dentistBranchSelect" name="branch_id">
+                                        <?php
+                                        $branchesRes = $db->query("SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE ORDER BY branch_name");
+                                        while ($b = $branchesRes->fetch_assoc()):
+                                            $bid = (int)$b['branch_id'];
+                                            $selected = ($bid === (int)$dentist['branch_id']) ? 'selected' : '';
+                                        ?>
+                                            <option value="<?php echo $bid; ?>" <?php echo $selected; ?>>
+                                                <?php echo htmlspecialchars($b['branch_name']); ?>
+                                            </option>
+                                        <?php endwhile; ?>
+                                    </select>
+                                </div>
+                                <div class="col-4 text-end">
+                                    <button type="submit" class="btn btn-sm btn-primary">Update</button>
+                                </div>
+                            </div>
+                            <small class="text-muted d-block mt-2">
+                                This sets your default branch. Per-day branch can be configured in Schedule Manager.
+                            </small>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
 
         <!-- Statistics Cards -->
         <div class="row g-4 mb-4">
@@ -185,6 +222,20 @@ $today_appointments_list = $stmt->get_result();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        document.getElementById('dentistBranchForm').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const branchId = document.getElementById('dentistBranchSelect').value;
+            fetch('update-branch.php', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: 'branch_id=' + encodeURIComponent(branchId)
+            })
+            .then(r => r.json())
+            .then(data => {
+                // Silent failure/success; page naturally uses updated branch on next load.
+            })
+            .catch(() => {});
+        });
         function loadSlotSummaryDentist() {
             fetch('../api/get-slot-summary.php?role=dentist')
                 .then(r => r.json())

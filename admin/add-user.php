@@ -183,7 +183,7 @@ $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
                                 <small class="text-muted">Philippines: 11 digits</small>
                             </div>
                             <div class="mb-3">
-                                <label class="form-label">Branch</label>
+                                <label class="form-label">Initial Branch (dentists can change later)</label>
                                 <select class="form-select" name="branch_id">
                                     <?php $branches->data_seek(0); while ($branch = $branches->fetch_assoc()): ?>
                                         <option value="<?php echo $branch['branch_id']; ?>" <?php echo (($_POST['branch_id'] ?? 1) == $branch['branch_id']) ? 'selected' : ''; ?>>

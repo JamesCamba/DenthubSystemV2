@@ -225,19 +225,21 @@ if (isset($_GET['updated'])) {
                                     </label>
                                 </div>
                             </div>
+                            <?php
+                            // Branch is now managed by dentists themselves from their dashboard;
+                            // keep it read-only in this admin form to avoid overriding doctor choices.
+                            $branches->data_seek(0);
+                            $selectedBranchName = '';
+                            while ($branch = $branches->fetch_assoc()) {
+                                if ((int)$branch['branch_id'] === (int)$user['branch_id']) {
+                                    $selectedBranchName = $branch['branch_name'];
+                                    break;
+                                }
+                            }
+                            ?>
                             <div class="mb-3">
-                                <label class="form-label">Branch</label>
-                                <select class="form-select" name="branch_id">
-                                    <?php
-                                    $branches->data_seek(0);
-                                    while ($branch = $branches->fetch_assoc()):
-                                        $selectedBranch = $_POST['branch_id'] ?? $user['branch_id'];
-                                    ?>
-                                        <option value="<?php echo $branch['branch_id']; ?>" <?php echo ($selectedBranch == $branch['branch_id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($branch['branch_name']); ?>
-                                        </option>
-                                    <?php endwhile; ?>
-                                </select>
+                                <label class="form-label">Branch (managed by dentist)</label>
+                                <input type="text" class="form-control" value="<?php echo htmlspecialchars($selectedBranchName ?: 'Not set'); ?>" disabled>
                             </div>
                         </div>
                         <div class="col-lg-6" id="dentistFieldsCol" style="display: none;">

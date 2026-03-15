@@ -30,7 +30,7 @@ try {
 
     if ($role === 'dentist') {
         requireRole('dentist');
-        $stmt = $db->prepare("SELECT d.dentist_id, d.branch_id FROM dentists d WHERE d.user_id = ?");
+        $stmt = $db->prepare("SELECT d.dentist_id FROM dentists d WHERE d.user_id = ?");
         $stmt->bind_param("i", $_SESSION['user_id']);
         $stmt->execute();
         $dent = $stmt->get_result()->fetch_assoc();
@@ -57,47 +57,81 @@ try {
         exit;
     }
 
-    $day_of_week = date('w', strtotime($date));
-
+    // Build slots per dentist using the hierarchical schedule logic.
     $sql = "
-        SELECT d.dentist_id,
-               u.full_name AS dentist_name,
-               ts.slot_time
-        FROM time_slots ts
-        JOIN dentist_schedules ds
-          ON ds.day_of_week = ?
-         AND ds.is_available = TRUE
-         AND ds.start_time <= ts.slot_time
-         AND ds.end_time   > ts.slot_time
-        JOIN dentists d
-          ON d.dentist_id = ds.dentist_id
-        JOIN users u
-          ON u.user_id = d.user_id
-        WHERE ts.is_active = TRUE
-          AND d.branch_id = ?
-          AND d.is_active = TRUE
-          AND u.is_active = TRUE
+        WITH coh AS (
+            SELECT open_time, close_time
+            FROM clinic_operating_hours
+            WHERE branch_id = ?
+        ),
+        active_dentists AS (
+            SELECT d.dentist_id, u.full_name
+            FROM dentists d
+            JOIN users u ON u.user_id = d.user_id
+            WHERE d.is_active = TRUE
+              AND u.is_active = TRUE
+    ";
+
+    $params = [$branch_id];
+    $types  = "i";
+
+    if ($dentist_id_filter !== null) {
+        $sql .= " AND d.dentist_id = ? ";
+        $params[] = $dentist_id_filter;
+        $types   .= "i";
+    }
+
+    $sql .= "
+        ),
+        windows AS (
+            SELECT
+                ad.dentist_id,
+                ad.full_name,
+                COALESCE(ms.start_time,
+                         ds.start_time,
+                         GREATEST(coh.open_time, TIME '10:00:00')) AS start_time,
+                COALESCE(ms.end_time,
+                         ds.end_time,
+                         LEAST(coh.close_time, TIME '18:00:00')) AS end_time
+            FROM active_dentists ad
+            CROSS JOIN coh
+            LEFT JOIN doctor_monthly_schedules ms
+              ON ms.doctor_id = ad.dentist_id
+             AND ms.schedule_date = ?
+             AND ms.branch_id = ?
+            LEFT JOIN dentist_schedules ds
+              ON ds.dentist_id = ad.dentist_id
+             AND ds.day_of_week = EXTRACT(DOW FROM ?::date)
+             AND ds.is_available = TRUE
+        )
+        SELECT
+            w.dentist_id,
+            w.full_name AS dentist_name,
+            ts.slot_time
+        FROM windows w
+        JOIN time_slots ts
+          ON ts.is_active = TRUE
+         AND ts.slot_time >= w.start_time
+         AND ts.slot_time <  w.end_time
+        WHERE w.start_time < w.end_time
           AND NOT EXISTS (
                 SELECT 1
                 FROM appointments a
                 WHERE a.appointment_date = ?
                   AND a.appointment_time = ts.slot_time
-                  AND a.branch_id = d.branch_id
+                  AND a.branch_id = ?
                   AND a.status IN ('pending', 'confirmed')
-                  AND a.dentist_id = d.dentist_id
+                  AND a.dentist_id = w.dentist_id
           )
+        ORDER BY w.full_name, ts.slot_time
     ";
 
-    $params = [$day_of_week, $branch_id, $date];
-    $types  = "iis";
-
-    if ($dentist_id_filter !== null) {
-        $sql .= " AND d.dentist_id = ?";
-        $params[] = $dentist_id_filter;
-        $types   .= "i";
-    }
-
-    $sql .= " ORDER BY u.full_name, ts.slot_time";
+    $params[] = $date;
+    $params[] = $branch_id;
+    $params[] = $date;
+    $params[] = $date;
+    $params[] = $branch_id;
+    $types   .= "sisss";
 
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);

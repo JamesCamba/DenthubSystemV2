@@ -168,55 +168,136 @@ function logActivity($action_type, $details = '', $actor_user_id = null, $actor_
     }
 }
 
-// Get available time slots for a date
-// $exclude_appointment_id: when rescheduling, exclude this appointment so its current slot shows as available
+// Fetch clinic operating hours for a branch (falls back to system defaults if not configured)
+function getClinicOperatingHours($branch_id) {
+    $db = getDB();
+    $stmt = $db->prepare("SELECT open_time, close_time FROM clinic_operating_hours WHERE branch_id = ?");
+    $stmt->bind_param("i", $branch_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+
+    // System-level default base schedule (Level 1)
+    $defaultOpen = '10:00:00';
+    $defaultClose = '18:00:00';
+
+    if ($row) {
+        // Ensure stored hours are sensible
+        $open = $row['open_time'] ?? $defaultOpen;
+        $close = $row['close_time'] ?? $defaultClose;
+        if ($open >= $close) {
+            $open = $defaultOpen;
+            $close = $defaultClose;
+        }
+        return [$open, $close];
+    }
+
+    return [$defaultOpen, $defaultClose];
+}
+
+// Compute the effective working window for a doctor on a given date and branch,
+// respecting Level 2 (monthly schedule), weekly schedule, and Level 1 defaults,
+// all clamped inside clinic operating hours.
+function getDoctorWorkingWindow($date, $dentist_id, $branch_id) {
+    $db = getDB();
+    [$clinicOpen, $clinicClose] = getClinicOperatingHours($branch_id);
+
+    // Level 2 - monthly override
+    $stmt = $db->prepare("
+        SELECT start_time, end_time
+        FROM doctor_monthly_schedules
+        WHERE doctor_id = ?
+          AND schedule_date = ?
+          AND branch_id = ?
+        LIMIT 1
+    ");
+    $stmt->bind_param("isi", $dentist_id, $date, $branch_id);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+
+    if ($row) {
+        $start = max($clinicOpen, $row['start_time']);
+        $end = min($clinicClose, $row['end_time']);
+        if ($start < $end) {
+            return [$start, $end];
+        }
+        // If invalid after clamping, treat as no availability
+        return [null, null];
+    }
+
+    // Weekly schedule (existing table) - used as a template
+    $day_of_week = date('w', strtotime($date));
+    $stmt = $db->prepare("
+        SELECT start_time, end_time
+        FROM dentist_schedules
+        WHERE dentist_id = ?
+          AND day_of_week = ?
+          AND is_available = TRUE
+        LIMIT 1
+    ");
+    $stmt->bind_param("ii", $dentist_id, $day_of_week);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc();
+
+    if ($row) {
+        $start = max($clinicOpen, $row['start_time']);
+        $end = min($clinicClose, $row['end_time']);
+        if ($start < $end) {
+            return [$start, $end];
+        }
+        return [null, null];
+    }
+
+    // Level 1 - system default (Monday–Sunday 10:00–18:00), clamped to clinic hours
+    $defaultStart = '10:00:00';
+    $defaultEnd = '18:00:00';
+    $start = max($clinicOpen, $defaultStart);
+    $end = min($clinicClose, $defaultEnd);
+    if ($start < $end) {
+        return [$start, $end];
+    }
+
+    return [null, null];
+}
+
+// Get available time slots for a date using the hierarchical schedule model.
+// $exclude_appointment_id: when rescheduling, exclude this appointment so its current slot shows as available.
 function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $branch_id = 1, $exclude_appointment_id = null) {
     $db = getDB();
 
-    // Let PostgreSQL do the heavy lifting: start from active time slots,
-    // filter by dentist schedule (if any), then exclude booked slots.
-    $day_of_week = date('w', strtotime($date));
+    if (isDateBlocked($date, $branch_id)) {
+        return [];
+    }
+
+    // If a specific dentist is selected, compute their working window first.
+    $windowStart = null;
+    $windowEnd = null;
+    if ($dentist_id !== null) {
+        [$windowStart, $windowEnd] = getDoctorWorkingWindow($date, $dentist_id, $branch_id);
+        if ($windowStart === null || $windowEnd === null) {
+            return [];
+        }
+    } else {
+        // No specific dentist: just use clinic operating hours as coarse filter.
+        [$windowStart, $windowEnd] = getClinicOperatingHours($branch_id);
+    }
 
     $sql = "
         SELECT ts.slot_id, ts.slot_time
         FROM time_slots ts
         WHERE ts.is_active = TRUE
-    ";
-
-    $params = [];
-    $types  = "";
-
-    // If a specific dentist is selected, only include slots where the dentist is scheduled
-    if ($dentist_id !== null) {
-        $sql .= "
-          AND EXISTS (
+          AND ts.slot_time >= ?
+          AND ts.slot_time < ?
+          AND NOT EXISTS (
               SELECT 1
-              FROM dentist_schedules ds
-              WHERE ds.dentist_id = ?
-                AND ds.day_of_week = ?
-                AND ds.is_available = TRUE
-                AND ds.start_time <= ts.slot_time
-                AND ds.end_time   > ts.slot_time
-          )
-        ";
-        $params[] = $dentist_id;
-        $params[] = $day_of_week;
-        $types   .= "ii";
-    }
-
-    // Exclude slots that are already booked (for this date/branch and optional dentist)
-    $sql .= "
-      AND NOT EXISTS (
-          SELECT 1
-          FROM appointments a
-          WHERE a.appointment_date = ?
-            AND a.appointment_time = ts.slot_time
-            AND a.branch_id = ?
-            AND a.status IN ('pending', 'confirmed')
+              FROM appointments a
+              WHERE a.appointment_date = ?
+                AND a.appointment_time = ts.slot_time
+                AND a.branch_id = ?
+                AND a.status IN ('pending', 'confirmed')
     ";
-    $params[] = $date;
-    $params[] = $branch_id;
-    $types   .= "si";
+
+    $params = [$windowStart, $windowEnd, $date, $branch_id];
+    $types  = "sssi";
 
     if ($dentist_id !== null) {
         $sql .= " AND a.dentist_id = ?";
@@ -231,14 +312,12 @@ function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $b
     }
 
     $sql .= "
-      )
-      ORDER BY ts.slot_time
+          )
+        ORDER BY ts.slot_time
     ";
 
     $stmt = $db->prepare($sql);
-    if (!empty($params)) {
-        $stmt->bind_param($types, ...$params);
-    }
+    $stmt->bind_param($types, ...$params);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -289,43 +368,72 @@ function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = 
         return 0;
     }
 
-    $day_of_week = date('w', strtotime($date));
-
+    // Count distinct (dentist, slot_time) pairs that are inside each doctor's working window
+    // and not already booked. Let PostgreSQL handle the heavy lifting with a set-based query.
     $sql = "
+        WITH active_dentists AS (
+            SELECT d.dentist_id
+            FROM dentists d
+            JOIN users u ON u.user_id = d.user_id
+            WHERE d.is_active = TRUE
+              AND u.is_active = TRUE
+    ";
+
+    $params = [];
+    $types  = "";
+
+    if ($dentist_id !== null) {
+        $sql .= " AND d.dentist_id = ? ";
+        $params[] = $dentist_id;
+        $types   .= "i";
+    }
+
+    $sql .= "
+        ),
+        windows AS (
+            SELECT
+                ad.dentist_id,
+                COALESCE(ms.start_time,
+                         ds.start_time,
+                         GREATEST(coh.open_time, TIME '10:00:00')) AS start_time,
+                COALESCE(ms.end_time,
+                         ds.end_time,
+                         LEAST(coh.close_time, TIME '18:00:00')) AS end_time
+            FROM active_dentists ad
+            CROSS JOIN clinic_operating_hours coh
+            LEFT JOIN doctor_monthly_schedules ms
+              ON ms.doctor_id = ad.dentist_id
+             AND ms.schedule_date = ?
+             AND ms.branch_id = coh.branch_id
+            LEFT JOIN dentist_schedules ds
+              ON ds.dentist_id = ad.dentist_id
+             AND ds.day_of_week = EXTRACT(DOW FROM ?::date)
+             AND ds.is_available = TRUE
+            WHERE coh.branch_id = ?
+        )
         SELECT COUNT(*) AS slots_count
         FROM time_slots ts
-        JOIN dentist_schedules ds
-          ON ds.day_of_week = ?
-         AND ds.is_available = TRUE
-         AND ds.start_time <= ts.slot_time
-         AND ds.end_time   > ts.slot_time
-        JOIN dentists d
-          ON d.dentist_id = ds.dentist_id
-        JOIN users u
-          ON u.user_id = d.user_id
+        JOIN windows w
+          ON ts.slot_time >= w.start_time
+         AND ts.slot_time <  w.end_time
         WHERE ts.is_active = TRUE
-          AND d.branch_id = ?
-          AND d.is_active = TRUE
-          AND u.is_active = TRUE
           AND NOT EXISTS (
                 SELECT 1
                 FROM appointments a
                 WHERE a.appointment_date = ?
                   AND a.appointment_time = ts.slot_time
-                  AND a.branch_id = d.branch_id
+                  AND a.branch_id = ?
                   AND a.status IN ('pending', 'confirmed')
-                  AND a.dentist_id = d.dentist_id
+                  AND a.dentist_id = w.dentist_id
           )
     ";
 
-    $params = [$day_of_week, $branch_id, $date];
-    $types  = "iis";
-
-    if ($dentist_id !== null) {
-        $sql .= " AND d.dentist_id = ?";
-        $params[] = $dentist_id;
-        $types   .= "i";
-    }
+    $params[] = $date;
+    $params[] = $date;
+    $params[] = $branch_id;
+    $params[] = $date;
+    $params[] = $branch_id;
+    $types   .= "ssisi";
 
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);

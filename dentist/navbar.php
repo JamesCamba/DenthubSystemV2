@@ -30,7 +30,7 @@ $current = basename($_SERVER['PHP_SELF']);
         <nav class="nav flex-column py-2">
             <a class="nav-link <?php echo $current === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
             <a class="nav-link <?php echo $current === 'appointments.php' ? 'active' : ''; ?>" href="appointments.php"><i class="bi bi-calendar-check me-2"></i> My Appointment</a>
-            <a class="nav-link <?php echo $current === 'schedule.php' ? 'active' : ''; ?>" href="schedule.php"><i class="bi bi-calendar-week me-2"></i> My Schedule</a>
+            <a class="nav-link <?php echo $current === 'schedule-manager.php' ? 'active' : ''; ?>" href="schedule-manager.php"><i class="bi bi-calendar-range me-2"></i> Schedule Manager</a>
             <a class="nav-link <?php echo $current === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3 me-2"></i> Calendar</a>
         </nav>
         <div class="sidebar-user dropdown p-3 mt-auto">
@@ -58,7 +58,7 @@ $current = basename($_SERVER['PHP_SELF']);
     <nav class="nav flex-column py-2">
         <a class="nav-link <?php echo $current === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
         <a class="nav-link <?php echo $current === 'appointments.php' ? 'active' : ''; ?>" href="appointments.php"><i class="bi bi-calendar-check me-2"></i> My Appointment</a>
-        <a class="nav-link <?php echo $current === 'schedule.php' ? 'active' : ''; ?>" href="schedule.php"><i class="bi bi-calendar-week me-2"></i> My Schedule</a>
+        <a class="nav-link <?php echo $current === 'schedule-manager.php' ? 'active' : ''; ?>" href="schedule-manager.php"><i class="bi bi-calendar-range me-2"></i> Schedule Manager</a>
         <a class="nav-link <?php echo $current === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3 me-2"></i> Calendar</a>
     </nav>
     <div class="sidebar-user dropdown">

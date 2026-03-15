@@ -26,7 +26,7 @@ try {
     $dentist_id = null;
     if ($role === 'dentist') {
         requireRole('dentist');
-        $stmt = $db->prepare("SELECT d.dentist_id, d.branch_id FROM dentists d WHERE d.user_id = ?");
+        $stmt = $db->prepare("SELECT d.dentist_id FROM dentists d WHERE d.user_id = ?");
         $stmt->bind_param("i", $_SESSION['user_id']);
         $stmt->execute();
         $dent = $stmt->get_result()->fetch_assoc();
@@ -46,53 +46,77 @@ try {
     $days_in_month = (int)date('t', strtotime($start));
     $end = sprintf('%04d-%02d-%02d', $year, $month, $days_in_month);
 
-    // Build a single PostgreSQL query using generate_series to compute
-    // availability for all days in one shot.
+    // Use a set-based query to compute daily availability with the hierarchical schedule model.
     $sql = "
         WITH days AS (
             SELECT generate_series(?::date, ?::date, interval '1 day')::date AS d
         ),
-        available AS (
-            SELECT
-                d.d AS date,
-                COUNT(*) AS slots_count
-            FROM days d
-            JOIN time_slots ts
-              ON ts.is_active = TRUE
-            JOIN dentist_schedules ds
-              ON ds.day_of_week = EXTRACT(DOW FROM d.d)
-             AND ds.is_available = TRUE
-             AND ds.start_time <= ts.slot_time
-             AND ds.end_time   > ts.slot_time
-            JOIN dentists dent
-              ON dent.dentist_id = ds.dentist_id
-            JOIN users u
-              ON u.user_id = dent.user_id
-            WHERE dent.branch_id = ?
-              AND dent.is_active = TRUE
+        active_dentists AS (
+            SELECT d.dentist_id
+            FROM dentists d
+            JOIN users u ON u.user_id = d.user_id
+            WHERE d.is_active = TRUE
               AND u.is_active = TRUE
     ";
 
-    $params = [$start, $end, $branch_id];
-    $types  = "ssi";
+    $params = [$start, $end];
+    $types  = "ss";
 
     if ($dentist_id !== null) {
-        $sql .= " AND dent.dentist_id = ? ";
+        $sql .= " AND d.dentist_id = ? ";
         $params[] = $dentist_id;
         $types   .= "i";
     }
 
     $sql .= "
+        ),
+        coh AS (
+            SELECT open_time, close_time
+            FROM clinic_operating_hours
+            WHERE branch_id = ?
+        ),
+        windows AS (
+            SELECT
+                ad.dentist_id,
+                dd.d AS date,
+                COALESCE(ms.start_time,
+                         ds.start_time,
+                         GREATEST(coh.open_time, TIME '10:00:00')) AS start_time,
+                COALESCE(ms.end_time,
+                         ds.end_time,
+                         LEAST(coh.close_time, TIME '18:00:00')) AS end_time
+            FROM active_dentists ad
+            CROSS JOIN days dd
+            CROSS JOIN coh
+            LEFT JOIN doctor_monthly_schedules ms
+              ON ms.doctor_id = ad.dentist_id
+             AND ms.schedule_date = dd.d
+             AND ms.branch_id = ?
+            LEFT JOIN dentist_schedules ds
+              ON ds.dentist_id = ad.dentist_id
+             AND ds.day_of_week = EXTRACT(DOW FROM dd.d)
+             AND ds.is_available = TRUE
+        ),
+        available AS (
+            SELECT
+                w.date,
+                COUNT(*) AS slots_count
+            FROM windows w
+            JOIN time_slots ts
+              ON ts.is_active = TRUE
+             AND ts.slot_time >= w.start_time
+             AND ts.slot_time <  w.end_time
+            WHERE w.start_time < w.end_time
               AND NOT EXISTS (
                     SELECT 1
                     FROM appointments a
-                    WHERE a.appointment_date = d.d
+                    WHERE a.appointment_date = w.date
                       AND a.appointment_time = ts.slot_time
-                      AND a.branch_id = dent.branch_id
+                      AND a.branch_id = ?
                       AND a.status IN ('pending', 'confirmed')
-                      AND a.dentist_id = dent.dentist_id
+                      AND a.dentist_id = w.dentist_id
                 )
-            GROUP BY d.d
+            GROUP BY w.date
         ),
         blocks AS (
             SELECT block_date, reason
@@ -112,11 +136,13 @@ try {
         ORDER BY d.d
     ";
 
-    // Append branch & date range for blocks CTE
-    $params[] = $branch_id;
+    $params[] = $branch_id; // coh
+    $params[] = $branch_id; // ms.branch_id
+    $params[] = $branch_id; // appointments.branch_id
+    $params[] = $branch_id; // blocks.branch_id
     $params[] = $start;
     $params[] = $end;
-    $types   .= "iss";
+    $types   .= "iiiiss";
 
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);
