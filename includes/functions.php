@@ -795,6 +795,27 @@ function validateEmail($email) {
     return filter_var($email, FILTER_VALIDATE_EMAIL);
 }
 
+/**
+ * Validate allowed email provider.
+ * Only allow common providers we explicitly support (e.g. Gmail, Yahoo).
+ */
+function validateAllowedEmailDomain($email) {
+    if (!validateEmail($email)) {
+        return false;
+    }
+    $atPos = strrpos($email, '@');
+    if ($atPos === false) {
+        return false;
+    }
+    $domain = strtolower(substr($email, $atPos + 1));
+    $allowed = [
+        'gmail.com',
+        'yahoo.com',
+        'yahoo.com.ph'
+    ];
+    return in_array($domain, $allowed, true);
+}
+
 // Validate phone
 function validatePhone($phone) {
     return preg_match('/^[0-9+\-\s()]+$/', $phone);

@@ -222,8 +222,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     }
     if (empty($email)) {
         $errors['email'] = 'Email is required.';
-    } elseif (!validateEmail($email)) {
-        $errors['email'] = 'Invalid email address.';
+    } elseif (!validateAllowedEmailDomain($email)) {
+        $errors['email'] = 'Please use a valid Gmail or Yahoo email address.';
     }
     if (empty($phone)) {
         $errors['phone'] = 'Phone number is required.';
@@ -417,6 +417,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                            maxlength="6" pattern="[0-9]{6}" required autofocus
                                            placeholder="000000" style="font-size: 24px; letter-spacing: 8px; font-family: monospace;">
                                     <small class="text-muted">Enter the 6-digit code sent to your email</small>
+                                    <?php if (!empty($error)): ?>
+                                        <div class="text-danger small mt-1"><?php echo $error; ?></div>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="d-grid gap-2">
                                     <button type="submit" class="btn btn-primary btn-lg">Verify Email</button>

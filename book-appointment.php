@@ -48,13 +48,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Validation
         if (empty($service_id) || empty($appointment_date) || empty($appointment_time)) {
             $error = 'Please fill in all required fields.';
-        } elseif (hasUpcomingAppointment($patient_id)) {
-            $error = 'You already have an upcoming appointment. Please complete or cancel it before booking a new one.';
-        } elseif (!canBookOnline($patient_id)) {
-            $error = 'You have multiple recent no-shows. Please call the clinic to book a new appointment.';
-        } elseif (isDateBlocked($appointment_date, $branch_id)) {
-            $error = 'Selected date is not available.';
         } else {
+            // Enforce booking window: tomorrow up to 6 months ahead (exclude today and past)
+            $today = new DateTimeImmutable('today');
+            $minDate = $today->modify('+1 day');
+            $maxDate = $today->modify('+6 months');
+            $apptDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $appointment_date) ?: null;
+            if (!$apptDateObj || $apptDateObj < $minDate || $apptDateObj > $maxDate) {
+                $error = 'Selected date is outside the allowed booking window.';
+            }
+        }
+        if (empty($error) && hasUpcomingAppointment($patient_id)) {
+            $error = 'You already have an upcoming appointment. Please complete or cancel it before booking a new one.';
+        } elseif (empty($error) && !canBookOnline($patient_id)) {
+            $error = 'You have multiple recent no-shows. Please call the clinic to book a new appointment.';
+        } elseif (empty($error) && isDateBlocked($appointment_date, $branch_id)) {
+            $error = 'Selected date is not available.';
+        } elseif (empty($error)) {
             // Check if slot is available
             $db = getDB();
 
@@ -136,8 +146,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <form method="POST" action="" id="appointmentForm">
                                 <div class="mb-3">
                                     <label class="form-label">Preferred Date <span class="text-danger">*</span></label>
+                                    <?php
+                                        $today = new DateTimeImmutable('today');
+                                        $minDate = $today->modify('+1 day');
+                                        $maxDate = $today->modify('+6 months');
+                                    ?>
                                     <input type="date" class="form-control" name="appointment_date" id="appointment_date" 
-                                           min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" required
+                                           min="<?php echo $minDate->format('Y-m-d'); ?>" 
+                                           max="<?php echo $maxDate->format('Y-m-d'); ?>"
+                                           required
                                            value="<?php echo htmlspecialchars($prefill_date); ?>">
                                     <small class="text-muted">Select a future date. Only dates with available slots will allow you to proceed.</small>
                                     <div class="text-danger small mt-1 d-none" id="dateError"></div>

@@ -113,8 +113,8 @@ if ($step === 'request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Too many attempts. Please try again in 1 hour.';
     } elseif (empty($email)) {
         $error = 'Please enter your email address.';
-    } elseif (!validateEmail($email)) {
-        $error = 'Invalid email address.';
+    } elseif (!validateAllowedEmailDomain($email)) {
+        $error = 'Please use a valid Gmail or Yahoo email address.';
     } else {
         $_SESSION['reset_attempts']++;
         if ($_SESSION['reset_attempts'] > 5) {
@@ -313,6 +313,9 @@ if ($step === 'reset' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                                            maxlength="6" pattern="[0-9]{6}" required autofocus
                                            placeholder="000000" style="font-size: 24px; letter-spacing: 8px; font-family: monospace;">
                                     <small class="text-muted">Enter the 6-digit code sent to your email</small>
+                                    <?php if (!empty($error)): ?>
+                                        <div class="text-danger small mt-1"><?php echo $error; ?></div>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="d-grid gap-2">
                                     <button type="submit" class="btn btn-primary btn-lg">Verify Code</button>
