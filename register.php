@@ -15,9 +15,16 @@ if (!isset($_SESSION['register_attempts'])) {
 if (!isset($_SESSION['register_block_until'])) {
     $_SESSION['register_block_until'] = 0;
 }
+if (!isset($_SESSION['register_resend_count'])) {
+    $_SESSION['register_resend_count'] = 0;
+}
+if (!isset($_SESSION['register_next_resend_at'])) {
+    $_SESSION['register_next_resend_at'] = 0;
+}
 
 $error = '';
 $success = '';
+$errors = [];
 $step = $_GET['step'] ?? 'register'; // register, verify
 
 $reg_ip = getClientIpAddress();
@@ -28,9 +35,14 @@ if ($step === 'register' && isIpRegistrationBlocked($reg_ip)) {
 // Handle resend code request
 if ($step === 'verify' && isset($_POST['resend_code'])) {
     $email = sanitize($_POST['email'] ?? '');
-    
-    if (time() < $_SESSION['register_block_until']) {
+    $now = time();
+
+    if ($now < $_SESSION['register_block_until']) {
         $error = 'Too many attempts. Please try again in 1 hour.';
+    } elseif ($now < ($_SESSION['register_next_resend_at'] ?? 0)) {
+        $waitSecs = $_SESSION['register_next_resend_at'] - $now;
+        $waitMins = max(1, ceil($waitSecs / 60));
+        $error = 'Please wait ' . $waitMins . ' minute(s) before requesting another code.';
     } elseif (empty($email)) {
         $error = 'Email address is required.';
     } else {
@@ -45,7 +57,7 @@ if ($step === 'verify' && isset($_POST['resend_code'])) {
                 
                 // Generate new verification code
                 $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+                $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
                 
                 // Invalidate old codes for this email
                 $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'registration'");
@@ -64,6 +76,15 @@ if ($step === 'verify' && isset($_POST['resend_code'])) {
                     
                     if ($mailer->sendVerificationCode($email, $verification_code, $patient_name)) {
                         $success = 'Verification code has been resent to your email.';
+                        // Cooldown sequence: 5 mins, then 15, then 30 for subsequent resends
+                        $_SESSION['register_resend_count'] = (int)$_SESSION['register_resend_count'] + 1;
+                        $cooldownMinutes = 5;
+                        if ($_SESSION['register_resend_count'] >= 2 && $_SESSION['register_resend_count'] < 3) {
+                            $cooldownMinutes = 15;
+                        } elseif ($_SESSION['register_resend_count'] >= 3) {
+                            $cooldownMinutes = 30;
+                        }
+                        $_SESSION['register_next_resend_at'] = $now + ($cooldownMinutes * 60);
                     } else {
                         $error = 'Failed to resend verification email. Please try again.';
                     }
@@ -123,10 +144,10 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST
                     $first_meta     = $reg_data['first_name_metaphone'] ?? null;
                     $last_meta      = $reg_data['last_name_metaphone'] ?? null;
 
-                    $stmt = $db->prepare("INSERT INTO patients (patient_number, first_name, last_name, middle_name, email, phone, birthdate, gender, address, phone_hash, first_name_metaphone, last_name_metaphone) 
-                                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt = $db->prepare("INSERT INTO patients (patient_number, first_name, last_name, middle_name, email, phone, birthdate, gender, address, phone_hash, first_name_metaphone, last_name_metaphone, suffix) 
+                                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->bind_param(
-                        "ssssssssssss",
+                        "sssssssssssss",
                         $patient_number,
                         $reg_data['first_name'],
                         $reg_data['last_name'],
@@ -138,7 +159,8 @@ if ($step === 'verify' && $_SERVER['REQUEST_METHOD'] === 'POST' && !isset($_POST
                         $reg_data['address'],
                         $phone_hash,
                         $first_meta,
-                        $last_meta
+                        $last_meta,
+                        $reg_data['suffix'] ?? null
                     );
 
                     if ($stmt->execute()) {
@@ -180,6 +202,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     $first_name = sanitize($_POST['first_name'] ?? '');
     $last_name = sanitize($_POST['last_name'] ?? '');
     $middle_name = sanitize($_POST['middle_name'] ?? '');
+    $suffix = sanitize($_POST['suffix'] ?? '');
     $email = sanitize($_POST['email'] ?? '');
     $phone = sanitize($_POST['phone'] ?? '');
     $birthdate = $_POST['birthdate'] ?? '';
@@ -190,30 +213,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     $captcha_token = $_POST['g-recaptcha-response'] ?? '';
     $accept_terms = isset($_POST['accept_terms']) ? (bool)$_POST['accept_terms'] : false;
 
-    // Validation
-    if (empty($first_name) || empty($last_name) || empty($email) || empty($phone) || empty($password)) {
-        $error = 'Please fill in all required fields.';
+    // Validation (collect field-specific errors)
+    if (empty($first_name)) {
+        $errors['first_name'] = 'First name is required.';
+    }
+    if (empty($last_name)) {
+        $errors['last_name'] = 'Last name is required.';
+    }
+    if (empty($email)) {
+        $errors['email'] = 'Email is required.';
     } elseif (!validateEmail($email)) {
-        $error = 'Invalid email address.';
+        $errors['email'] = 'Invalid email address.';
+    }
+    if (empty($phone)) {
+        $errors['phone'] = 'Phone number is required.';
     } elseif (!validatePhone($phone)) {
-        $error = 'Invalid phone number.';
-    } elseif (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '' && $captcha_token === '') {
-        $error = 'Please complete the verification below.';
-    } elseif (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '' && !verifyRecaptchaV2($captcha_token)) {
-        $error = 'Verification failed. Please try again.';
-    } elseif (isIpRegistrationBlocked($reg_ip)) {
-        $error = 'Too many registrations from this network. Please try again later.';
-    } elseif (!$accept_terms) {
-        $error = 'You must read and agree to the Terms & Agreement before creating an account.';
-    } elseif (strlen($password) < PASSWORD_MIN_LENGTH) {
-        $error = 'Password must be at least ' . PASSWORD_MIN_LENGTH . ' characters long.';
+        $errors['phone'] = 'Invalid phone number.';
+    }
+    if (empty($password)) {
+        $errors['password'] = 'Password is required.';
+    } elseif (!validatePasswordStrength($password)) {
+        $errors['password'] = 'Password must be 8–12 chars with at least 1 uppercase letter, 1 number, and 1 special character.';
+    }
+    if (empty($confirm_password)) {
+        $errors['confirm_password'] = 'Please confirm your password.';
     } elseif ($password !== $confirm_password) {
-        $error = 'Passwords do not match.';
-    } elseif (!empty($birthdate) && strtotime($birthdate) > strtotime('today')) {
-        $error = 'Birthdate cannot be in the future.';
-    } elseif (!empty($birthdate) && (int)date('Y', strtotime($birthdate)) > (int)date('Y')) {
-        $error = 'Birthdate year cannot exceed current year.';
-    } else {
+        $errors['confirm_password'] = 'Passwords do not match.';
+    }
+    if (!empty($birthdate)) {
+        $birth_ts = strtotime($birthdate);
+        if ($birth_ts === false) {
+            $errors['birthdate'] = 'Invalid birthdate.';
+        } else {
+            $today = new DateTimeImmutable('today');
+            $dob = new DateTimeImmutable($birthdate);
+            $age = (int)$dob->diff($today)->y;
+            if ($age < 18 || $age > 90) {
+                $errors['birthdate'] = 'You must be between 18 and 90 years old.';
+            }
+        }
+    }
+    if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '' && $captcha_token === '') {
+        $errors['captcha'] = 'Please complete the verification below.';
+    } elseif (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '' && !verifyRecaptchaV2($captcha_token)) {
+        $errors['captcha'] = 'Verification failed. Please try again.';
+    }
+    if (!$accept_terms) {
+        $errors['accept_terms'] = 'You must read and agree to the Terms & Agreement before creating an account.';
+    }
+    if (isIpRegistrationBlocked($reg_ip)) {
+        $error = 'Too many registrations from this network. Please try again later.';
+    }
+
+    if (empty($errors) && empty($error)) {
         if (time() < $_SESSION['register_block_until']) {
             $error = 'Too many attempts. Please try again in 1 hour.';
         } else {
@@ -229,7 +281,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                 $stmt->bind_param("s", $email);
                 $stmt->execute();
                 if ($stmt->get_result()->num_rows > 0) {
-                    $error = 'Email already registered. Please login instead.';
+                    $errors['email'] = 'Email already registered. Please login instead.';
                 } else {
                     // Duplicate prevention using Metaphone 3 and birthdate window
                     $metaKeys = getMetaphone3Keys($first_name, $last_name);
@@ -249,17 +301,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                         if ($dup) {
                             $dupName = $dup['first_name'] . ' ' . $dup['last_name'];
                             $dupDob  = $dup['birthdate'];
-                            $error = 'Possible duplicate found: ' . htmlspecialchars($dupName) . ' (born ' . htmlspecialchars($dupDob) . '). Please contact the clinic before creating a new account.';
+                            $errors['birthdate'] = 'Possible duplicate found: ' . htmlspecialchars($dupName) . ' (born ' . htmlspecialchars($dupDob) . '). Please contact the clinic before creating a new account.';
                         }
                     }
 
                     // Only proceed if no duplicate was found
-                    if (empty($error)) {
+                    if (empty($errors) && empty($error)) {
                         // Store registration data in session (NOT in database yet), include metaphone keys
                     $_SESSION['pending_registration'] = [
                         'first_name' => $first_name,
                         'last_name' => $last_name,
                         'middle_name' => $middle_name,
+                        'suffix' => $suffix,
                         'email' => $email,
                         'phone' => $phone,
                         'birthdate' => $birthdate ?: null,
@@ -272,7 +325,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                     
                     // Generate 6-digit verification code
                     $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                    $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+                    $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
                     
                     // Invalidate any old codes for this email
                     $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'registration'");
@@ -348,7 +401,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                         <?php if ($error): ?>
                             <div class="alert alert-danger"><?php echo $error; ?></div>
                         <?php endif; ?>
-
                         <?php if ($success): ?>
                             <div class="alert alert-success"><?php echo $success; ?></div>
                         <?php endif; ?>
@@ -389,32 +441,57 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">First Name <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" name="first_name" required value="<?php echo $_POST['first_name'] ?? ''; ?>">
+                                    <input type="text" class="form-control" name="first_name" required value="<?php echo htmlspecialchars($_POST['first_name'] ?? ''); ?>">
+                                    <?php if (!empty($errors['first_name'])): ?>
+                                        <div class="text-danger small mt-1"><?php echo $errors['first_name']; ?></div>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="col-md-6 mb-3">
+                                <div class="col-md-4 mb-3">
                                     <label class="form-label">Last Name <span class="text-danger">*</span></label>
-                                    <input type="text" class="form-control" name="last_name" required value="<?php echo $_POST['last_name'] ?? ''; ?>">
+                                    <input type="text" class="form-control" name="last_name" required value="<?php echo htmlspecialchars($_POST['last_name'] ?? ''); ?>">
+                                    <?php if (!empty($errors['last_name'])): ?>
+                                        <div class="text-danger small mt-1"><?php echo $errors['last_name']; ?></div>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="col-md-2 mb-3">
+                                    <label class="form-label">Suffix</label>
+                                    <input type="text" class="form-control" name="suffix" placeholder="Jr, Sr, II" value="<?php echo htmlspecialchars($_POST['suffix'] ?? ''); ?>">
                                 </div>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Middle Name</label>
-                                <input type="text" class="form-control" name="middle_name" value="<?php echo $_POST['middle_name'] ?? ''; ?>">
+                                <input type="text" class="form-control" name="middle_name" value="<?php echo htmlspecialchars($_POST['middle_name'] ?? ''); ?>">
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Email <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" name="email" required value="<?php echo $_POST['email'] ?? ''; ?>">
+                                <input type="email" class="form-control" name="email" required value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
+                                <?php if (!empty($errors['email'])): ?>
+                                    <div class="text-danger small mt-1"><?php echo $errors['email']; ?></div>
+                                <?php endif; ?>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Phone Number <span class="text-danger">*</span></label>
                                 <input type="tel" class="form-control" name="phone" required maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
                                 <small class="text-muted">Philippines mobile: 11 digits (e.g. 09161234567)</small>
+                                <?php if (!empty($errors['phone'])): ?>
+                                    <div class="text-danger small mt-1"><?php echo $errors['phone']; ?></div>
+                                <?php endif; ?>
                             </div>
                             <div class="row">
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Birthdate</label>
+                                    <?php
+                                        $today = new DateTime('today');
+                                        $maxDob = $today->modify('-18 years')->format('Y-m-d');
+                                        $minDob = (new DateTime('today'))->modify('-90 years')->format('Y-m-d');
+                                    ?>
                                     <input type="date" class="form-control" name="birthdate" 
-                                           max="<?php echo date('Y-m-d'); ?>" 
-                                           value="<?php echo $_POST['birthdate'] ?? ''; ?>">
+                                           min="<?php echo $minDob; ?>" 
+                                           max="<?php echo $maxDob; ?>" 
+                                           value="<?php echo htmlspecialchars($_POST['birthdate'] ?? ''); ?>">
+                                    <?php if (!empty($errors['birthdate'])): ?>
+                                        <div class="text-danger small mt-1"><?php echo $errors['birthdate']; ?></div>
+                                    <?php endif; ?>
                                 </div>
                                 <div class="col-md-6 mb-3">
                                     <label class="form-label">Gender</label>
@@ -433,12 +510,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             <div class="mb-3">
                                 <label class="form-label">Password <span class="text-danger">*</span></label>
                                 <div class="input-group">
-                                    <input type="password" class="form-control" name="password" id="password" required minlength="<?php echo PASSWORD_MIN_LENGTH; ?>">
+                                    <input type="password" class="form-control" name="password" id="password" required minlength="<?php echo PASSWORD_MIN_LENGTH; ?>" maxlength="12">
                                     <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
                                         <i class="bi bi-eye" id="password-icon"></i>
                                     </button>
                                 </div>
-                                <small class="text-muted">Minimum <?php echo PASSWORD_MIN_LENGTH; ?> characters</small>
+                                <small class="text-muted">8–12 characters, with at least 1 uppercase letter, 1 number, and 1 special character.</small>
+                                <?php if (!empty($errors['password'])): ?>
+                                    <div class="text-danger small mt-1"><?php echo $errors['password']; ?></div>
+                                <?php endif; ?>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Confirm Password <span class="text-danger">*</span></label>
@@ -448,6 +528,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                         <i class="bi bi-eye" id="confirm_password-icon"></i>
                                     </button>
                                 </div>
+                                <?php if (!empty($errors['confirm_password'])): ?>
+                                    <div class="text-danger small mt-1"><?php echo $errors['confirm_password']; ?></div>
+                                <?php endif; ?>
                             </div>
                             <div class="mb-3">
                                 <div class="form-check">
@@ -460,10 +543,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                         for using <?php echo APP_NAME; ?>.
                                     </label>
                                 </div>
+                                <?php if (!empty($errors['accept_terms'])): ?>
+                                    <div class="text-danger small mt-1"><?php echo $errors['accept_terms']; ?></div>
+                                <?php endif; ?>
                             </div>
                             <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
                             <div class="mb-3">
                                 <div class="g-recaptcha" data-sitekey="<?php echo htmlspecialchars(RECAPTCHA_SITE_KEY); ?>"></div>
+                                <?php if (!empty($errors['captcha'])): ?>
+                                    <div class="text-danger small mt-1"><?php echo $errors['captcha']; ?></div>
+                                <?php endif; ?>
                             </div>
                             <?php endif; ?>
                             <div class="d-grid">

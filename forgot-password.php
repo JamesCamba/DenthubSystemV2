@@ -15,6 +15,12 @@ if (!isset($_SESSION['reset_attempts'])) {
 if (!isset($_SESSION['reset_block_until'])) {
     $_SESSION['reset_block_until'] = 0;
 }
+if (!isset($_SESSION['reset_resend_count'])) {
+    $_SESSION['reset_resend_count'] = 0;
+}
+if (!isset($_SESSION['reset_next_resend_at'])) {
+    $_SESSION['reset_next_resend_at'] = 0;
+}
 
 $error = '';
 $success = '';
@@ -23,9 +29,14 @@ $step = $_GET['step'] ?? 'request'; // request, verify, reset
 // Handle resend code request
 if ($step === 'verify' && isset($_POST['resend_code'])) {
     $email = sanitize($_POST['email'] ?? '');
-    
-    if (time() < $_SESSION['reset_block_until']) {
+    $now = time();
+
+    if ($now < $_SESSION['reset_block_until']) {
         $error = 'Too many attempts. Please try again in 1 hour.';
+    } elseif ($now < ($_SESSION['reset_next_resend_at'] ?? 0)) {
+        $waitSecs = $_SESSION['reset_next_resend_at'] - $now;
+        $waitMins = max(1, ceil($waitSecs / 60));
+        $error = 'Please wait ' . $waitMins . ' minute(s) before requesting another code.';
     } elseif (empty($email)) {
         $error = 'Email address is required.';
     } else {
@@ -47,7 +58,7 @@ if ($step === 'verify' && isset($_POST['resend_code'])) {
         } else {
             // Generate new verification code
             $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+            $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
             
             // Invalidate old codes for this email
             $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'password_reset'");
@@ -75,6 +86,14 @@ if ($step === 'verify' && isset($_POST['resend_code'])) {
                 
                 if ($mailer->sendVerificationCode($email, $verification_code, $patient_name, 'password_reset')) {
                     $success = 'Verification code has been resent to your email.';
+                    $_SESSION['reset_resend_count'] = (int)$_SESSION['reset_resend_count'] + 1;
+                    $cooldownMinutes = 5;
+                    if ($_SESSION['reset_resend_count'] >= 2 && $_SESSION['reset_resend_count'] < 3) {
+                        $cooldownMinutes = 15;
+                    } elseif ($_SESSION['reset_resend_count'] >= 3) {
+                        $cooldownMinutes = 30;
+                    }
+                    $_SESSION['reset_next_resend_at'] = $now + ($cooldownMinutes * 60);
                 } else {
                     $error = 'Failed to resend verification email. Please try again.';
                 }
@@ -115,7 +134,7 @@ if ($step === 'request' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 // Generate 6-digit verification code
                 $verification_code = str_pad(rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                $expires_at = date('Y-m-d H:i:s', strtotime('+10 minutes'));
+                $expires_at = date('Y-m-d H:i:s', strtotime('+15 minutes'));
                 
                 // Invalidate any old codes for this email
                 $invalidateStmt = $db->prepare("UPDATE email_verification_codes SET is_used = TRUE WHERE email = ? AND purpose = 'password_reset'");

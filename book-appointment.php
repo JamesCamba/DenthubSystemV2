@@ -135,53 +135,51 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <?php endif; ?>
                             <form method="POST" action="" id="appointmentForm">
                                 <div class="mb-3">
-                                    <label class="form-label">Branch <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="branch_id" id="branch_id" required>
-                                        <?php foreach ($branches as $b): ?>
-                                            <option value="<?php echo (int)$b['branch_id']; ?>" <?php echo ($prefill_branch_id && $prefill_branch_id === (int)$b['branch_id']) ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($b['branch_name']); ?><?php if (!empty($b['address'])): ?> — <?php echo htmlspecialchars($b['address']); ?><?php endif; ?>
-                                            </option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                </div>
-                                <div class="mb-3">
-                                    <label class="form-label">Service Type <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="service_id" id="service_id" required>
-                                        <option value="">Select a service...</option>
-                                        <?php 
-                                        $services->data_seek(0);
-                                        while ($service = $services->fetch_assoc()): 
-                                        ?>
-                                            <option value="<?php echo $service['service_id']; ?>" 
-                                                <?php echo ($selected_service == $service['service_id']) ? 'selected' : ''; ?>>
-                                                <?php echo htmlspecialchars($service['service_name']); ?>
-                                            </option>
-                                        <?php endwhile; ?>
-                                    </select>
-                                </div>
-
-                                <div class="mb-3">
-                                    <label class="form-label">Dentist (Optional)</label>
-                                    <select class="form-select" name="dentist_id" id="dentist_id" disabled>
-                                        <option value="">Select branch and service first</option>
-                                    </select>
-                                    <small class="text-muted">Select branch and service to see dentists assigned to that branch</small>
-                                </div>
-
-                                <div class="mb-3">
                                     <label class="form-label">Preferred Date <span class="text-danger">*</span></label>
                                     <input type="date" class="form-control" name="appointment_date" id="appointment_date" 
                                            min="<?php echo date('Y-m-d', strtotime('+1 day')); ?>" required
                                            value="<?php echo htmlspecialchars($prefill_date); ?>">
-                                    <small class="text-muted">Select a date (tomorrow onwards)</small>
+                                    <small class="text-muted">Select a future date. Only dates with available slots will allow you to proceed.</small>
+                                    <div class="text-danger small mt-1 d-none" id="dateError"></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Branch <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="branch_id" id="branch_id" required disabled>
+                                        <option value="">Select a date first</option>
+                                        <?php foreach ($branches as $b): ?>
+                                            <option value="<?php echo (int)$b['branch_id']; ?>">
+                                                <?php echo htmlspecialchars($b['branch_name']); ?><?php if (!empty($b['address'])): ?> — <?php echo htmlspecialchars($b['address']); ?><?php endif; ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <div class="text-danger small mt-1 d-none" id="branchError"></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Service Type <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="service_id" id="service_id" required disabled>
+                                        <option value="">Select date and branch first</option>
+                                    </select>
+                                    <div class="text-danger small mt-1 d-none" id="serviceError"></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Dentist <span class="text-muted">(Required once service selected)</span></label>
+                                    <select class="form-select" name="dentist_id" id="dentist_id" disabled>
+                                        <option value="">Select date, branch and service first</option>
+                                    </select>
+                                    <small class="text-muted">Only dentists with availability for the selected date, branch, and service are shown.</small>
+                                    <div class="text-danger small mt-1 d-none" id="dentistError"></div>
                                 </div>
 
                                 <div class="mb-3">
                                     <label class="form-label">Preferred Time <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="appointment_time" id="appointment_time" required>
-                                        <option value="">Select time...</option>
+                                    <select class="form-select" name="appointment_time" id="appointment_time" required disabled>
+                                        <option value="">Select dentist first</option>
                                     </select>
-                                    <small class="text-muted">Available time slots will load after selecting a date</small>
+                                    <small class="text-muted">Only available time slots for your chosen dentist will appear here.</small>
+                                    <div class="text-danger small mt-1 d-none" id="timeError"></div>
                                 </div>
 
                                 <div class="mb-3">
@@ -227,105 +225,307 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Load dentists based on branch + service (order: branch, then service)
         const HAS_UPCOMING_APPOINTMENT = <?php echo isPatientLoggedIn() ? ($hasUpcomingAppointment ? 'true' : 'false') : 'false'; ?>;
 
-        function loadDentists() {
-            const branchId = document.getElementById('branch_id').value;
-            const serviceId = document.getElementById('service_id').value;
-            const dentistSelect = document.getElementById('dentist_id');
-            
-            if (!branchId || !serviceId) {
-                dentistSelect.innerHTML = '<option value="">Select branch and service first</option>';
-                dentistSelect.disabled = true;
-                return;
-            }
-            dentistSelect.disabled = false;
-            dentistSelect.innerHTML = '<option value="">Loading...</option>';
-            
-            fetch(`api/get-dentists-by-service.php?branch_id=${branchId}&service_id=${serviceId}`)
-                .then(response => response.json())
-                .then(data => {
-                    dentistSelect.innerHTML = '<option value="">Any Available Dentist</option>';
-                    if (data.success && data.dentists.length > 0) {
-                        data.dentists.forEach(dentist => {
-                            const option = document.createElement('option');
-                            option.value = dentist.dentist_id;
-                            option.textContent = dentist.full_name;
-                            dentistSelect.appendChild(option);
-                        });
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    dentistSelect.innerHTML = '<option value="">Any Available Dentist</option>';
-                });
+        const dateInput = document.getElementById('appointment_date');
+        const branchSelect = document.getElementById('branch_id');
+        const serviceSelect = document.getElementById('service_id');
+        const dentistSelect = document.getElementById('dentist_id');
+        const timeSelect = document.getElementById('appointment_time');
+
+        const dateError = document.getElementById('dateError');
+        const branchError = document.getElementById('branchError');
+        const serviceError = document.getElementById('serviceError');
+        const dentistError = document.getElementById('dentistError');
+        const timeError = document.getElementById('timeError');
+
+        function showError(el, msg) {
+            if (!el) return;
+            el.textContent = msg || '';
+            el.classList.toggle('d-none', !msg);
         }
-        
-        document.getElementById('branch_id').addEventListener('change', loadDentists);
-        document.getElementById('service_id').addEventListener('change', loadDentists);
-        if (document.getElementById('branch_id').value && document.getElementById('service_id').value) {
-            loadDentists();
+
+        function resetBranch() {
+            branchSelect.value = '';
+            branchSelect.disabled = true;
+            branchSelect.innerHTML = '<option value="">Select a date first</option>';
+            showError(branchError, '');
         }
-        
-        // Load available time slots when date is selected
-        function loadSlots() {
-            const date = document.getElementById('appointment_date').value;
-            const dentistId = document.getElementById('dentist_id').value;
-            const branchId = document.getElementById('branch_id') ? document.getElementById('branch_id').value : '1';
-            const timeSelect = document.getElementById('appointment_time');
-            
+
+        function resetService() {
+            serviceSelect.value = '';
+            serviceSelect.disabled = true;
+            serviceSelect.innerHTML = '<option value="">Select date and branch first</option>';
+            showError(serviceError, '');
+        }
+
+        function resetDentist() {
+            dentistSelect.value = '';
+            dentistSelect.disabled = true;
+            dentistSelect.innerHTML = '<option value="">Select date, branch and service first</option>';
+            showError(dentistError, '');
+        }
+
+        function resetTime() {
+            timeSelect.value = '';
+            timeSelect.disabled = true;
+            timeSelect.innerHTML = '<option value="">Select dentist first</option>';
+            showError(timeError, '');
+        }
+
+        function updateUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const dateVal = dateInput.value;
+            const branchVal = branchSelect.value;
+            const serviceVal = serviceSelect.value;
+            const dentistVal = dentistSelect.value;
+            if (dateVal) params.set('date', dateVal); else params.delete('date');
+            if (branchVal) params.set('branch_id', branchVal); else params.delete('branch_id');
+            if (serviceVal) params.set('service', serviceVal); else params.delete('service');
+            if (dentistVal) params.set('dentist_id', dentistVal); else params.delete('dentist_id');
+            const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '');
+            window.history.replaceState({}, '', newUrl);
+        }
+
+        // Step 1: Date selection
+        async function handleDateChange() {
+            const date = dateInput.value;
+            showError(dateError, '');
+            resetBranch();
+            resetService();
+            resetDentist();
+            resetTime();
+            updateUrlParams();
+
             if (!date) {
-                timeSelect.innerHTML = '<option value="">Select time...</option>';
                 return;
             }
 
-            fetch(`api/get-available-slots.php?date=${date}&dentist_id=${dentistId}&branch_id=${branchId}`)
-                .then(response => response.json())
-                .then(data => {
-                    timeSelect.innerHTML = '<option value="">Select time...</option>';
-                    if (data.success && data.slots.length > 0) {
-                        data.slots.forEach(slot => {
-                            const option = document.createElement('option');
-                            option.value = slot.slot_time;
-                            option.textContent = slot.display_time;
-                            timeSelect.appendChild(option);
-                        });
-                    } else {
-                        const option = document.createElement('option');
-                        option.value = '';
-                        option.textContent = 'No available slots for this date';
-                        timeSelect.appendChild(option);
+            branchSelect.disabled = true;
+            branchSelect.innerHTML = '<option value="">Checking availability...</option>';
+
+            try {
+                const res = await fetch(`api/get-available-branches.php?date=${encodeURIComponent(date)}`);
+                const data = await res.json();
+                if (!data.success) {
+                    showError(dateError, data.message || 'Unable to check availability for this date.');
+                    resetBranch();
+                    return;
+                }
+                const branches = data.branches || [];
+                if (!branches.length) {
+                    showError(dateError, 'No branches have available slots on this date.');
+                    resetBranch();
+                    return;
+                }
+
+                branchSelect.innerHTML = '<option value="">Select a branch...</option>';
+                branches.forEach(b => {
+                    const opt = document.createElement('option');
+                    opt.value = b.branch_id;
+                    opt.textContent = b.branch_name + (b.address ? ' — ' + b.address : '');
+                    if (!b.has_slots) {
+                        opt.disabled = true;
+                        opt.classList.add('text-muted');
                     }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    timeSelect.innerHTML = '<option value="">Error loading slots</option>';
+                    branchSelect.appendChild(opt);
                 });
+                branchSelect.disabled = false;
+            } catch (e) {
+                console.error(e);
+                showError(dateError, 'Error loading availability for this date.');
+                resetBranch();
+            }
         }
 
-        document.getElementById('appointment_date').addEventListener('change', loadSlots);
+        // Step 2: Branch selection
+        async function handleBranchChange() {
+            resetService();
+            resetDentist();
+            resetTime();
+            showError(branchError, '');
+            updateUrlParams();
 
-        document.getElementById('dentist_id').addEventListener('change', function() {
-            const date = document.getElementById('appointment_date').value;
-            if (date) loadSlots();
-        });
+            const date = dateInput.value;
+            const branchId = branchSelect.value;
+            if (!date || !branchId) {
+                return;
+            }
 
-        if (document.getElementById('branch_id')) {
-            document.getElementById('branch_id').addEventListener('change', function() {
-                const date = document.getElementById('appointment_date').value;
-                if (date) loadSlots();
-            });
+            serviceSelect.disabled = true;
+            serviceSelect.innerHTML = '<option value="">Loading services...</option>';
+
+            try {
+                const res = await fetch(`api/get-available-services.php?date=${encodeURIComponent(date)}&branch_id=${encodeURIComponent(branchId)}`);
+                const data = await res.json();
+                if (!data.success) {
+                    showError(serviceError, data.message || 'Unable to load services for this branch and date.');
+                    resetService();
+                    return;
+                }
+                const servicesData = data.services || [];
+                if (!servicesData.length) {
+                    showError(serviceError, 'No services have availability for this date and branch.');
+                    resetService();
+                    return;
+                }
+                serviceSelect.innerHTML = '<option value="">Select a service...</option>';
+                servicesData.forEach(svc => {
+                    const opt = document.createElement('option');
+                    opt.value = svc.service_id;
+                    opt.textContent = svc.service_name;
+                    if (!svc.has_slots) {
+                        opt.disabled = true;
+                        opt.classList.add('text-muted');
+                    }
+                    serviceSelect.appendChild(opt);
+                });
+                serviceSelect.disabled = false;
+            } catch (e) {
+                console.error(e);
+                showError(serviceError, 'Error loading services.');
+                resetService();
+            }
         }
 
-        // Client-side guard: prevent submitting when an upcoming appointment already exists
-        document.addEventListener('DOMContentLoaded', function() {
-            const form = document.getElementById('appointmentForm');
-            if (form) {
-                form.addEventListener('submit', function(e) {
-                    if (HAS_UPCOMING_APPOINTMENT) {
+        // Step 3: Service selection
+        async function handleServiceChange() {
+            resetDentist();
+            resetTime();
+            showError(serviceError, '');
+            updateUrlParams();
+
+            const date = dateInput.value;
+            const branchId = branchSelect.value;
+            const serviceId = serviceSelect.value;
+            if (!date || !branchId || !serviceId) {
+                return;
+            }
+
+            dentistSelect.disabled = true;
+            dentistSelect.innerHTML = '<option value="">Loading dentists...</option>';
+
+            try {
+                const res = await fetch(`api/get-dentists-by-service.php?branch_id=${encodeURIComponent(branchId)}&service_id=${encodeURIComponent(serviceId)}&date=${encodeURIComponent(date)}`);
+                const data = await res.json();
+                if (!data.success) {
+                    showError(dentistError, data.message || 'Unable to load dentists.');
+                    resetDentist();
+                    return;
+                }
+                const dentists = data.dentists || [];
+                if (!dentists.length) {
+                    showError(dentistError, 'No dentists have availability for this date, branch, and service.');
+                    resetDentist();
+                    return;
+                }
+                dentistSelect.innerHTML = '<option value="">Select a dentist...</option>';
+                dentists.forEach(d => {
+                    const opt = document.createElement('option');
+                    opt.value = d.dentist_id;
+                    opt.textContent = d.full_name;
+                    dentistSelect.appendChild(opt);
+                });
+                dentistSelect.disabled = false;
+            } catch (e) {
+                console.error(e);
+                showError(dentistError, 'Error loading dentists.');
+                resetDentist();
+            }
+        }
+
+        // Step 4 & 5: Dentist and time selection
+        async function handleDentistChange() {
+            resetTime();
+            showError(dentistError, '');
+            updateUrlParams();
+
+            const date = dateInput.value;
+            const branchId = branchSelect.value;
+            const dentistId = dentistSelect.value;
+            if (!date || !branchId || !dentistId) {
+                return;
+            }
+            await loadSlots(date, branchId, dentistId);
+        }
+
+        async function loadSlots(date, branchId, dentistId) {
+            timeSelect.disabled = true;
+            timeSelect.innerHTML = '<option value="">Loading slots...</option>';
+            showError(timeError, '');
+
+            try {
+                const res = await fetch(`api/get-available-slots.php?date=${encodeURIComponent(date)}&dentist_id=${encodeURIComponent(dentistId)}&branch_id=${encodeURIComponent(branchId)}`);
+                const data = await res.json();
+                timeSelect.innerHTML = '<option value="">Select time...</option>';
+                if (data.success && data.slots && data.slots.length > 0) {
+                    data.slots.forEach(slot => {
+                        const opt = document.createElement('option');
+                        opt.value = slot.slot_time;
+                        opt.textContent = slot.display_time;
+                        timeSelect.appendChild(opt);
+                    });
+                    timeSelect.disabled = false;
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = data.message || 'No available slots for this combination.';
+                    opt.disabled = true;
+                    timeSelect.appendChild(opt);
+                    timeSelect.disabled = true;
+                    showError(timeError, 'No available time slots. Please adjust your selections.');
+                }
+            } catch (e) {
+                console.error(e);
+                timeSelect.innerHTML = '<option value="">Error loading slots</option>';
+                timeSelect.disabled = true;
+                showError(timeError, 'Error loading time slots.');
+            }
+        }
+
+        // Event wiring and initial prefill handling
+        dateInput.addEventListener('change', handleDateChange);
+        branchSelect.addEventListener('change', handleBranchChange);
+        serviceSelect.addEventListener('change', handleServiceChange);
+        dentistSelect.addEventListener('change', handleDentistChange);
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (HAS_UPCOMING_APPOINTMENT) {
+                const form = document.getElementById('appointmentForm');
+                if (form) {
+                    form.addEventListener('submit', function (e) {
                         e.preventDefault();
                         alert('You already have an upcoming appointment. Please complete or cancel it before booking a new one.');
+                    });
+                }
+            }
+
+            // Handle prefilled date/branch/service from URL (calendar / service links)
+            if (dateInput.value) {
+                handleDateChange().then(() => {
+                    const params = new URLSearchParams(window.location.search);
+                    const preBranch = params.get('branch_id');
+                    const preService = params.get('service');
+                    const preDentist = params.get('dentist_id');
+                    if (preBranch) {
+                        branchSelect.value = preBranch;
+                        if (!branchSelect.disabled) {
+                            handleBranchChange().then(() => {
+                                if (preService) {
+                                    serviceSelect.value = preService;
+                                    if (!serviceSelect.disabled) {
+                                        handleServiceChange().then(() => {
+                                            if (preDentist) {
+                                                dentistSelect.value = preDentist;
+                                                if (!dentistSelect.disabled) {
+                                                    handleDentistChange();
+                                                }
+                                            }
+                                        });
+                                    }
+                                }
+                            });
+                        }
                     }
                 });
             }

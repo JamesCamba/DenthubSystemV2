@@ -128,6 +128,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
                                 <div class="col-sm-8"><?php echo formatTime($appointment['appointment_time']); ?></div>
                             </div>
                             <div class="row mb-3">
+                                <div class="col-sm-4"><strong>Branch:</strong></div>
+                                <div class="col-sm-8"><?php echo htmlspecialchars($appointment['branch_name'] ?? ''); ?></div>
+                            </div>
+                            <div class="row mb-3">
                                 <div class="col-sm-4"><strong>Status:</strong></div>
                                 <div class="col-sm-8">
                                     <?php 

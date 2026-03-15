@@ -24,12 +24,13 @@ $defaultBranchId = count($branches) ? (int)$branches[0]['branch_id'] : 0;
 $patient = getCurrentPatient();
 
 // Get upcoming appointments
-$stmt = $db->prepare("SELECT a.*, s.service_name, u.full_name as dentist_name
+$stmt = $db->prepare("SELECT a.*, s.service_name, u.full_name as dentist_name, b.branch_name
                       FROM appointments a
                       JOIN services s ON a.service_id = s.service_id
                       LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
                       LEFT JOIN users u ON d.user_id = u.user_id
-                      WHERE a.patient_id = ? AND a.appointment_date >= CURDATE()
+                      JOIN branches b ON a.branch_id = b.branch_id
+                      WHERE a.patient_id = ? AND a.appointment_date >= CURRENT_DATE
                       ORDER BY a.appointment_date ASC, a.appointment_time ASC
                       LIMIT 10");
 $stmt->bind_param("i", $patient_id);
@@ -37,12 +38,13 @@ $stmt->execute();
 $upcoming_appointments = $stmt->get_result();
 
 // Get appointment history
-$stmt = $db->prepare("SELECT a.*, s.service_name, u.full_name as dentist_name
+$stmt = $db->prepare("SELECT a.*, s.service_name, u.full_name as dentist_name, b.branch_name
                       FROM appointments a
                       JOIN services s ON a.service_id = s.service_id
                       LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
                       LEFT JOIN users u ON d.user_id = u.user_id
-                      WHERE a.patient_id = ? AND a.appointment_date < CURDATE()
+                      JOIN branches b ON a.branch_id = b.branch_id
+                      WHERE a.patient_id = ? AND a.appointment_date < CURRENT_DATE
                       ORDER BY a.appointment_date DESC, a.appointment_time DESC
                       LIMIT 10");
 $stmt->bind_param("i", $patient_id);
@@ -164,6 +166,7 @@ $appointment_history = $stmt->get_result();
                                     <th>Date</th>
                                     <th>Time</th>
                                     <th>Dentist</th>
+                                    <th>Branch</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
@@ -176,6 +179,7 @@ $appointment_history = $stmt->get_result();
                                         <td><?php echo formatDate($apt['appointment_date']); ?></td>
                                         <td><?php echo formatTime($apt['appointment_time']); ?></td>
                                         <td><?php echo $apt['dentist_name'] ? htmlspecialchars($apt['dentist_name']) : 'TBA'; ?></td>
+                                        <td><?php echo htmlspecialchars($apt['branch_name'] ?? ''); ?></td>
                                         <td>
                                             <span class="badge bg-<?php echo getStatusBadge($apt['status']); ?>">
                                                 <?php echo ucfirst($apt['status']); ?>
@@ -213,6 +217,7 @@ $appointment_history = $stmt->get_result();
                                     <th>Date</th>
                                     <th>Time</th>
                                     <th>Dentist</th>
+                                    <th>Branch</th>
                                     <th>Status</th>
                                 </tr>
                             </thead>
@@ -224,6 +229,7 @@ $appointment_history = $stmt->get_result();
                                         <td><?php echo formatDate($apt['appointment_date']); ?></td>
                                         <td><?php echo formatTime($apt['appointment_time']); ?></td>
                                         <td><?php echo $apt['dentist_name'] ? htmlspecialchars($apt['dentist_name']) : 'N/A'; ?></td>
+                                        <td><?php echo htmlspecialchars($apt['branch_name'] ?? ''); ?></td>
                                         <td>
                                             <span class="badge bg-<?php echo getStatusBadge($apt['status']); ?>">
                                                 <?php echo ucfirst($apt['status']); ?>

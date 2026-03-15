@@ -800,6 +800,24 @@ function validatePhone($phone) {
     return preg_match('/^[0-9+\-\s()]+$/', $phone);
 }
 
+/**
+ * Validate password strength.
+ * Rules:
+ * - 8 to 12 characters
+ * - At least 1 uppercase letter
+ * - At least 1 digit
+ * - At least 1 special character
+ */
+function validatePasswordStrength($password) {
+    if (!is_string($password)) return false;
+    $len = strlen($password);
+    if ($len < 8 || $len > 12) return false;
+    if (!preg_match('/[A-Z]/', $password)) return false;
+    if (!preg_match('/[0-9]/', $password)) return false;
+    if (!preg_match('/[\W_]/', $password)) return false;
+    return true;
+}
+
 // Can this patient book online based on recent no-shows?
 // Returns true if allowed, false if patient must call the clinic.
 function canBookOnline($patient_id) {

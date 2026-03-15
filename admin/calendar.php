@@ -119,6 +119,22 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
     <script>
         let currentYear = <?php echo (int)$year; ?>;
         let currentMonth = <?php echo (int)$month; ?>; // 1-12
+        const minYear = 2026;
+        const minMonth = 2;
+        (function clampInitialMonth() {
+            if (currentYear < minYear || (currentYear === minYear && currentMonth < minMonth)) {
+                currentYear = minYear;
+                currentMonth = minMonth;
+            }
+            const today = new Date();
+            const maxDate = new Date(today.getFullYear(), today.getMonth() + 6, 1);
+            const maxYear = maxDate.getFullYear();
+            const maxMonth = maxDate.getMonth() + 1;
+            if (currentYear > maxYear || (currentYear === maxYear && currentMonth > maxMonth)) {
+                currentYear = maxYear;
+                currentMonth = maxMonth;
+            }
+        })();
 
         function loadCalendar() {
             const branchId = document.getElementById('calendarBranch').value || 0;
@@ -218,19 +234,35 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
 
         document.getElementById('calendarBranch').addEventListener('change', () => loadCalendar());
         document.getElementById('prevMonthBtn').addEventListener('click', () => {
-            currentMonth--;
-            if (currentMonth < 1) {
-                currentMonth = 12;
-                currentYear--;
+            let y = currentYear;
+            let m = currentMonth - 1;
+            if (m < 1) {
+                m = 12;
+                y--;
             }
+            if (y < minYear || (y === minYear && m < minMonth)) {
+                return;
+            }
+            currentYear = y;
+            currentMonth = m;
             loadCalendar();
         });
         document.getElementById('nextMonthBtn').addEventListener('click', () => {
-            currentMonth++;
-            if (currentMonth > 12) {
-                currentMonth = 1;
-                currentYear++;
+            const today = new Date();
+            const maxDate = new Date(today.getFullYear(), today.getMonth() + 6, 1);
+            const maxYear = maxDate.getFullYear();
+            const maxMonth = maxDate.getMonth() + 1;
+            let y = currentYear;
+            let m = currentMonth + 1;
+            if (m > 12) {
+                m = 1;
+                y++;
             }
+            if (y > maxYear || (y === maxYear && m > maxMonth)) {
+                return;
+            }
+            currentYear = y;
+            currentMonth = m;
             loadCalendar();
         });
 

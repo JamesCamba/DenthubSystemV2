@@ -120,6 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
                             <div class="col-sm-4"><strong>Time:</strong></div>
                             <div class="col-sm-8"><?php echo formatTime($appointment['appointment_time']); ?></div>
                         </div>
+                        <div class="row mb-3">
+                            <div class="col-sm-4"><strong>Branch:</strong></div>
+                            <div class="col-sm-8"><?php echo htmlspecialchars($appointment['branch_name'] ?? ''); ?></div>
+                        </div>
                         <form method="POST" action="" onsubmit="return confirm('Are you sure you want to change the appointment status? This will notify the patient by email.');">
                             <div class="row mb-3">
                                 <div class="col-sm-4"><strong>Status:</strong></div>

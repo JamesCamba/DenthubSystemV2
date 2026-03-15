@@ -24,10 +24,10 @@ CREATE TABLE "appointments" (
 	"status" varchar(20) DEFAULT 'pending',
 	"reason_for_visit" text,
 	"notes" text,
-	"cancellation_reason" text,
 	"created_by" integer,
 	"created_at" timestamp DEFAULT CURRENT_TIMESTAMP,
 	"updated_at" timestamp DEFAULT CURRENT_TIMESTAMP,
+	"cancellation_reason" text,
 	CONSTRAINT "appointments_status_check" CHECK (((status)::text = ANY (ARRAY[('pending'::character varying)::text, ('confirmed'::character varying)::text, ('completed'::character varying)::text, ('cancelled'::character varying)::text, ('no_show'::character varying)::text])))
 );
 CREATE TABLE "blocked_dates" (
@@ -194,6 +194,7 @@ CREATE TABLE "patients" (
 	"last_no_show_date" date,
 	"first_name_metaphone" varchar(20),
 	"last_name_metaphone" varchar(20),
+	"suffix" varchar(20),
 	CONSTRAINT "patients_gender_check" CHECK ((((gender)::text = ANY (ARRAY[('Male'::character varying)::text, ('Female'::character varying)::text, ('Other'::character varying)::text])) OR (gender IS NULL)))
 );
 CREATE TABLE "services" (
