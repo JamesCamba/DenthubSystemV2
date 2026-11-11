@@ -205,6 +205,29 @@ class MySQLiCompatibleConnection {
     public function close() {
         $this->pdo = null;
     }
+
+    public function pdo() {
+        return $this->pdo;
+    }
+
+    public function begin_transaction() {
+        return $this->pdo->beginTransaction();
+    }
+
+    public function commit() {
+        return $this->pdo->commit();
+    }
+
+    public function rollback() {
+        if ($this->pdo->inTransaction()) {
+            return $this->pdo->rollBack();
+        }
+        return false;
+    }
+
+    public function in_transaction() {
+        return $this->pdo->inTransaction();
+    }
 }
 
 class Database {
@@ -234,9 +257,11 @@ class Database {
             $this->connection = new MySQLiCompatibleConnection($pdo);
             
         } catch (PDOException $e) {
-            die("Database connection error: " . $e->getMessage());
+            error_log('Database connection error: ' . $e->getMessage());
+            die('Database connection error. Please try again later.');
         } catch (Exception $e) {
-            die("Database connection error: " . $e->getMessage());
+            error_log('Database connection error: ' . $e->getMessage());
+            die('Database connection error. Please try again later.');
         }
     }
 

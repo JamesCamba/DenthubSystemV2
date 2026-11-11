@@ -6,6 +6,7 @@ require_once '../includes/config.php';
 require_once '../includes/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/export.php';
 
 requireRole('admin');
 
@@ -13,24 +14,67 @@ $db = getDB();
 
 // Period quick-select
 $period = $_GET['period'] ?? '';
-$today = date('Y-m-d');
+$todayDt = appTodayImmutable();
+$today = $todayDt->format('Y-m-d');
 if ($period === 'daily') {
     $start_date = $end_date = $today;
 } elseif ($period === 'weekly') {
-    $start_date = date('Y-m-d', strtotime('monday this week'));
+    $dow = (int)$todayDt->format('N');
+    $start_date = $todayDt->modify('-' . ($dow - 1) . ' days')->format('Y-m-d');
     $end_date = $today;
 } elseif ($period === 'monthly') {
-    $start_date = date('Y-m-01');
+    $start_date = $todayDt->modify('first day of this month')->format('Y-m-d');
     $end_date = $today;
 } elseif ($period === 'annually') {
-    $start_date = date('Y-01-01');
+    $start_date = $todayDt->format('Y') . '-01-01';
     $end_date = $today;
 } else {
-    $start_date = $_GET['start_date'] ?? date('Y-m-01');
-    $end_date = $_GET['end_date'] ?? date('Y-m-d');
+    $rawStart = $_GET['start_date'] ?? appTodayImmutable()->modify('first day of this month')->format('Y-m-d');
+    $rawEnd = $_GET['end_date'] ?? $today;
+    $start_date = parseBookingDate($rawStart) ? $rawStart : appTodayImmutable()->modify('first day of this month')->format('Y-m-d');
+    $end_date = parseBookingDate($rawEnd) ? $rawEnd : $today;
 }
 
 $report_title = trim($_GET['report_title'] ?? 'Appointment Report');
+$report_title = substr(preg_replace('/[\r\n]+/', ' ', $report_title), 0, 120);
+
+if (isset($_GET['export']) && $_GET['export'] === 'appointments') {
+    $stmt = $db->prepare("
+        SELECT a.appointment_number, a.appointment_date, a.appointment_time, a.status,
+               p.last_name, p.first_name, s.service_name, u.full_name AS dentist_name, b.branch_name
+        FROM appointments a
+        JOIN patients p ON p.patient_id = a.patient_id
+        JOIN services s ON s.service_id = a.service_id
+        LEFT JOIN dentists d ON d.dentist_id = a.dentist_id
+        LEFT JOIN users u ON u.user_id = d.user_id
+        LEFT JOIN branches b ON b.branch_id = a.branch_id
+        WHERE a.appointment_date BETWEEN ? AND ?
+        ORDER BY a.appointment_date, a.appointment_time
+    ");
+    $stmt->bind_param("ss", $start_date, $end_date);
+    $stmt->execute();
+    $rows = $stmt->get_result();
+    header('Content-Type: text/csv; charset=UTF-8');
+    header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-z0-9_-]/i', '_', $report_title) . '_appointments_' . $start_date . '_' . $end_date . '.csv"');
+    $out = fopen('php://output', 'w');
+    fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF));
+    writeCsvLetterhead($out, $report_title . ' — appointment register', $start_date . ' to ' . $end_date);
+    fputcsv($out, ['Reference', 'Date', 'Time', 'Patient', 'Service', 'Dentist', 'Branch', 'Status']);
+    while ($row = $rows->fetch_assoc()) {
+        fputcsv($out, [
+            $row['appointment_number'],
+            formatDate($row['appointment_date']),
+            formatTime($row['appointment_time']),
+            trim($row['last_name'] . ', ' . $row['first_name']),
+            $row['service_name'],
+            $row['dentist_name'] ?: 'TBA',
+            $row['branch_name'],
+            ucfirst(str_replace('_', ' ', $row['status'])),
+        ]);
+    }
+    fclose($out);
+    exit;
+}
 
 // Export CSV
 if (isset($_GET['export']) && $_GET['export'] === 'csv') {
@@ -46,8 +90,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'csv') {
     header('Content-Disposition: attachment; filename="' . preg_replace('/[^a-z0-9_-]/i', '_', $report_title) . '_' . $start_date . '_' . $end_date . '.csv"');
     $out = fopen('php://output', 'w');
     fprintf($out, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM for Excel
-    fputcsv($out, [$report_title, 'Period: ' . $start_date . ' to ' . $end_date]);
-    fputcsv($out, []);
+    writeCsvLetterhead($out, $report_title, $start_date . ' to ' . $end_date);
     fputcsv($out, ['Date', 'Total Appointments', 'Completed', 'Cancelled']);
     while ($row = $rows->fetch_assoc()) {
         fputcsv($out, [formatDate($row['appointment_date']), $row['total'], $row['completed'], $row['cancelled']]);
@@ -97,15 +140,16 @@ $totals = $stmt->get_result()->fetch_assoc();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Reports - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <?php $asset_base = '../'; require __DIR__ . '/../includes/head-assets.php'; ?>
 </head>
-<body>
+<body class="print-report-page">
     <?php include 'navbar.php'; ?>
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
+        <div class="print-only">
+            <?php echo printDocumentStart($report_title, 'Period: ' . $start_date . ' to ' . $end_date); ?>
+        </div>
         <h1 class="denthub-page-title"><i class="bi bi-graph-up me-2"></i> Reports</h1>
 
         <!-- Generate Report: Period + Title + Export -->
@@ -139,7 +183,8 @@ $totals = $stmt->get_result()->fetch_assoc();
                         </div>
                         <div class="col-12">
                             <button type="submit" class="btn btn-primary me-2">Apply dates</button>
-                            <a href="?export=csv&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&report_title=<?php echo urlencode($report_title); ?>" class="btn btn-success"><i class="bi bi-file-earmark-spreadsheet"></i> Export to Excel (CSV)</a>
+                            <a href="?export=csv&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&report_title=<?php echo urlencode($report_title); ?>" class="btn btn-success"><i class="bi bi-file-earmark-spreadsheet"></i> Summary CSV</a>
+                            <a href="?export=appointments&start_date=<?php echo urlencode($start_date); ?>&end_date=<?php echo urlencode($end_date); ?>&report_title=<?php echo urlencode($report_title); ?>" class="btn btn-outline-success"><i class="bi bi-table"></i> Appointment register CSV</a>
                             <button type="button" class="btn btn-secondary" onclick="window.print();"><i class="bi bi-printer"></i> Print / Save as PDF</button>
                         </div>
                     </div>
@@ -252,14 +297,11 @@ $totals = $stmt->get_result()->fetch_assoc();
                 </div>
             </div>
         </div>
+        <div class="print-only">
+            <?php echo printDocumentEnd(); ?>
+        </div>
     </div>
     </main>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <style media="print">
-        .navbar, .card:not(.printable) .card-body form, .btn, nav, .no-print { display: none !important; }
-        .card.printable { break-inside: avoid; }
-    </style>
 </body>
 </html>
 

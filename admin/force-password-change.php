@@ -15,7 +15,7 @@ $success = '';
 
 // If flag is not set, go back to dashboard
 if (empty($_SESSION['must_change_password'])) {
-    header('Location: dashboard.php');
+    header('Location: ' . roleHomePath());
     exit;
 }
 
@@ -53,9 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Change Temporary Password - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <?php $asset_base = '../'; require __DIR__ . '/../includes/head-assets.php'; ?>
 </head>
 <body class="bg-light">
     <div class="container py-5">
@@ -70,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
 
                         <?php if ($error): ?>
-                            <div class="alert alert-danger"><?php echo $error; ?></div>
+                            <div class="alert alert-danger"><?php echo e($error); ?></div>
                         <?php endif; ?>
 
                         <form method="POST" action="">
@@ -97,7 +95,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 

@@ -4,27 +4,50 @@
  */
 
 :root {
-    /* Framework palette */
     --denthub-primary: #004AAD;
-    --denthub-hero-cards: #BBD5F9;
-    --denthub-footer: #363848;
+    --denthub-primary-600: #0b5ed7;
+    --denthub-hero-cards: #eef4ff;
+    --denthub-footer: #0f172a;
     --denthub-danger: #DC3545;
     --denthub-success: #198754;
-    --denthub-bg: #f8f9fa;
-    /* Convenience */
+    --denthub-bg: #f3f6fb;
+    --denthub-surface: #ffffff;
+    --denthub-text: #0f172a;
+    --denthub-muted: #5b6b80;
+    --denthub-border: #dbe3ee;
+    --denthub-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
+    --denthub-radius: 18px;
     --primary-color: var(--denthub-primary);
     --success-color: var(--denthub-success);
     --danger-color: var(--denthub-danger);
-    --warning-color: #ffc107;
-    --info-color: #0dcaf0;
+    --warning-color: #f59e0b;
+    --info-color: #0ea5e9;
 }
 
+html[data-theme="dark"] {
+    color-scheme: dark;
+    --denthub-primary: #60a5fa;
+    --denthub-primary-600: #93c5fd;
+    --denthub-hero-cards: #15243a;
+    --denthub-footer: #020617;
+    --denthub-bg: #0b1220;
+    --denthub-surface: #151d2e;
+    --denthub-text: #f8fafc;
+    --denthub-muted: #cbd5e1;
+    --denthub-border: #334155;
+    --denthub-shadow: 0 12px 32px rgba(0, 0, 0, 0.4);
+}
+
+html { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+
 body {
-    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    font-family: Inter, 'Segoe UI', system-ui, -apple-system, sans-serif;
     min-height: 100vh;
     display: flex;
     flex-direction: column;
-    background-color: #fff;
+    background-color: var(--denthub-bg);
+    color: var(--denthub-text);
 }
 
 /* ========== Public / Landing: top navbar #004AAD ========== */
@@ -143,15 +166,16 @@ footer.denthub-footer .text-white {
 
 /* ========== Sidebar (accounts): #004AAD, profile at BOTTOM ========== */
 .denthub-sidebar {
-    background-color: var(--denthub-primary);
+    background: linear-gradient(180deg, #003d91 0%, var(--denthub-primary) 42%, #06357a 100%);
     min-height: 100vh;
-    width: 260px;
+    width: 272px;
     position: fixed;
     left: 0;
     top: 0;
     z-index: 1030;
     display: flex;
     flex-direction: column;
+    box-shadow: 8px 0 24px rgba(0, 40, 90, 0.18);
 }
 .denthub-sidebar .sidebar-brand {
     padding: 1.25rem;
@@ -207,10 +231,11 @@ footer.denthub-footer .text-white {
 }
 
 .denthub-main {
-    margin-left: 260px;
+    margin-left: 272px;
     padding: 1.5rem 2rem;
     min-height: 100vh;
-    background-color: #fff;
+    background-color: var(--denthub-bg);
+    color: var(--denthub-text);
 }
 
 .denthub-page-title {
@@ -258,8 +283,8 @@ footer.denthub-footer .text-white {
     background-color: var(--denthub-success);
 }
 .denthub-stat-card.info {
-    background-color: #0dcaf0;
-    color: #212529;
+    background-color: #0b6ebd;
+    color: #fff;
 }
 
 /* ========== Tables: thead #004AAD ========== */
@@ -336,7 +361,7 @@ footer.denthub-footer .text-white {
 
 /* ========== Auth cards (login, register): light blue container ========== */
 .denthub-auth-card {
-    background: #fff;
+    background: var(--denthub-surface);
     border-radius: 16px;
     box-shadow: 0 4px 24px rgba(0, 74, 173, 0.12);
     border: none;
@@ -358,7 +383,9 @@ footer.denthub-footer .text-white {
 /* ========== Form controls ========== */
 .form-control, .form-select {
     border-radius: 8px;
-    border: 1px solid #dee2e6;
+    border: 1px solid var(--denthub-border);
+    background-color: var(--denthub-surface);
+    color: var(--denthub-text);
     padding: 0.5rem 0.75rem;
 }
 .form-control:focus, .form-select:focus {
@@ -368,9 +395,18 @@ footer.denthub-footer .text-white {
 
 /* ========== Cards generic ========== */
 .card {
-    border: 1px solid #e9ecef;
+    border: 1px solid var(--denthub-border);
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    background-color: var(--denthub-surface);
+    color: var(--denthub-text);
+    box-shadow: var(--denthub-shadow);
+}
+.denthub-section-alt {
+    background-color: #f8fafc;
+    color: var(--denthub-text);
+}
+.hero-lead {
+    color: var(--denthub-text);
 }
 .card:hover {
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
@@ -496,8 +532,8 @@ footer.denthub-footer .text-white {
 
 /* ========== Contact page: white cards, 1px border, title bars #004AAD ========== */
 .contact-card {
-    background: #fff;
-    border: 1px solid #dee2e6;
+    background: var(--denthub-surface);
+    border: 1px solid var(--denthub-border);
     border-radius: 12px;
     overflow: hidden;
 }
@@ -667,4 +703,372 @@ td .form-select.form-select-sm option {
 ::-webkit-scrollbar-thumb {
     background: #cbd5e1;
     border-radius: 4px;
+}
+
+.nav-group {
+    padding: 0.35rem 0 0.75rem;
+}
+.nav-group-label {
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: rgba(255,255,255,0.65);
+    padding: 0.35rem 1.25rem 0.2rem;
+    font-weight: 700;
+}
+.role-chip {
+    display: inline-block;
+    margin: 0.5rem 1.25rem 0;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.16);
+    color: #fff;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+.denthub-sidebar .nav-group .nav-link {
+    padding-left: 1.15rem;
+}
+
+.chart-card canvas {
+    max-height: 280px;
+}
+
+.booking-mini-cal th,
+.booking-mini-cal td {
+    width: 14.28%;
+    padding: 0.35rem;
+}
+.booking-cal-day {
+    border-radius: 8px;
+    cursor: default;
+    color: var(--denthub-text);
+}
+.booking-cal-day.is-open {
+    cursor: pointer;
+    background: rgba(25, 135, 84, 0.16);
+    color: var(--denthub-text);
+}
+.booking-cal-day.is-open:hover {
+    background: rgba(0, 74, 173, 0.18);
+}
+.booking-cal-day.is-disabled {
+    color: var(--denthub-muted);
+    background: rgba(148, 163, 184, 0.18);
+    cursor: not-allowed;
+}
+.booking-cal-day.is-blocked {
+    background: rgba(220, 53, 69, 0.12);
+}
+.booking-cal-day.is-selected {
+    outline: 2px solid var(--denthub-primary);
+    font-weight: 700;
+}
+
+html[data-theme="dark"] body,
+html[data-theme="dark"] .denthub-main {
+    background-color: var(--denthub-bg);
+    color: var(--denthub-text);
+}
+html[data-theme="dark"] .modal-content,
+html[data-theme="dark"] .list-group-item,
+html[data-theme="dark"] .dropdown-menu:not(.dropdown-menu-dark) {
+    background-color: var(--denthub-surface);
+    color: var(--denthub-text);
+}
+html[data-theme="dark"] .card:not(.denthub-stat-card):not(.bg-primary):not(.bg-success):not(.bg-warning):not(.bg-danger):not(.bg-info) {
+    background-color: var(--denthub-surface);
+    color: var(--denthub-text);
+    border-color: var(--denthub-border);
+}
+html[data-theme="dark"] .denthub-section-alt {
+    background-color: #111827;
+}
+html[data-theme="dark"] .hero-lead {
+    color: #e2e8f0;
+}
+html[data-theme="dark"] .table {
+    color: var(--denthub-text);
+    --bs-table-bg: transparent;
+    --bs-table-striped-bg: rgba(255,255,255,0.03);
+    --bs-table-hover-bg: rgba(59, 130, 246, 0.08);
+}
+html[data-theme="dark"] .table tbody tr:hover {
+    background-color: rgba(59, 130, 246, 0.08);
+}
+html[data-theme="dark"] .form-control,
+html[data-theme="dark"] .form-select,
+html[data-theme="dark"] .input-group-text {
+    background-color: #0b1220;
+    border-color: var(--denthub-border);
+    color: var(--denthub-text);
+}
+html[data-theme="dark"] .form-control::placeholder {
+    color: #94a3b8;
+}
+html[data-theme="dark"] .text-muted,
+html[data-theme="dark"] .text-dark {
+    color: var(--denthub-muted) !important;
+}
+html[data-theme="dark"] .bg-white,
+html[data-theme="dark"] section.bg-white,
+html[data-theme="dark"] .contact-card {
+    background-color: var(--denthub-surface) !important;
+    color: var(--denthub-text);
+}
+html[data-theme="dark"] .denthub-auth-card,
+html[data-theme="dark"] .denthub-card-light {
+    background-color: #152033;
+    color: var(--denthub-text);
+}
+html[data-theme="dark"] .hero-section {
+    color: #dbeafe;
+}
+html[data-theme="dark"] .hero-section h1,
+html[data-theme="dark"] .section-title {
+    color: #93c5fd;
+}
+html[data-theme="dark"] .alert-info {
+    background: #164e63;
+    color: #ecfeff;
+    border-color: #155e75;
+}
+html[data-theme="dark"] .alert-warning {
+    background: #78350f;
+    color: #fff7ed;
+    border-color: #9a3412;
+}
+html[data-theme="dark"] .alert-danger {
+    color: #fff;
+}
+html[data-theme="dark"] .alert-success {
+    background: #14532d;
+    color: #ecfdf5;
+    border-color: #166534;
+}
+html[data-theme="dark"] .denthub-stat-card.info {
+    color: #082f49;
+}
+html[data-theme="dark"] ::-webkit-scrollbar-track {
+    background: #0b1220;
+}
+html[data-theme="dark"] ::-webkit-scrollbar-thumb {
+    background: #475569;
+}
+
+.print-only {
+    display: none;
+}
+.print-letterhead {
+    display: none;
+}
+
+.print-document {
+    color: #0f172a;
+    font-family: Georgia, 'Times New Roman', serif;
+}
+.print-kv {
+    width: 100%;
+    border-collapse: collapse;
+}
+.print-kv th,
+.print-kv td {
+    border: 1px solid #cbd5e1;
+    padding: 0.55rem 0.75rem;
+    vertical-align: top;
+}
+.print-kv th {
+    width: 32%;
+    background: #e8f1ff;
+    color: #003d91;
+    text-align: left;
+    font-family: Inter, 'Segoe UI', sans-serif;
+}
+.print-doc-title {
+    color: #004AAD;
+    margin: 0 0 0.25rem;
+}
+.print-doc-sub,
+.print-doc-meta,
+.print-doc-footer {
+    color: #475569;
+}
+.print-signature {
+    display: flex;
+    justify-content: space-between;
+    gap: 2rem;
+    margin-top: 2.5rem;
+}
+.print-signature div {
+    flex: 1;
+    border-top: 1px solid #334155;
+    padding-top: 0.4rem;
+    text-align: center;
+    font-size: 10pt;
+}
+
+html[data-theme="dark"] .dropdown-menu {
+    background: #111827;
+    color: #f1f5f9;
+    border-color: #334155;
+}
+html[data-theme="dark"] .dropdown-item {
+    color: #e2e8f0;
+}
+html[data-theme="dark"] .dropdown-item:hover {
+    background: #1e293b;
+    color: #fff;
+}
+html[data-theme="dark"] .pagination .page-link {
+    background: #111827;
+    color: #e2e8f0;
+    border-color: #334155;
+}
+html[data-theme="dark"] .modal-content {
+    background: #111827;
+    color: #f1f5f9;
+}
+html[data-theme="dark"] .table thead,
+html[data-theme="dark"] .table thead th {
+    background-color: #1d4ed8 !important;
+    color: #fff !important;
+}
+html[data-theme="dark"] .table tbody td,
+html[data-theme="dark"] .table tbody th {
+    color: var(--denthub-text);
+    border-color: var(--denthub-border);
+}
+html[data-theme="dark"] .btn-info {
+    color: #fff;
+}
+html[data-theme="dark"] .card.bg-primary,
+html[data-theme="dark"] .card.bg-success,
+html[data-theme="dark"] .card.bg-danger,
+html[data-theme="dark"] .card.bg-info {
+    color: #fff;
+}
+html[data-theme="dark"] .card.bg-warning {
+    color: #1f2937;
+}
+html[data-theme="dark"] a:not(.btn):not(.nav-link):not(.dropdown-item) {
+    color: #93c5fd;
+}
+html[data-theme="dark"] .denthub-stat-card.info {
+    color: #fff;
+}
+html[data-theme="dark"] .denthub-stat-card.warning {
+    color: #1f2937;
+}
+html[data-theme="dark"] .card.bg-light {
+    background: #152033 !important;
+    color: var(--denthub-text);
+}
+html[data-theme="dark"] .list-group-item {
+    background: #152033;
+    color: var(--denthub-text);
+    border-color: var(--denthub-border);
+}
+html[data-theme="dark"] code {
+    color: #93c5fd;
+}
+
+@media print {
+    .denthub-sidebar,
+    .denthub-mobile-topbar,
+    .navbar,
+    .no-print,
+    [data-theme-toggle],
+    nav {
+        display: none !important;
+    }
+    .denthub-main {
+        margin: 0 !important;
+        padding: 12mm !important;
+        background: #fff !important;
+        color: #000 !important;
+    }
+    .print-only,
+    .print-letterhead {
+        display: block !important;
+    }
+    .print-hide {
+        display: none !important;
+    }
+    body.print-document-page .card,
+    body.print-document-page .alert,
+    body.print-document-page .denthub-page-title {
+        display: none !important;
+    }
+    body.print-document-page .print-only {
+        display: block !important;
+    }
+    .print-letterhead {
+        text-align: center;
+        border-bottom: 3px solid #004AAD;
+        margin-bottom: 1.25rem;
+        padding-bottom: 0.75rem;
+    }
+    .print-logo {
+        height: 52px;
+        width: auto;
+        margin-bottom: 0.35rem;
+    }
+    .print-letterhead .print-mark {
+        letter-spacing: 0.28em;
+        font-size: 9pt;
+        color: #004AAD;
+        font-weight: 700;
+        font-family: Inter, 'Segoe UI', sans-serif;
+    }
+    .print-letterhead h1 {
+        color: #004AAD;
+        font-size: 20pt;
+        margin: 0.2rem 0 0.25rem;
+        font-family: Inter, 'Segoe UI', sans-serif;
+    }
+    .print-letterhead p {
+        margin: 0;
+        color: #334155;
+        font-size: 10pt;
+    }
+    .print-letterhead .print-meta {
+        margin-top: 0.35rem;
+        font-size: 9pt;
+    }
+    .card {
+        box-shadow: none !important;
+        border: 1px solid #cbd5e1 !important;
+        break-inside: avoid;
+    }
+    .table thead {
+        background: #004AAD !important;
+        color: #fff !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    .print-kv th {
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+    a {
+        color: #000 !important;
+        text-decoration: none !important;
+    }
+}
+
+@media (max-width: 991.98px) {
+    .denthub-mobile-topbar [data-theme-toggle] {
+        margin-left: auto;
+    }
+}
+
+@media (max-width: 576px) {
+    .booking-mini-cal th,
+    .booking-mini-cal td {
+        font-size: 0.75rem;
+        padding: 0.2rem;
+    }
+    .btn-group.w-100 {
+        flex-wrap: wrap;
+    }
 }

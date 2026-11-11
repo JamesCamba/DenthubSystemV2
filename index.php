@@ -11,27 +11,33 @@ require_once 'includes/auth.php';
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Home - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <?php $asset_base = ''; require __DIR__ . '/includes/head-assets.php'; ?>
 </head>
 <body>
     <?php $nav_active = 'home'; require_once 'includes/nav-public.php'; ?>
 
-    <!-- Hero Section #BBD5F9 -->
     <section class="hero-section py-5">
         <div class="container">
-            <div class="row align-items-center">
+            <div class="row align-items-center g-4">
                 <div class="col-lg-6">
+                    <p class="text-uppercase small fw-semibold mb-2" style="letter-spacing:.12em;color:var(--denthub-primary);">Denthub Dental Clinic</p>
                     <h1 class="display-4 fw-bold mb-4">Your Smile, Our Priority</h1>
-                    <p class="lead mb-4 text-dark">Advanced dental care for a healthy smile. Book your appointment online today!</p>
-                    <a href="book-appointment.php" class="btn btn-primary btn-lg me-2">
+                    <p class="lead mb-4 hero-lead">Book online in minutes. See real availability, pick a dentist, and keep your visit on a 3-month calendar — no overlapping slots.</p>
+                    <a href="book-appointment.php" class="btn btn-primary btn-lg me-2 mb-2">
                         <i class="bi bi-calendar-check"></i> Book Appointment
                     </a>
-                    <a href="services.php" class="btn btn-outline-light btn-lg">Learn More</a>
+                    <a href="services.php" class="btn btn-outline-light btn-lg mb-2">View Services</a>
                 </div>
-                <div class="col-lg-6 text-center">
-                    <i class="bi bi-heart-pulse-fill" style="font-size: 200px; opacity: 0.3; color: var(--denthub-primary);"></i>
+                <div class="col-lg-6">
+                    <div class="card shadow-sm border-0 p-4" style="border-radius:20px;">
+                        <h5 class="mb-3">Why patients book here</h5>
+                        <ul class="list-unstyled mb-0">
+                            <li class="d-flex gap-2 mb-2"><i class="bi bi-check-circle-fill text-success"></i> Live dentist and branch availability</li>
+                            <li class="d-flex gap-2 mb-2"><i class="bi bi-check-circle-fill text-success"></i> No past dates or year-ahead bookings</li>
+                            <li class="d-flex gap-2 mb-2"><i class="bi bi-check-circle-fill text-success"></i> Confirmation you can print or save</li>
+                            <li class="d-flex gap-2"><i class="bi bi-check-circle-fill text-success"></i> Dark mode and mobile-ready layout</li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
@@ -77,7 +83,7 @@ require_once 'includes/auth.php';
     </section>
 
     <!-- Why Choose Us #BBD5F9 cards -->
-    <section class="py-5" style="background-color: #f8f9fa;">
+    <section class="py-5 denthub-section-alt">
         <div class="container">
             <h2 class="section-title text-center">Why Choose Us?</h2>
             <div class="row g-4">
@@ -157,7 +163,6 @@ require_once 'includes/auth.php';
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 

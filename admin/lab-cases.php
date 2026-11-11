@@ -3,6 +3,6 @@
  * Lab Cases - Removed from system. Redirect to dashboard.
  */
 require_once '../includes/auth.php';
-requireLogin();
+requireStaff();
 header('Location: dashboard.php');
 exit;

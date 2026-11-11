@@ -59,12 +59,62 @@ function hasRole($role) {
     return isLoggedIn() && $_SESSION['role'] === $role;
 }
 
+function roleHomePath() {
+    if (isPatientLoggedIn() && !isLoggedIn()) {
+        return '/patient/dashboard.php';
+    }
+    $role = $_SESSION['role'] ?? '';
+    if ($role === 'dentist') {
+        return '/dentist/dashboard.php';
+    }
+    return '/admin/dashboard.php';
+}
+
+function redirectToRoleHome() {
+    header('Location: ' . roleHomePath());
+    exit;
+}
+
+function requireStaff() {
+    requireLogin();
+    $role = $_SESSION['role'] ?? '';
+    if (!in_array($role, ['admin', 'staff'], true)) {
+        redirectToRoleHome();
+    }
+}
+
+function currentUserRole() {
+    if (isPatientLoggedIn() && !isLoggedIn()) {
+        return 'patient';
+    }
+    return $_SESSION['role'] ?? '';
+}
+
+function requireAdmin() {
+    requireRole('admin');
+}
+
+function csrfToken() {
+    if (empty($_SESSION['csrf_token'])) {
+        $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    }
+    return $_SESSION['csrf_token'];
+}
+
+function csrfField() {
+    return '<input type="hidden" name="csrf_token" value="' . htmlspecialchars(csrfToken(), ENT_QUOTES, 'UTF-8') . '">';
+}
+
+function verifyCsrf() {
+    $sent = $_POST['csrf_token'] ?? ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    return is_string($sent) && $sent !== '' && hash_equals(csrfToken(), $sent);
+}
+
 // Require specific role
 function requireRole($role) {
     requireLogin();
     if (!hasRole($role)) {
-        header('Location: /admin/dashboard.php');
-        exit;
+        redirectToRoleHome();
     }
 }
 
@@ -164,10 +214,25 @@ function getLoginClientIdentifier() {
 
 function getClientIpAddress() {
     $ip = $_SERVER['REMOTE_ADDR'] ?? '';
-    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-        $ip = trim(explode(',', $_SERVER['HTTP_X_FORWARDED_FOR'])[0]);
+    return substr(trim((string)$ip), 0, 45);
+}
+
+function authNowString() {
+    return appNowImmutable()->format('Y-m-d H:i:s');
+}
+
+function ensureLoginAttemptsSchema() {
+    static $done = false;
+    if ($done) {
+        return;
     }
-    return substr($ip, 0, 45);
+    $done = true;
+    try {
+        $db = getDB();
+        $db->query("CREATE UNIQUE INDEX IF NOT EXISTS login_attempts_identifier_type_idx ON login_attempts (identifier, attempt_type)");
+    } catch (Throwable $e) {
+        error_log('ensureLoginAttemptsSchema: ' . $e->getMessage());
+    }
 }
 
 /**
@@ -200,14 +265,14 @@ function isIpLoginBlocked($ip) {
         if (!$row || empty($row['locked_until'])) {
             return false;
         }
-        return strtotime($row['locked_until']) > time();
+        return parseAppTimestamp($row['locked_until']) > time();
     } catch (Throwable $e) {
         error_log('isIpLoginBlocked: ' . $e->getMessage());
         return false;
     }
 }
 
-function recordFailedLoginIp($ip, $lock_minutes = 0) {
+function recordFailedLoginIp($ip, $lock_minutes = 0, $lock_seconds = 0) {
     try {
         $db = getDB();
         $db->query("
@@ -223,15 +288,16 @@ function recordFailedLoginIp($ip, $lock_minutes = 0) {
             )
         ");
 
-        $now = date('Y-m-d H:i:s');
+        $now = authNowString();
         $stmt = $db->prepare("SELECT locked_until FROM ip_login_limits WHERE ip_address = ?");
         $stmt->bind_param("s", $ip);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
 
         $locked_until = null;
-        if ($lock_minutes > 0) {
-            $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
+        $secs = $lock_seconds > 0 ? (int)$lock_seconds : ((int)$lock_minutes * 60);
+        if ($secs > 0) {
+            $locked_until = appNowImmutable()->modify('+' . $secs . ' seconds')->format('Y-m-d H:i:s');
         } else {
             $locked_until = $row['locked_until'] ?? null;
         }
@@ -260,6 +326,7 @@ function recordFailedLoginIp($ip, $lock_minutes = 0) {
 /** @return array|null { failed_count, captcha_passed_at, locked_until, lock_at_count } */
 function getLoginAttemptRecord($identifier, $attempt_type = 'unified') {
     try {
+        ensureLoginAttemptsSchema();
         $db = getDB();
         $stmt = $db->prepare("SELECT failed_count, captcha_passed_at, locked_until FROM login_attempts WHERE identifier = ? AND attempt_type = ?");
         $stmt->bind_param("ss", $identifier, $attempt_type);
@@ -287,11 +354,24 @@ function getLoginAttemptRecord($identifier, $attempt_type = 'unified') {
     }
 }
 
+function parseAppTimestamp($value) {
+    if ($value === null || $value === '') {
+        return 0;
+    }
+    $raw = substr((string)$value, 0, 19);
+    $dt = DateTimeImmutable::createFromFormat('Y-m-d H:i:s', $raw, appTimezone());
+    if ($dt) {
+        return $dt->getTimestamp();
+    }
+    $ts = strtotime((string)$value);
+    return $ts ?: 0;
+}
+
 function isLoginLocked($identifier, $attempt_type = 'unified') {
     try {
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         if (!$r || empty($r['locked_until'])) return false;
-        return strtotime($r['locked_until']) > time();
+        return parseAppTimestamp($r['locked_until']) > time();
     } catch (Throwable $e) {
         return false;
     }
@@ -300,32 +380,81 @@ function isLoginLocked($identifier, $attempt_type = 'unified') {
 function getLoginLockedUntil($identifier, $attempt_type = 'unified') {
     try {
         $r = getLoginAttemptRecord($identifier, $attempt_type);
-        return ($r && !empty($r['locked_until'])) ? strtotime($r['locked_until']) : 0;
+        return ($r && !empty($r['locked_until'])) ? parseAppTimestamp($r['locked_until']) : 0;
     } catch (Throwable $e) {
         return 0;
     }
 }
 
+function getAccountLoginIdentifier($username_or_email) {
+    return hash('sha256', 'acct|' . strtolower(trim((string)$username_or_email)));
+}
+
+function getIpLoginIdentifier($ip) {
+    return hash('sha256', 'ip|' . trim((string)$ip));
+}
+
+function loginLockSecondsForCount($failed) {
+    $failed = (int)$failed;
+    if ($failed < 3 || ($failed % 3) !== 0) {
+        return 0;
+    }
+    $tier = intdiv($failed, 3);
+    if ($tier === 1) {
+        return defined('LOGIN_LOCK_SECONDS_TIER1') ? LOGIN_LOCK_SECONDS_TIER1 : 30;
+    }
+    if ($tier === 2) {
+        return defined('LOGIN_LOCK_SECONDS_TIER2') ? LOGIN_LOCK_SECONDS_TIER2 : 300;
+    }
+    return defined('LOGIN_LOCK_SECONDS_TIER3') ? LOGIN_LOCK_SECONDS_TIER3 : 1800;
+}
+
+function formatLockRemaining($untilTs) {
+    $sec = max(0, (int)$untilTs - time());
+    if ($sec <= 0) {
+        return 'a moment';
+    }
+    if ($sec < 60) {
+        return $sec . ' second(s)';
+    }
+    $min = (int)ceil($sec / 60);
+    if ($min < 60) {
+        return $min . ' minute(s)';
+    }
+    return (int)ceil($min / 60) . ' hour(s)';
+}
+
+function getCombinedLoginLockUntil($identifiers, $attempt_type = 'unified') {
+    $latest = 0;
+    foreach ($identifiers as $id) {
+        if (!$id) {
+            continue;
+        }
+        $until = getLoginLockedUntil($id, $attempt_type);
+        if ($until > $latest) {
+            $latest = $until;
+        }
+    }
+    return $latest;
+}
+
 /**
  * Call after a failed login.
- * Returns an array: ['locked' => bool, 'lock_minutes' => int].
- *
- * Lockout policy (per identifier/account):
- * - First 5 failed attempts: require CAPTCHA, no lock.
- * - 6–10 failed attempts (2nd set of 5): lock for 15 minutes.
- * - 11–15 failed attempts (3rd set of 5): lock for 30 minutes.
- * - 16–20 failed attempts (4th set of 5): lock for 60 minutes.
- * Counts reset when a login succeeds (via clearLoginAttempts).
+ * Lockout policy (per device, account, and IP): every 3 failures
+ * 1st lock = 30 seconds, 2nd = 5 minutes, 3rd+ = 30 minutes.
  */
 function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
     try {
         $db = getDB();
-        $now = date('Y-m-d H:i:s');
-        // If already locked, respect existing lockout and do not shorten it here.
+        $now = authNowString();
         if (isLoginLocked($identifier, $attempt_type)) {
             $lockedUntilTs = getLoginLockedUntil($identifier, $attempt_type);
-            $remainingMinutes = $lockedUntilTs > time() ? (int)ceil(($lockedUntilTs - time()) / 60) : 0;
-            return ['locked' => true, 'lock_minutes' => max($remainingMinutes, 0)];
+            $remaining = max(0, $lockedUntilTs - time());
+            return [
+                'locked' => true,
+                'lock_seconds' => $remaining,
+                'lock_minutes' => (int)ceil($remaining / 60),
+            ];
         }
 
         $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, last_attempt_at) VALUES (?, ?, 1, ?)
@@ -336,31 +465,51 @@ function recordFailedLoginAttempt($identifier, $attempt_type = 'unified') {
         $stmt->execute();
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         $failed = (int)($r['failed_count'] ?? 0);
-        // Determine lock duration based on total failed attempts.
-        $lock_minutes = 0;
-        if ($failed >= 20) {
-            $lock_minutes = 60;
-        } elseif ($failed >= 15) {
-            $lock_minutes = 30;
-        } elseif ($failed >= 10) {
-            $lock_minutes = 15;
-        } else {
-            $lock_minutes = 0;
-        }
+        $lock_seconds = loginLockSecondsForCount($failed);
 
-        if ($lock_minutes > 0) {
-            $locked_until = date('Y-m-d H:i:s', time() + 60 * $lock_minutes);
+        if ($lock_seconds > 0) {
+            $locked_until = appNowImmutable()->modify('+' . $lock_seconds . ' seconds')->format('Y-m-d H:i:s');
             $upd = $db->prepare("UPDATE login_attempts SET locked_until = ?, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
             $upd->bind_param("sss", $locked_until, $identifier, $attempt_type);
             $upd->execute();
-            // Track lockouts in a 24h window.
             recordIdentifierLockout($identifier, $attempt_type);
-            return ['locked' => true, 'lock_minutes' => $lock_minutes];
+            return [
+                'locked' => true,
+                'lock_seconds' => $lock_seconds,
+                'lock_minutes' => (int)ceil($lock_seconds / 60),
+            ];
         }
     } catch (Throwable $e) {
         error_log('recordFailedLoginAttempt: ' . $e->getMessage());
     }
-    return ['locked' => false, 'lock_minutes' => 0];
+    return ['locked' => false, 'lock_seconds' => 0, 'lock_minutes' => 0];
+}
+
+function recordFailedLoginBundle($deviceId, $accountId, $ip, $attempt_type = 'unified') {
+    $ids = array_values(array_filter([$deviceId, $accountId, getIpLoginIdentifier($ip)]));
+    $lockSeconds = 0;
+    $locked = false;
+    foreach ($ids as $id) {
+        $info = recordFailedLoginAttempt($id, $attempt_type);
+        if (!empty($info['locked'])) {
+            $locked = true;
+            $lockSeconds = max($lockSeconds, (int)($info['lock_seconds'] ?? 0));
+        }
+    }
+    recordFailedLoginIp($ip, 0, $lockSeconds);
+    return [
+        'locked' => $locked,
+        'lock_seconds' => $lockSeconds,
+        'lock_minutes' => $lockSeconds > 0 ? (int)ceil($lockSeconds / 60) : 0,
+    ];
+}
+
+function clearLoginAttemptsBundle($deviceId, $accountId, $ip, $attempt_type = 'unified') {
+    foreach ([$deviceId, $accountId, getIpLoginIdentifier($ip)] as $id) {
+        if ($id) {
+            clearLoginAttempts($id, $attempt_type);
+        }
+    }
 }
 
 function clearLoginAttempts($identifier, $attempt_type = 'unified') {
@@ -374,14 +523,15 @@ function clearLoginAttempts($identifier, $attempt_type = 'unified') {
     }
 }
 
-/** True if we need to show/solve captcha before next attempt (>=5 failures). */
+/** True if we need to show/solve captcha before next attempt (>=3 failures). */
 function loginNeedsCaptcha($identifier, $attempt_type = 'unified') {
     try {
+        if (isLoginLocked($identifier, $attempt_type)) {
+            return false;
+        }
         $r = getLoginAttemptRecord($identifier, $attempt_type);
         if (!$r) return false;
-        // First 5 failed attempts trigger CAPTCHA; continue requiring while failed_count >= 5.
-        if ((int)$r['failed_count'] < 5) return false;
-        return !isLoginLocked($identifier, $attempt_type);
+        return (int)$r['failed_count'] >= 3;
     } catch (Throwable $e) {
         return false;
     }
@@ -393,7 +543,7 @@ function loginNeedsCaptcha($identifier, $attempt_type = 'unified') {
 function recordLoginCaptchaPassed($identifier, $attempt_type = 'unified', $reset_count = true) {
     try {
         $db = getDB();
-        $now = date('Y-m-d H:i:s');
+        $now = authNowString();
         // For the new policy we no longer reset failed_count on CAPTCHA pass;
         // we only record that CAPTCHA was solved recently.
         $stmt = $db->prepare("INSERT INTO login_attempts (identifier, attempt_type, failed_count, captcha_passed_at, last_attempt_at) VALUES (?, ?, 0, ?, ?)
@@ -428,7 +578,7 @@ function recordIdentifierLockout($identifier, $attempt_type = 'unified') {
             )
         ");
 
-        $now = date('Y-m-d H:i:s');
+        $now = authNowString();
         $stmt = $db->prepare("SELECT lockouts_count, window_start FROM identifier_lockout_limits WHERE identifier = ? AND attempt_type = ?");
         $stmt->bind_param("ss", $identifier, $attempt_type);
         $stmt->execute();
@@ -457,13 +607,7 @@ function recordIdentifierLockout($identifier, $attempt_type = 'unified') {
             $ins->execute();
         }
 
-        // If 3 lockouts reached within 24h, enforce 24h lock at login_attempts level.
-        if ($count >= 3) {
-            $locked_until = date('Y-m-d H:i:s', time() + 24 * 60 * 60);
-            $upd2 = $db->prepare("UPDATE login_attempts SET locked_until = ?, failed_count = 0, captcha_passed_at = NULL WHERE identifier = ? AND attempt_type = ?");
-            $upd2->bind_param("sss", $locked_until, $identifier, $attempt_type);
-            $upd2->execute();
-        }
+        // Keep the 30s / 5min / 30min ladder. Do not escalate to a 24-hour lock.
     } catch (Throwable $e) {
         error_log('recordIdentifierLockout: ' . $e->getMessage());
     }
@@ -489,14 +633,13 @@ function recordCaptchaFailureAndMaybeLock($identifier, $attempt_type = 'unified'
             )
         ");
 
-        $now = date('Y-m-d H:i:s');
+        $now = authNowString();
         $stmt = $db->prepare("SELECT failed_count, window_start, locked_until FROM captcha_fail_limits WHERE identifier = ? AND attempt_type = ?");
         $stmt->bind_param("ss", $identifier, $attempt_type);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
 
-        if ($row && !empty($row['locked_until']) && strtotime($row['locked_until']) > time()) {
-            // Already locked
+        if ($row && !empty($row['locked_until']) && parseAppTimestamp($row['locked_until']) > time()) {
             return true;
         }
 
@@ -516,7 +659,7 @@ function recordCaptchaFailureAndMaybeLock($identifier, $attempt_type = 'unified'
 
         $locked_until = null;
         if ($count >= 3) {
-            $locked_until = date('Y-m-d H:i:s', time() + 24 * 60 * 60);
+            $locked_until = appNowImmutable()->modify('+24 hours')->format('Y-m-d H:i:s');
             // Lock device at login_attempts too so isLoginLocked() catches it.
             $upd = $db->prepare("
                 INSERT INTO login_attempts (identifier, attempt_type, failed_count, locked_until, last_attempt_at)
@@ -581,7 +724,7 @@ function isIpRegistrationBlocked($ip) {
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
         if (!$row || empty($row['locked_until'])) return false;
-        return strtotime($row['locked_until']) > time();
+        return parseAppTimestamp($row['locked_until']) > time();
     } catch (Throwable $e) {
         error_log('isIpRegistrationBlocked: ' . $e->getMessage());
         return false;
@@ -602,17 +745,17 @@ function recordRegistrationForIp($ip) {
             )
         ");
 
-        $now = date('Y-m-d H:i:s');
+        $now = authNowString();
         $stmt = $db->prepare("SELECT day_date, reg_count, locked_until FROM ip_registration_limits WHERE ip_address = ?");
         $stmt->bind_param("s", $ip);
         $stmt->execute();
         $row = $stmt->get_result()->fetch_assoc();
 
-        if ($row && !empty($row['locked_until']) && strtotime($row['locked_until']) > time()) {
+        if ($row && !empty($row['locked_until']) && parseAppTimestamp($row['locked_until']) > time()) {
             return false;
         }
 
-        $today = date('Y-m-d');
+        $today = appTodayImmutable()->format('Y-m-d');
         $count = 0;
         $day_date = $today;
 
@@ -629,7 +772,7 @@ function recordRegistrationForIp($ip) {
         $count++;
         $locked_until = null;
         if ($count > 3) {
-            $locked_until = date('Y-m-d H:i:s', time() + 24 * 60 * 60);
+            $locked_until = appNowImmutable()->modify('+24 hours')->format('Y-m-d H:i:s');
         }
 
         if ($row) {
@@ -667,5 +810,29 @@ function verifyRecaptchaV2($token) {
     if ($result === false) return false;
     $json = json_decode($result, true);
     return !empty($json['success']);
+}
+
+if (PHP_SAPI !== 'cli' && (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST')) {
+    $script = basename($_SERVER['SCRIPT_NAME'] ?? '');
+    $skipCsrf = ['health.php', 'server.php'];
+    if (!in_array($script, $skipCsrf, true) && !verifyCsrf()) {
+        $uri = $_SERVER['SCRIPT_NAME'] ?? '';
+        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $wantsJson = (stripos($accept, 'application/json') !== false)
+            || (strpos($uri, '/api/') !== false)
+            || str_starts_with($script, 'api-')
+            || in_array($script, ['update-branch.php'], true);
+        if ($wantsJson) {
+            http_response_code(403);
+            if (!headers_sent()) {
+                header('Content-Type: application/json');
+            }
+            echo json_encode(['success' => false, 'message' => 'Invalid request. Please refresh the page and try again.']);
+            exit;
+        }
+        http_response_code(403);
+        echo 'Invalid request. Please refresh the page and try again.';
+        exit;
+    }
 }
 

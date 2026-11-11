@@ -23,6 +23,9 @@ $nav_patient_base = $nav_patient_base ?? 'patient/';
                 <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'services' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>services.php">Services</a></li>
                 <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'contact' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>contact.php">Contact</a></li>
                 <li class="nav-item"><a class="nav-link <?php echo ($nav_active ?? '') === 'book' ? 'active' : ''; ?>" href="<?php echo $nav_base; ?>book-appointment.php">Book Appointment</a></li>
+                <li class="nav-item ms-lg-2">
+                    <?php require_once __DIR__ . '/ui.php'; echo themeToggleButton(true); ?>
+                </li>
                 <?php if (isPatientLoggedIn()): ?>
                     <?php 
                     $patient = getCurrentPatient();

@@ -11,6 +11,8 @@ require_once '../includes/auth.php';
 requireLogin();
 if (!hasRole('admin')) {
     http_response_code(403);
+    header('Content-Type: application/json');
+    echo json_encode(['success' => false, 'message' => 'Forbidden']);
     exit;
 }
 

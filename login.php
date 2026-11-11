@@ -35,22 +35,25 @@ $login_identifier = getLoginClientIdentifier();
 $attempt_type = 'unified';
 $show_captcha = false;
 $ip_address = getClientIpAddress();
+$ip_identifier = getIpLoginIdentifier($ip_address);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $identifier = sanitize($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    // For reCAPTCHA v2 we only care about g-recaptcha-response.
     $captcha_token = $_POST['g-recaptcha-response'] ?? '';
+    $account_identifier = $identifier !== '' ? getAccountLoginIdentifier($identifier) : '';
+    $lock_ids = array_values(array_filter([$login_identifier, $account_identifier, $ip_identifier]));
+    $lock_until = getCombinedLoginLockUntil($lock_ids, $attempt_type);
 
-    if (isIpLoginBlocked($ip_address)) {
-        $error = 'Too many failed attempts from this network. Please try again later.';
-    } elseif (isLoginLocked($login_identifier, $attempt_type)) {
-        $mins = ceil((getLoginLockedUntil($login_identifier, $attempt_type) - time()) / 60);
-        $error = 'Too many failed attempts. Please try again in ' . $mins . ' minute(s).';
+    if (isIpLoginBlocked($ip_address) || $lock_until > time()) {
+        $until = max($lock_until, strtotime((string)($GLOBALS['ip_lock_until'] ?? '')) ?: $lock_until);
+        $error = 'Too many failed attempts. Please try again in ' . formatLockRemaining($lock_until > time() ? $lock_until : time() + 30) . '.';
+    } elseif (!verifyCsrf()) {
+        $error = 'Invalid request. Please refresh the page and try again.';
     } elseif (empty($identifier) || empty($password)) {
         $error = 'Please enter email/username and password.';
     } else {
-        if (loginNeedsCaptcha($login_identifier, $attempt_type)) {
+        if (loginNeedsCaptcha($login_identifier, $attempt_type) || loginNeedsCaptcha($account_identifier, $attempt_type)) {
             $has_captcha_key = defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== '';
             if ($has_captcha_key) {
                 if ($captcha_token === '') {
@@ -62,24 +65,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $show_captcha = true;
                     recordCaptchaFailureAndMaybeLock($login_identifier, $attempt_type);
                 } else {
-                    // CAPTCHA solved – reset attempt counter for this device.
                     recordLoginCaptchaPassed($login_identifier, $attempt_type, true);
                     clearCaptchaFailures($login_identifier, $attempt_type);
                 }
             } else {
-                // No configured key; treat as passed but still record marker.
                 recordLoginCaptchaPassed($login_identifier, $attempt_type, false);
             }
         }
 
         if ($error === '') {
             if (patientLogin($identifier, $password)) {
-                clearLoginAttempts($login_identifier, $attempt_type);
+                clearLoginAttemptsBundle($login_identifier, $account_identifier, $ip_address, $attempt_type);
                 header('Location: patient/dashboard.php');
                 exit;
             }
             if (login($identifier, $password)) {
-                clearLoginAttempts($login_identifier, $attempt_type);
+                clearLoginAttemptsBundle($login_identifier, $account_identifier, $ip_address, $attempt_type);
                 if (!empty($_SESSION['must_change_password'])) {
                     header('Location: admin/force-password-change.php');
                     exit;
@@ -94,25 +95,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 exit;
             }
-            $lockInfo = recordFailedLoginAttempt($login_identifier, $attempt_type);
+            $lockInfo = recordFailedLoginBundle($login_identifier, $account_identifier, $ip_address, $attempt_type);
             $just_locked = !empty($lockInfo['locked']);
-            $lock_minutes = (int)($lockInfo['lock_minutes'] ?? 0);
-            // IP-level tracking for global abuse detection (mirror account lock duration)
-            recordFailedLoginIp($ip_address, $lock_minutes);
-            if ($just_locked && $lock_minutes > 0) {
-                $error = 'Too many failed attempts. This device is temporarily locked for ' . $lock_minutes . ' minute(s).';
+            if ($just_locked) {
+                $error = 'Too many failed attempts. Please try again in ' . formatLockRemaining(time() + (int)$lockInfo['lock_seconds']) . '.';
             } else {
                 $error = 'Invalid email/username or password.';
                 logActivity('login_failed', 'Attempt: ' . substr($identifier, 0, 100), null, null, $identifier, null, 'guest');
-                if (loginNeedsCaptcha($login_identifier, $attempt_type)) {
+                if (loginNeedsCaptcha($login_identifier, $attempt_type) || loginNeedsCaptcha($account_identifier, $attempt_type)) {
                     $show_captcha = true;
                 }
             }
         }
     }
 } else {
+    $lock_until = getCombinedLoginLockUntil([$login_identifier, $ip_identifier], $attempt_type);
+    if ($lock_until > time()) {
+        $error = 'Too many failed attempts. Please try again in ' . formatLockRemaining($lock_until) . '.';
+    }
     $show_captcha = loginNeedsCaptcha($login_identifier, $attempt_type);
 }
+
+$form_locked_until = isset($lock_until) ? (int)$lock_until : getCombinedLoginLockUntil([$login_identifier, $ip_identifier], $attempt_type);
+$is_form_locked = $form_locked_until > time();
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -120,9 +125,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="assets/css/style.css?v=<?php echo time(); ?>">
+    <?php $asset_base = ''; require __DIR__ . '/includes/head-assets.php'; ?>
 </head>
 <body style="background-color: var(--denthub-bg);">
     <?php $nav_active = ''; require_once 'includes/nav-public.php'; ?>
@@ -149,16 +152,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             </div>
                         <?php endif; ?>
 
-                        <form method="POST" action="" id="loginForm">
+                        <form method="POST" action="" id="loginForm" data-lock-until="<?php echo $is_form_locked ? (int)$form_locked_until : 0; ?>">
+                            <?php echo csrfField(); ?>
                             <div class="mb-3">
                                 <label class="form-label">Email or Username</label>
-                                <input type="text" class="form-control" name="email" required autofocus placeholder="Email or username">
+                                <input type="text" class="form-control" name="email" required autofocus placeholder="Email or username" <?php echo $is_form_locked ? 'disabled' : ''; ?>>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Password</label>
                                 <div class="input-group">
-                                    <input type="password" class="form-control" name="password" id="password" required>
-                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')">
+                                    <input type="password" class="form-control" name="password" id="password" required <?php echo $is_form_locked ? 'disabled' : ''; ?>>
+                                    <button class="btn btn-outline-secondary" type="button" onclick="togglePassword('password')" <?php echo $is_form_locked ? 'disabled' : ''; ?>>
                                         <i class="bi bi-eye" id="password-icon"></i>
                                     </button>
                                 </div>
@@ -172,7 +176,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             <?php endif; ?>
                             <div class="d-grid">
-                                <button type="submit" class="btn btn-primary btn-lg">Login</button>
+                                <button type="submit" class="btn btn-primary btn-lg" id="loginSubmit" <?php echo $is_form_locked ? 'disabled' : ''; ?>>Login</button>
                             </div>
                         </form>
 
@@ -189,11 +193,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <?php endif; ?>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function togglePassword(fieldId) {
             const field = document.getElementById(fieldId);
             const icon = document.getElementById(fieldId + '-icon');
+            if (!field || !icon) return;
             if (field.type === 'password') {
                 field.type = 'text';
                 icon.classList.remove('bi-eye');
@@ -204,6 +208,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 icon.classList.add('bi-eye');
             }
         }
+        (function () {
+            const form = document.getElementById('loginForm');
+            if (!form) return;
+            const until = parseInt(form.getAttribute('data-lock-until') || '0', 10);
+            if (!until || until * 1000 <= Date.now()) return;
+            const btn = document.getElementById('loginSubmit');
+            const tick = function () {
+                const remaining = until - Math.floor(Date.now() / 1000);
+                if (remaining <= 0) {
+                    window.location.reload();
+                    return;
+                }
+                if (btn) btn.textContent = 'Locked (' + remaining + 's)';
+            };
+            tick();
+            setInterval(tick, 1000);
+        })();
     </script>
 </body>
 </html>

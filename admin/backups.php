@@ -72,8 +72,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
             $content = "-- Denthub Backup (PHP fallback)\n-- " . date('Y-m-d H:i:s', strtotime('now')) . " (" . (defined('TIMEZONE') ? TIMEZONE : 'Asia/Manila') . ")\n\n";
             $tables = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN);
             foreach ($tables as $table) {
+                if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string)$table)) {
+                    continue;
+                }
                 $content .= "\n-- Table: $table\n";
-                $rows = $pdo->query("SELECT * FROM \"$table\"")->fetchAll(PDO::FETCH_ASSOC);
+                $rows = $pdo->query('SELECT * FROM "' . $table . '"')->fetchAll(PDO::FETCH_ASSOC);
                 foreach ($rows as $row) {
                     $cols = array_keys($row);
                     $vals = array_map(function ($v) use ($pdo) {
@@ -163,9 +166,7 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Database Backups - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <?php $asset_base = '../'; require __DIR__ . '/../includes/head-assets.php'; ?>
 </head>
 <body>
     <?php include 'navbar.php'; ?>
@@ -281,6 +282,5 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
         </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

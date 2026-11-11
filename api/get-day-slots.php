@@ -42,7 +42,13 @@ try {
     } elseif ($role === 'patient') {
         requirePatientLogin();
     } else {
-        requireLogin();
+        requireStaff();
+    }
+
+    $allow_today = isLoggedIn() && in_array($_SESSION['role'] ?? '', ['admin', 'staff', 'dentist'], true);
+    if (!isDateInBookingWindow($date, $allow_today)) {
+        echo json_encode(['success' => false, 'message' => 'Date is outside the 3-month booking window', 'dentists' => []]);
+        exit;
     }
 
     if (isDateBlocked($date, $branch_id)) {
@@ -114,11 +120,13 @@ try {
           AND NOT EXISTS (
                 SELECT 1
                 FROM appointments a
+                JOIN services svc ON svc.service_id = a.service_id
                 WHERE a.appointment_date = ?
-                  AND a.appointment_time = ts.slot_time
+                  AND a.dentist_id = w.dentist_id
                   AND a.branch_id = ?
                   AND a.status IN ('pending', 'confirmed')
-                  AND a.dentist_id = w.dentist_id
+                  AND a.appointment_time <= ts.slot_time
+                  AND (a.appointment_time + make_interval(mins => COALESCE(svc.duration_minutes, 30))) > ts.slot_time
           )
         ORDER BY w.full_name, ts.slot_time
     ";

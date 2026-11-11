@@ -6,6 +6,7 @@ require_once 'includes/config.php';
 require_once 'includes/database.php';
 require_once 'includes/functions.php';
 require_once 'includes/auth.php';
+require_once 'includes/export.php';
 
 requirePatientLogin();
 
@@ -13,12 +14,13 @@ $appointment_id = intval($_GET['id'] ?? 0);
 $db = getDB();
 
 $stmt = $db->prepare("SELECT a.*, p.first_name, p.last_name, p.phone, p.email, 
-                      s.service_name, d.dentist_id, u.full_name as dentist_name
+                      s.service_name, d.dentist_id, u.full_name as dentist_name, b.branch_name
                       FROM appointments a
                       JOIN patients p ON a.patient_id = p.patient_id
                       JOIN services s ON a.service_id = s.service_id
                       LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
                       LEFT JOIN users u ON d.user_id = u.user_id
+                      LEFT JOIN branches b ON a.branch_id = b.branch_id
                       WHERE a.appointment_id = ? AND a.patient_id = ?");
 $stmt->bind_param("ii", $appointment_id, $_SESSION['patient_id']);
 $stmt->execute();
@@ -35,11 +37,9 @@ if (!$appointment) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Appointment Confirmation - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <?php $asset_base = ''; require __DIR__ . '/includes/head-assets.php'; ?>
 </head>
-<body>
+<body class="print-document-page">
     <?php $nav_base = ''; $nav_patient_base = ''; $nav_active = 'book'; require_once 'includes/nav-public.php'; ?>
     <main class="denthub-main" style="margin-left:0;">
     <div class="container py-5">
@@ -105,18 +105,19 @@ if (!$appointment) {
                             <strong><?php echo htmlspecialchars(maskPhone($appointment['phone'] ?? '')); ?></strong> to confirm your appointment.
                         </div>
 
-                        <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-center no-print">
+                            <button type="button" class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print confirmation</button>
                             <a href="patient/dashboard.php" class="btn btn-primary">View My Appointments</a>
                             <a href="index.php" class="btn btn-outline-secondary">Back to Home</a>
                         </div>
                     </div>
                 </div>
+                <div class="print-only"><?php echo printAppointmentDocument($appointment, 'Appointment confirmation'); ?></div>
             </div>
         </div>
     </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
 

@@ -47,7 +47,12 @@ define('SESSION_LIFETIME', 3600); // 1 hour
 // Security
 define('PASSWORD_MIN_LENGTH', 8);
 // First 5 failures just trigger CAPTCHA; see rate limiting logic in auth.php
-define('LOGIN_MAX_ATTEMPTS', 5);
+define('LOGIN_MAX_ATTEMPTS', 3);
+define('LOGIN_LOCK_SECONDS_TIER1', 30);      // after 3 failures
+define('LOGIN_LOCK_SECONDS_TIER2', 300);     // after 6 failures (5 minutes)
+define('LOGIN_LOCK_SECONDS_TIER3', 1800);    // after 9+ failures (30 minutes)
+define('BOOKING_WINDOW_MONTHS', 3);
+define('BOOKING_DEFAULT_DURATION', 30);
 define('RECAPTCHA_SITE_KEY', getenv('RECAPTCHA_SITE_KEY') ?: '');
 define('RECAPTCHA_SECRET_KEY', getenv('RECAPTCHA_SECRET_KEY') ?: '');
 
@@ -73,6 +78,14 @@ if (file_exists($autoloadPath)) {
 
 // Set timezone
 date_default_timezone_set(TIMEZONE);
+
+if (!headers_sent()) {
+    header('X-Content-Type-Options: nosniff');
+    header('X-Frame-Options: SAMEORIGIN');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('X-XSS-Protection: 1; mode=block');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+}
 
 // Error Reporting (Set to 0 in production to hide errors from users)
 $display_errors = (getenv('APP_DEBUG') === '1' || getenv('APP_DEBUG') === 'true');

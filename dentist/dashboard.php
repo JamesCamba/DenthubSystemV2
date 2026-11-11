@@ -6,6 +6,7 @@ require_once '../includes/config.php';
 require_once '../includes/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/export.php';
 
 requireRole('dentist');
 
@@ -23,7 +24,8 @@ $dentist = $stmt->get_result()->fetch_assoc();
 $dentist_id = $dentist['dentist_id'];
 
 // Get today's statistics
-$today = date('Y-m-d');
+$today = appTodayImmutable()->format('Y-m-d');
+$charts = dashboardTrendData($dentist_id);
 
 // Today's appointments
 $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
@@ -42,11 +44,12 @@ $pending_appointments = $stmt->get_result()->fetch_assoc()['count'];
 
 // Completed appointments this month (PostgreSQL-compatible date functions)
 // Use EXTRACT to match current month and year
+$monthStart = appTodayImmutable()->modify('first day of this month')->format('Y-m-d');
+$monthEnd = appTodayImmutable()->modify('last day of this month')->format('Y-m-d');
 $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
                      WHERE dentist_id = ? AND status = 'completed' 
-                     AND EXTRACT(MONTH FROM appointment_date) = EXTRACT(MONTH FROM CURRENT_DATE) 
-                     AND EXTRACT(YEAR FROM appointment_date) = EXTRACT(YEAR FROM CURRENT_DATE)");
-$stmt->bind_param("i", $dentist_id);
+                     AND appointment_date BETWEEN ? AND ?");
+$stmt->bind_param("iss", $dentist_id, $monthStart, $monthEnd);
 $stmt->execute();
 $monthly_completed = $stmt->get_result()->fetch_assoc()['count'];
 
@@ -69,9 +72,7 @@ $today_appointments_list = $stmt->get_result();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dentist Dashboard - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <?php $asset_base = '../'; $include_charts = true; require __DIR__ . '/../includes/head-assets.php'; ?>
 </head>
 <body>
 <?php require_once 'navbar.php'; ?>
@@ -189,13 +190,27 @@ $today_appointments_list = $stmt->get_result();
             </div>
         </div>
 
+        <div class="row g-4 mb-4">
+            <div class="col-lg-8">
+                <div class="card chart-card shadow-sm">
+                    <div class="denthub-card-header">My appointments — last 14 days</div>
+                    <div class="card-body"><canvas id="trendChart"></canvas></div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card chart-card shadow-sm">
+                    <div class="denthub-card-header">Status mix</div>
+                    <div class="card-body"><canvas id="statusChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+
         <!-- Today's Appointments -->
         <div class="card">
             <div class="card-header denthub-card-header denthub-header-green">
                 <h5 class="mb-0"><i class="bi bi-calendar-check me-2"></i>Today's Appointments</h5>
             </div>
             <div class="card-body">
-                <?php if ($today_appointments_list->num_rows > 0): ?>
                     <div class="table-responsive">
                         <table class="table table-hover">
                             <thead>
@@ -212,15 +227,11 @@ $today_appointments_list = $stmt->get_result();
                             </tbody>
                         </table>
                     </div>
-                <?php else: ?>
-                    <p class="text-muted text-center">No appointments scheduled for today.</p>
-                <?php endif; ?>
             </div>
         </div>
     </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.getElementById('dentistBranchForm').addEventListener('submit', function (e) {
             e.preventDefault();
@@ -257,6 +268,23 @@ $today_appointments_list = $stmt->get_result();
                 .catch(() => {});
         }
 
+        const trendLabels = <?php echo json_encode($charts['trend_labels']); ?>;
+        const trendValues = <?php echo json_encode($charts['trend_values']); ?>;
+        const statusLabels = <?php echo json_encode($charts['status_labels']); ?>;
+        const statusValues = <?php echo json_encode($charts['status_values']); ?>;
+        if (window.Denthub && Denthub.applyChartDefaults) Denthub.applyChartDefaults();
+        if (window.Chart) {
+            new Chart(document.getElementById('trendChart'), {
+                type: 'bar',
+                data: { labels: trendLabels, datasets: [{ label: 'Appointments', data: trendValues, backgroundColor: '#004AAD' }] },
+                options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+            });
+            new Chart(document.getElementById('statusChart'), {
+                type: 'doughnut',
+                data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: ['#f59e0b', '#0ea5e9', '#198754', '#DC3545', '#64748b'] }] },
+                options: { plugins: { legend: { position: 'bottom' } } }
+            });
+        }
         loadSlotSummaryDentist();
         loadTodayAppointmentsDentist();
         setInterval(loadTodayAppointmentsDentist, 30000);

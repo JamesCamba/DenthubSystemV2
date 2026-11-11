@@ -7,7 +7,7 @@ require_once '../includes/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 
-requireLogin();
+requireStaff();
 
 $db = getDB();
 
@@ -28,10 +28,8 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Calendar - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
-    <style>
+    <?php $asset_base = '../'; require __DIR__ . '/../includes/head-assets.php'; ?>
+<style>
         .denthub-calendar-day {
             cursor: pointer;
             min-height: 80px;
@@ -115,7 +113,6 @@ $month = isset($_GET['month']) ? (int)$_GET['month'] : (int)date('n');
         </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let currentYear = <?php echo (int)$year; ?>;
         let currentMonth = <?php echo (int)$month; ?>; // 1-12

@@ -1,15 +1,21 @@
 <?php
 /**
- * API: Get dentists by branch + service (assigned to branch and with service mastery)
+ * API: Dentists available for a branch, service, and date.
  */
 require_once '../includes/config.php';
 require_once '../includes/database.php';
 require_once '../includes/functions.php';
+require_once '../includes/auth.php';
 
 header('Content-Type: application/json');
 
+if (!isPatientLoggedIn() && !isLoggedIn()) {
+    echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+    exit;
+}
+
 $service_id = intval($_GET['service_id'] ?? 0);
-$branch_id = !empty($_GET['branch_id']) ? intval($_GET['branch_id']) : null;
+$branch_id = !empty($_GET['branch_id']) ? intval($_GET['branch_id']) : 0;
 $date = $_GET['date'] ?? '';
 
 if ($service_id <= 0) {
@@ -17,107 +23,33 @@ if ($service_id <= 0) {
     exit;
 }
 
-// Backwards-compatible: if no date is provided, fall back to simple service/branch filter.
-if (empty($date)) {
-    $dentists = getDentists(true, $service_id, $branch_id);
-    $result = [];
-    while ($dentist = $dentists->fetch_assoc()) {
-        $result[] = [
-            'dentist_id' => $dentist['dentist_id'],
-            'full_name' => $dentist['full_name'],
-            'email' => $dentist['email'],
-            'phone' => $dentist['phone']
-        ];
-    }
-    echo json_encode(['success' => true, 'dentists' => $result]);
+if ($date === '' || $branch_id <= 0 || !parseBookingDate($date)) {
+    echo json_encode(['success' => false, 'message' => 'Date and branch are required', 'dentists' => []]);
     exit;
 }
 
-if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-    echo json_encode(['success' => false, 'message' => 'Invalid date format']);
+$allow_today = isLoggedIn() && in_array($_SESSION['role'] ?? '', ['admin', 'staff', 'dentist'], true);
+if (!isDateInBookingWindow($date, $allow_today)) {
+    echo json_encode(['success' => false, 'message' => 'Date is outside the 3-month booking window', 'dentists' => []]);
     exit;
 }
 
 try {
-    $db = getDB();
-
-    $sql = "
-        WITH day AS (
-            SELECT ?::date AS d
-        )
-        SELECT DISTINCT
-            dent.dentist_id,
-            u.full_name,
-            u.email,
-            u.phone
-        FROM dentists dent
-        JOIN users u
-          ON u.user_id = dent.user_id
-        JOIN dentist_service_mastery dsm
-          ON dsm.dentist_id = dent.dentist_id
-        JOIN services s
-          ON s.service_id = dsm.service_id
-        JOIN day ON TRUE
-        JOIN dentist_schedules ds
-          ON ds.dentist_id = dent.dentist_id
-         AND ds.day_of_week = EXTRACT(DOW FROM day.d)
-         AND ds.is_available = TRUE
-        JOIN time_slots ts
-          ON ts.is_active = TRUE
-         AND ds.start_time <= ts.slot_time
-         AND ds.end_time   > ts.slot_time
-        WHERE s.service_id = ?
-          AND dent.is_active = TRUE
-          AND u.is_active = TRUE
-    ";
-
-    $params = [$date, $service_id];
-    $types  = "si";
-
-    if ($branch_id !== null && $branch_id > 0) {
-        $sql .= " AND dent.branch_id = ? ";
-        $params[] = $branch_id;
-        $types   .= "i";
-    }
-
-    $sql .= "
-          AND NOT EXISTS (
-                SELECT 1
-                FROM blocked_dates bd
-                WHERE bd.block_date = day.d
-                  AND bd.branch_id = dent.branch_id
-                  AND bd.is_active = TRUE
-          )
-          AND NOT EXISTS (
-                SELECT 1
-                FROM appointments a
-                WHERE a.appointment_date = day.d
-                  AND a.appointment_time = ts.slot_time
-                  AND a.branch_id = dent.branch_id
-                  AND a.status IN ('pending','confirmed')
-                  AND a.dentist_id = dent.dentist_id
-          )
-        ORDER BY u.full_name
-    ";
-
-    $stmt = $db->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $res = $stmt->get_result();
-
     $result = [];
-    while ($row = $res->fetch_assoc()) {
+    foreach (getDentistsWorkingAtBranchOnDate($branch_id, $date, null, $service_id) as $dent) {
+        $slots = computeAvailableTimeSlots($date, (int)$dent['dentist_id'], $service_id, $branch_id);
+        if (!$slots) {
+            continue;
+        }
         $result[] = [
-            'dentist_id' => (int)$row['dentist_id'],
-            'full_name' => $row['full_name'],
-            'email' => $row['email'],
-            'phone' => $row['phone'],
+            'dentist_id' => (int)$dent['dentist_id'],
+            'full_name' => $dent['full_name'],
+            'email' => $dent['email'],
+            'phone' => $dent['phone'],
         ];
     }
-
     echo json_encode(['success' => true, 'dentists' => $result]);
 } catch (Throwable $e) {
     error_log('get-dentists-by-service error: ' . $e->getMessage());
     echo json_encode(['success' => false, 'message' => 'Server error']);
 }
-

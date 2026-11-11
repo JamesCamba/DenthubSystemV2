@@ -6,8 +6,9 @@ require_once '../includes/config.php';
 require_once '../includes/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
+require_once '../includes/export.php';
 
-requireLogin();
+requireStaff();
 
 $appointment_id = intval($_GET['id'] ?? 0);
 $db = getDB();
@@ -64,18 +65,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>View Appointment - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <?php $asset_base = '../'; require __DIR__ . '/../includes/head-assets.php'; ?>
 </head>
-<body>
+<body class="print-document-page">
     <?php include 'navbar.php'; ?>
 
     <main class="denthub-main">
     <div class="container-fluid py-4">
-        <div class="d-flex justify-content-between align-items-center mb-4">
+        <div class="print-only"><?php echo printAppointmentDocument($appointment, 'Official appointment record'); ?></div>
+        <div class="d-flex justify-content-between align-items-center mb-4 print-hide">
             <h1 class="denthub-page-title mb-0">Appointment Details</h1>
-            <a href="appointments.php" class="btn btn-secondary">Back to Appointments</a>
+            <div class="d-flex gap-2 no-print">
+                <button type="button" class="btn btn-outline-primary" onclick="window.print()"><i class="bi bi-printer"></i> Print</button>
+                <a href="appointments.php" class="btn btn-secondary">Back to Appointments</a>
+            </div>
         </div>
 
         <?php if (isset($_GET['updated'])): ?>
@@ -174,7 +177,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
                             <input type="hidden" name="reschedule" value="1">
                             <div class="col-auto">
                                 <label class="form-label small mb-0">New Date</label>
-                                <input type="date" class="form-control form-control-sm" name="reschedule_date" id="reschedule_date" required min="<?php echo date('Y-m-d'); ?>">
+                                <input type="date" class="form-control form-control-sm" name="reschedule_date" id="reschedule_date" required <?php echo bookingDateInputAttributes(true); ?>>
                             </div>
                             <div class="col-auto">
                                 <label class="form-label small mb-0">New Time</label>
@@ -245,7 +248,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
     </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         document.addEventListener('click', function (e) {
             const btn = e.target.closest('.sensitive-toggle');
@@ -274,32 +276,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['reschedule'])) {
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            var rescheduleDate = document.getElementById('reschedule_date');
-            var rescheduleTime = document.getElementById('reschedule_time');
-            if (!rescheduleDate || !rescheduleTime) return;
-            var appointmentId = <?php echo (int)$appointment_id; ?>;
-            var dentistId = <?php echo !empty($appointment['dentist_id']) ? (int)$appointment['dentist_id'] : 'null'; ?>;
-            var branchId = <?php echo (int)($appointment['branch_id'] ?? 1); ?>;
-            rescheduleDate.addEventListener('change', function() {
-                var date = this.value;
-                rescheduleTime.innerHTML = '<option value="">Loading...</option>';
-                if (!date) { rescheduleTime.innerHTML = '<option value="">Select time...</option>'; return; }
-                var url = '../api/get-available-slots.php?date=' + encodeURIComponent(date) + '&branch_id=' + branchId + '&exclude_appointment_id=' + appointmentId;
-                if (dentistId) url += '&dentist_id=' + dentistId;
-                fetch(url).then(function(r) { return r.json(); }).then(function(data) {
-                    rescheduleTime.innerHTML = '<option value="">Select time...</option>';
-                    if (data.success && data.slots) {
-                        data.slots.forEach(function(s) {
-                            var opt = document.createElement('option');
-                            opt.value = s.slot_time;
-                            opt.textContent = s.display_time;
-                            rescheduleTime.appendChild(opt);
-                        });
-                    }
-                }).catch(function() {
-                    rescheduleTime.innerHTML = '<option value="">Error loading slots</option>';
+            if (window.Denthub && Denthub.bindRescheduleSlots) {
+                Denthub.bindRescheduleSlots({
+                    appointmentId: <?php echo (int)$appointment_id; ?>,
+                    dentistId: <?php echo !empty($appointment['dentist_id']) ? (int)$appointment['dentist_id'] : 'null'; ?>,
+                    branchId: <?php echo (int)($appointment['branch_id'] ?? 0); ?>,
+                    serviceId: <?php echo (int)($appointment['service_id'] ?? 0); ?>
                 });
-            });
+            }
         });
     </script>
 </body>

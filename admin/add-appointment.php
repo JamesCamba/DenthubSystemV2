@@ -7,7 +7,7 @@ require_once '../includes/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 
-requireLogin();
+requireStaff();
 
 $db = getDB();
 $error = '';
@@ -18,55 +18,38 @@ $services = getServices();
 $dentists = getDentists();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!verifyCsrf()) {
+        $error = 'Invalid request. Please refresh the page and try again.';
+    } else {
     $patient_id = intval($_POST['patient_id']);
     $service_id = intval($_POST['service_id']);
-    $dentist_id = !empty($_POST['dentist_id']) ? intval($_POST['dentist_id']) : null;
+    $dentist_id = !empty($_POST['dentist_id']) ? intval($_POST['dentist_id']) : 0;
     $appointment_date = $_POST['appointment_date'];
     $appointment_time = $_POST['appointment_time'];
     $reason_for_visit = sanitize($_POST['reason_for_visit'] ?? '');
-    $branch_id = $_SESSION['branch_id'] ?? 1;
+    $branch_id = !empty($_POST['branch_id']) ? intval($_POST['branch_id']) : (int)($_SESSION['branch_id'] ?? 0);
 
-    if (empty($patient_id) || empty($service_id) || empty($appointment_date) || empty($appointment_time)) {
-        $error = 'Please fill in all required fields.';
+    if (empty($patient_id) || empty($service_id) || empty($appointment_date) || empty($appointment_time) || empty($dentist_id) || $branch_id <= 0) {
+        $error = 'Please fill in all required fields, including dentist and branch.';
     } else {
-        // Check if slot is available
-        if ($dentist_id === null) {
-            // Any dentist – avoid binding a NULL dentist_id parameter
-            $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                                 WHERE appointment_date = ? AND appointment_time = ? 
-                                 AND status IN ('pending', 'confirmed')");
-            $stmt->bind_param("ss", $appointment_date, $appointment_time);
-        } else {
-            // Specific dentist
-            $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                                 WHERE appointment_date = ? AND appointment_time = ? 
-                                 AND status IN ('pending', 'confirmed') 
-                                 AND dentist_id = ?");
-            $stmt->bind_param("ssi", $appointment_date, $appointment_time, $dentist_id);
+        $created = createAppointmentRecord(
+            $patient_id,
+            $dentist_id,
+            $service_id,
+            $branch_id,
+            $appointment_date,
+            $appointment_time,
+            $reason_for_visit,
+            'confirmed',
+            $_SESSION['user_id'] ?? null,
+            ['allow_today' => true]
+        );
+        if (!empty($created['ok'])) {
+            header('Location: appointments.php');
+            exit;
         }
-
-        $stmt->execute();
-        $result = $stmt->get_result()->fetch_assoc();
-
-        if ($result['count'] > 0) {
-            $error = 'Selected time slot is already booked.';
-        } else {
-            $appointment_number = generateAppointmentNumber();
-            $stmt = $db->prepare("INSERT INTO appointments (appointment_number, patient_id, dentist_id, service_id, branch_id, appointment_date, appointment_time, reason_for_visit, status, created_by) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'confirmed', ?)");
-            $stmt->bind_param("siiissssi", $appointment_number, $patient_id, $dentist_id, $service_id, $branch_id, $appointment_date, $appointment_time, $reason_for_visit, $_SESSION['user_id']);
-
-            try {
-                if ($stmt->execute()) {
-                    $success = 'Appointment created successfully!';
-                    header('Location: appointments.php');
-                    exit;
-                }
-            } catch (Exception $e) {
-                error_log('Add appointment error: ' . $e->getMessage());
-            }
-            $error = 'We could not create the appointment. Please try again.';
-        }
+        $error = $created['error'] ?? 'We could not create the appointment. Please try again.';
+    }
     }
 }
 
@@ -87,9 +70,7 @@ if ($patient_search) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add Appointment - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <?php $asset_base = '../'; require __DIR__ . '/../includes/head-assets.php'; ?>
 </head>
 <body>
     <?php include 'navbar.php'; ?>
@@ -99,12 +80,13 @@ if ($patient_search) {
         <h2 class="mb-4">Add New Appointment</h2>
 
         <?php if ($error): ?>
-            <div class="alert alert-danger"><?php echo $error; ?></div>
+            <div class="alert alert-danger"><?php echo e($error); ?></div>
         <?php endif; ?>
 
         <div class="card">
             <div class="card-body">
                 <form method="POST" action="">
+                    <?php echo csrfField(); ?>
                     <!-- Patient Search -->
                     <div class="mb-4">
                         <label class="form-label">Search Patient <span class="text-danger">*</span></label>
@@ -119,7 +101,7 @@ if ($patient_search) {
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label class="form-label">Service <span class="text-danger">*</span></label>
-                            <select class="form-select" name="service_id" required>
+                            <select class="form-select" name="service_id" id="service_id" required>
                                 <option value="">Select service...</option>
                                 <?php 
                                 $services->data_seek(0);
@@ -132,9 +114,9 @@ if ($patient_search) {
                             </select>
                         </div>
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Dentist (Optional)</label>
-                            <select class="form-select" name="dentist_id">
-                                <option value="">Any Available Dentist</option>
+                            <label class="form-label">Dentist <span class="text-danger">*</span></label>
+                            <select class="form-select" name="dentist_id" id="dentist_id" required>
+                                <option value="">Select dentist...</option>
                                 <?php 
                                 $dentists->data_seek(0);
                                 while ($dentist = $dentists->fetch_assoc()): 
@@ -148,13 +130,36 @@ if ($patient_search) {
                     </div>
 
                     <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Date <span class="text-danger">*</span></label>
-                            <input type="date" class="form-control" name="appointment_date" required min="<?php echo date('Y-m-d'); ?>">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Branch <span class="text-danger">*</span></label>
+                            <select class="form-select" name="branch_id" id="branch_id" required>
+                                <?php
+                                $brRes = $db->query("SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE ORDER BY branch_name");
+                                $sessionBranch = (int)($_SESSION['branch_id'] ?? 0);
+                                while ($br = $brRes->fetch_assoc()):
+                                ?>
+                                    <option value="<?php echo (int)$br['branch_id']; ?>" <?php echo $sessionBranch === (int)$br['branch_id'] ? 'selected' : ''; ?>>
+                                        <?php echo htmlspecialchars($br['branch_name']); ?>
+                                    </option>
+                                <?php endwhile; ?>
+                            </select>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Date <span class="text-danger">*</span></label>
+                            <?php
+                                [$minStaff, $maxStaff] = getBookingDateBounds(true);
+                            ?>
+                            <input type="date" class="form-control" name="appointment_date" id="appointment_date" required
+                                   min="<?php echo $minStaff->format('Y-m-d'); ?>"
+                                   max="<?php echo $maxStaff->format('Y-m-d'); ?>">
+                            <small class="text-muted">Today through 3 months ahead. Past dates are not allowed.</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label class="form-label">Time <span class="text-danger">*</span></label>
-                            <input type="time" class="form-control" name="appointment_time" required>
+                            <select class="form-select" name="appointment_time" id="appointment_time" required>
+                                <option value="">Select date, dentist and service first</option>
+                            </select>
+                            <small class="text-muted">Only open clinic slots that do not overlap are listed.</small>
                         </div>
                     </div>
 
@@ -173,7 +178,6 @@ if ($patient_search) {
     </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function searchPatient() {
             const search = document.getElementById('patient_search').value;
@@ -184,21 +188,78 @@ if ($patient_search) {
             window.location.href = '?patient_search=' + encodeURIComponent(search);
         }
 
-        <?php if ($patients_list && $patients_list->num_rows > 0): ?>
-            const resultsDiv = document.getElementById('patient_results');
-            resultsDiv.innerHTML = '<div class="list-group"><?php 
-                while ($p = $patients_list->fetch_assoc()): 
-echo '<button type="button" class="list-group-item list-group-item-action" onclick="selectPatient(' . $p['patient_id'] . ', \'' . addslashes(htmlspecialchars($p['first_name'] . ' ' . $p['last_name'])) . '\')">';
-                                    echo htmlspecialchars($p['patient_number'] . ' - ' . $p['first_name'] . ' ' . $p['last_name'] . ' (' . maskPhone($p['phone'] ?? '') . ')');
-                    echo '</button>';
-                endwhile;
-            ?></div>';
-        <?php endif; ?>
+        const patientMatches = <?php
+            $patientMatches = [];
+            if ($patients_list) {
+                $patients_list->data_seek(0);
+                while ($p = $patients_list->fetch_assoc()) {
+                    $patientMatches[] = [
+                        'id' => (int)$p['patient_id'],
+                        'name' => trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')),
+                        'label' => ($p['patient_number'] ?? '') . ' - ' . trim(($p['first_name'] ?? '') . ' ' . ($p['last_name'] ?? '')) . ' (' . maskPhone($p['phone'] ?? '') . ')',
+                    ];
+                }
+            }
+            echo json_encode($patientMatches, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+        ?>;
+        if (patientMatches.length) {
+            const wrap = document.createElement('div');
+            wrap.className = 'list-group';
+            patientMatches.forEach(function (p) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'list-group-item list-group-item-action';
+                btn.textContent = p.label;
+                btn.addEventListener('click', function () { selectPatient(p.id, p.name); });
+                wrap.appendChild(btn);
+            });
+            document.getElementById('patient_results').replaceChildren(wrap);
+        }
 
         function selectPatient(id, name) {
             document.getElementById('patient_id').value = id;
-            document.getElementById('patient_results').innerHTML = '<div class="alert alert-success">Selected: ' + name + '</div>';
+            const note = document.createElement('div');
+            note.className = 'alert alert-success';
+            note.textContent = 'Selected: ' + name;
+            document.getElementById('patient_results').replaceChildren(note);
         }
+
+        async function loadStaffSlots() {
+            const date = document.getElementById('appointment_date').value;
+            const branchId = document.getElementById('branch_id').value;
+            const dentistId = document.getElementById('dentist_id').value;
+            const serviceId = document.getElementById('service_id').value;
+            const timeSelect = document.getElementById('appointment_time');
+            if (!date || !branchId || !dentistId || !serviceId) {
+                timeSelect.innerHTML = '<option value="">Select date, dentist and service first</option>';
+                return;
+            }
+            timeSelect.innerHTML = '<option value="">Loading...</option>';
+            try {
+                const res = await fetch(`../api/get-available-slots.php?date=${encodeURIComponent(date)}&dentist_id=${encodeURIComponent(dentistId)}&branch_id=${encodeURIComponent(branchId)}&service_id=${encodeURIComponent(serviceId)}`);
+                const data = await res.json();
+                timeSelect.innerHTML = '<option value="">Select time...</option>';
+                if (data.success && data.slots && data.slots.length) {
+                    data.slots.forEach(slot => {
+                        const opt = document.createElement('option');
+                        opt.value = slot.slot_time;
+                        opt.textContent = slot.display_time;
+                        timeSelect.appendChild(opt);
+                    });
+                } else {
+                    const opt = document.createElement('option');
+                    opt.value = '';
+                    opt.textContent = data.message || 'No available slots';
+                    opt.disabled = true;
+                    timeSelect.appendChild(opt);
+                }
+            } catch (e) {
+                timeSelect.innerHTML = '<option value="">Error loading slots</option>';
+            }
+        }
+        ['appointment_date', 'branch_id', 'dentist_id', 'service_id'].forEach(id => {
+            document.getElementById(id).addEventListener('change', loadStaffSlots);
+        });
     </script>
 </body>
 </html>

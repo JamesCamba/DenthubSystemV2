@@ -380,9 +380,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Register - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <?php $asset_base = ''; require __DIR__ . '/includes/head-assets.php'; ?>
 </head>
 <body>
     <?php $nav_active = ''; require_once 'includes/nav-public.php'; ?>
@@ -399,10 +397,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                     <div class="card-body p-5">
 
                         <?php if ($error): ?>
-                            <div class="alert alert-danger"><?php echo $error; ?></div>
+                            <div class="alert alert-danger"><?php echo e($error); ?></div>
                         <?php endif; ?>
                         <?php if ($success): ?>
-                            <div class="alert alert-success"><?php echo $success; ?></div>
+                            <div class="alert alert-success"><?php echo e($success); ?></div>
                         <?php endif; ?>
 
                         <?php if ($step === 'verify'): ?>
@@ -418,7 +416,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                            placeholder="000000" style="font-size: 24px; letter-spacing: 8px; font-family: monospace;">
                                     <small class="text-muted">Enter the 6-digit code sent to your email</small>
                                     <?php if (!empty($error)): ?>
-                                        <div class="text-danger small mt-1"><?php echo $error; ?></div>
+                                        <div class="text-danger small mt-1"><?php echo e($error); ?></div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="d-grid gap-2">
@@ -446,14 +444,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                     <label class="form-label">First Name <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" name="first_name" required value="<?php echo htmlspecialchars($_POST['first_name'] ?? ''); ?>">
                                     <?php if (!empty($errors['first_name'])): ?>
-                                        <div class="text-danger small mt-1"><?php echo $errors['first_name']; ?></div>
+                                        <div class="text-danger small mt-1"><?php echo e($errors['first_name']); ?></div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="col-md-4 mb-3">
                                     <label class="form-label">Last Name <span class="text-danger">*</span></label>
                                     <input type="text" class="form-control" name="last_name" required value="<?php echo htmlspecialchars($_POST['last_name'] ?? ''); ?>">
                                     <?php if (!empty($errors['last_name'])): ?>
-                                        <div class="text-danger small mt-1"><?php echo $errors['last_name']; ?></div>
+                                        <div class="text-danger small mt-1"><?php echo e($errors['last_name']); ?></div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="col-md-2 mb-3">
@@ -469,7 +467,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                 <label class="form-label">Email <span class="text-danger">*</span></label>
                                 <input type="email" class="form-control" name="email" required value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
                                 <?php if (!empty($errors['email'])): ?>
-                                    <div class="text-danger small mt-1"><?php echo $errors['email']; ?></div>
+                                    <div class="text-danger small mt-1"><?php echo e($errors['email']); ?></div>
                                 <?php endif; ?>
                             </div>
                             <div class="mb-3">
@@ -477,7 +475,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                 <input type="tel" class="form-control" name="phone" required maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX" value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
                                 <small class="text-muted">Philippines mobile: 11 digits (e.g. 09161234567)</small>
                                 <?php if (!empty($errors['phone'])): ?>
-                                    <div class="text-danger small mt-1"><?php echo $errors['phone']; ?></div>
+                                    <div class="text-danger small mt-1"><?php echo e($errors['phone']); ?></div>
                                 <?php endif; ?>
                             </div>
                             <div class="row">
@@ -493,7 +491,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                            max="<?php echo $maxDob; ?>" 
                                            value="<?php echo htmlspecialchars($_POST['birthdate'] ?? ''); ?>">
                                     <?php if (!empty($errors['birthdate'])): ?>
-                                        <div class="text-danger small mt-1"><?php echo $errors['birthdate']; ?></div>
+                                        <div class="text-danger small mt-1"><?php echo e($errors['birthdate']); ?></div>
                                     <?php endif; ?>
                                 </div>
                                 <div class="col-md-6 mb-3">
@@ -508,7 +506,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Address</label>
-                                <textarea class="form-control" name="address" rows="2"><?php echo $_POST['address'] ?? ''; ?></textarea>
+                                <textarea class="form-control" name="address" rows="2"><?php echo e($_POST['address'] ?? ''); ?></textarea>
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Password <span class="text-danger">*</span></label>
@@ -520,7 +518,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                 </div>
                                 <small class="text-muted">8–12 characters, with at least 1 uppercase letter, 1 number, and 1 special character.</small>
                                 <?php if (!empty($errors['password'])): ?>
-                                    <div class="text-danger small mt-1"><?php echo $errors['password']; ?></div>
+                                    <div class="text-danger small mt-1"><?php echo e($errors['password']); ?></div>
                                 <?php endif; ?>
                             </div>
                             <div class="mb-3">
@@ -532,7 +530,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                     </button>
                                 </div>
                                 <?php if (!empty($errors['confirm_password'])): ?>
-                                    <div class="text-danger small mt-1"><?php echo $errors['confirm_password']; ?></div>
+                                    <div class="text-danger small mt-1"><?php echo e($errors['confirm_password']); ?></div>
                                 <?php endif; ?>
                             </div>
                             <div class="mb-3">
@@ -547,14 +545,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
                                     </label>
                                 </div>
                                 <?php if (!empty($errors['accept_terms'])): ?>
-                                    <div class="text-danger small mt-1"><?php echo $errors['accept_terms']; ?></div>
+                                    <div class="text-danger small mt-1"><?php echo e($errors['accept_terms']); ?></div>
                                 <?php endif; ?>
                             </div>
                             <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
                             <div class="mb-3">
                                 <div class="g-recaptcha" data-sitekey="<?php echo htmlspecialchars(RECAPTCHA_SITE_KEY); ?>"></div>
                                 <?php if (!empty($errors['captcha'])): ?>
-                                    <div class="text-danger small mt-1"><?php echo $errors['captcha']; ?></div>
+                                    <div class="text-danger small mt-1"><?php echo e($errors['captcha']); ?></div>
                                 <?php endif; ?>
                             </div>
                             <?php endif; ?>
@@ -642,7 +640,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $step === 'register') {
     <?php if (defined('RECAPTCHA_SITE_KEY') && RECAPTCHA_SITE_KEY !== ''): ?>
     <script src="https://www.google.com/recaptcha/api.js" async defer></script>
     <?php endif; ?>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function togglePassword(fieldId) {
             const field = document.getElementById(fieldId);

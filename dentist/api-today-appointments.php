@@ -13,7 +13,7 @@ header('Content-Type: text/html; charset=utf-8');
 
 try {
     $db = getDB();
-    $today = date('Y-m-d');
+    $today = appTodayImmutable()->format('Y-m-d');
 
     // Find dentist id for current user
     $stmt = $db->prepare("SELECT dentist_id FROM dentists WHERE user_id = ?");

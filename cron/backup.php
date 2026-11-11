@@ -70,8 +70,11 @@ try {
         $content = "-- Denthub Backup (PHP fallback)\n-- " . date('Y-m-d H:i:s') . "\n\n";
         $tables = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN);
         foreach ($tables as $table) {
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', (string)$table)) {
+                continue;
+            }
             $content .= "\n-- Table: $table\n";
-            $rows = $pdo->query("SELECT * FROM \"$table\"")->fetchAll(PDO::FETCH_ASSOC);
+            $rows = $pdo->query('SELECT * FROM "' . $table . '"')->fetchAll(PDO::FETCH_ASSOC);
             foreach ($rows as $row) {
                 $cols = array_keys($row);
                 $vals = array_map(function ($v) use ($pdo) {

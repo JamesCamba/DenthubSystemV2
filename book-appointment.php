@@ -38,72 +38,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Please login first to book an appointment.';
     } else {
         $patient_id = $_SESSION['patient_id'];
-        $service_id = intval($_POST['service_id']);
-        $dentist_id = !empty($_POST['dentist_id']) ? intval($_POST['dentist_id']) : null;
-        $appointment_date = $_POST['appointment_date'];
-        $appointment_time = $_POST['appointment_time'];
+        $service_id = intval($_POST['service_id'] ?? 0);
+        $dentist_id = !empty($_POST['dentist_id']) ? intval($_POST['dentist_id']) : 0;
+        $appointment_date = $_POST['appointment_date'] ?? '';
+        $appointment_time = $_POST['appointment_time'] ?? '';
         $reason_for_visit = sanitize($_POST['reason_for_visit'] ?? '');
-        $branch_id = !empty($_POST['branch_id']) ? intval($_POST['branch_id']) : 1;
+        $branch_id = !empty($_POST['branch_id']) ? intval($_POST['branch_id']) : 0;
 
-        // Validation
-        if (empty($service_id) || empty($appointment_date) || empty($appointment_time)) {
+        if (!verifyCsrf()) {
+            $error = 'Invalid request. Please refresh the page and try again.';
+        } elseif (empty($service_id) || empty($appointment_date) || empty($appointment_time) || empty($dentist_id) || empty($branch_id)) {
             $error = 'Please fill in all required fields.';
-        } else {
-            // Enforce booking window: tomorrow up to 6 months ahead (exclude today and past)
-            $today = new DateTimeImmutable('today');
-            $minDate = $today->modify('+1 day');
-            $maxDate = $today->modify('+6 months');
-            $apptDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $appointment_date) ?: null;
-            if (!$apptDateObj || $apptDateObj < $minDate || $apptDateObj > $maxDate) {
-                $error = 'Selected date is outside the allowed booking window.';
-            }
-        }
-        if (empty($error) && hasUpcomingAppointment($patient_id)) {
+        } elseif (hasUpcomingAppointment($patient_id)) {
             $error = 'You already have an upcoming appointment. Please complete or cancel it before booking a new one.';
-        } elseif (empty($error) && !canBookOnline($patient_id)) {
+        } elseif (!canBookOnline($patient_id)) {
             $error = 'You have multiple recent no-shows. Please call the clinic to book a new appointment.';
-        } elseif (empty($error) && isDateBlocked($appointment_date, $branch_id)) {
-            $error = 'Selected date is not available.';
-        } elseif (empty($error)) {
-            // Check if slot is available
-            $db = getDB();
-
-            if ($dentist_id === null) {
-                $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                                     WHERE appointment_date = ? AND appointment_time = ? AND branch_id = ?
-                                     AND status IN ('pending', 'confirmed')");
-                $stmt->bind_param("ssi", $appointment_date, $appointment_time, $branch_id);
-            } else {
-                $stmt = $db->prepare("SELECT COUNT(*) as count FROM appointments 
-                                     WHERE appointment_date = ? AND appointment_time = ? AND branch_id = ?
-                                     AND status IN ('pending', 'confirmed') 
-                                     AND dentist_id = ?");
-                $stmt->bind_param("ssii", $appointment_date, $appointment_time, $branch_id, $dentist_id);
+        } else {
+            $created = createAppointmentRecord(
+                $patient_id,
+                $dentist_id,
+                $service_id,
+                $branch_id,
+                $appointment_date,
+                $appointment_time,
+                $reason_for_visit,
+                'pending',
+                null,
+                ['allow_today' => false]
+            );
+            if (!empty($created['ok'])) {
+                header('Location: appointment-confirmation.php?id=' . $created['appointment_id']);
+                exit;
             }
-
-            $stmt->execute();
-            $result = $stmt->get_result()->fetch_assoc();
-
-            if ($result['count'] > 0) {
-                $error = 'Selected time slot is already booked. Please choose another time.';
-            } else {
-                // Create appointment
-                $appointment_number = generateAppointmentNumber();
-                $stmt = $db->prepare("INSERT INTO appointments (appointment_number, patient_id, dentist_id, service_id, branch_id, appointment_date, appointment_time, reason_for_visit, status) 
-                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
-                $stmt->bind_param("siiissss", $appointment_number, $patient_id, $dentist_id, $service_id, $branch_id, $appointment_date, $appointment_time, $reason_for_visit);
-
-                try {
-                    if ($stmt->execute()) {
-                        $appointment_id = $db->insert_id;
-                        header('Location: appointment-confirmation.php?id=' . $appointment_id);
-                        exit;
-                    }
-                } catch (Exception $e) {
-                    error_log('Book appointment error: ' . $e->getMessage());
-                }
-                $error = 'We could not complete your booking. Please try again or contact the clinic.';
-            }
+            $error = $created['error'] ?? 'We could not complete your booking. Please try again or contact the clinic.';
         }
     }
 }
@@ -114,9 +81,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book Appointment - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="assets/css/style.css">
+    <?php $asset_base = ''; require __DIR__ . '/includes/head-assets.php'; ?>
 </head>
 <body>
     <?php $nav_active = 'book'; require_once 'includes/nav-public.php'; ?>
@@ -129,7 +94,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <h2 class="mb-4">Book an Appointment</h2>
 
                         <?php if ($error): ?>
-                            <div class="alert alert-danger"><?php echo $error; ?></div>
+                            <div class="alert alert-danger"><?php echo e($error); ?></div>
                         <?php endif; ?>
 
                         <?php if (!isPatientLoggedIn()): ?>
@@ -144,33 +109,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
                             <?php endif; ?>
                             <form method="POST" action="" id="appointmentForm">
-                                <div class="mb-3">
-                                    <label class="form-label">Preferred Date <span class="text-danger">*</span></label>
-                                    <?php
-                                        $today = new DateTimeImmutable('today');
-                                        $minDate = $today->modify('+1 day');
-                                        $maxDate = $today->modify('+6 months');
-                                    ?>
-                                    <input type="date" class="form-control" name="appointment_date" id="appointment_date" 
-                                           min="<?php echo $minDate->format('Y-m-d'); ?>" 
-                                           max="<?php echo $maxDate->format('Y-m-d'); ?>"
-                                           required
-                                           value="<?php echo htmlspecialchars($prefill_date); ?>">
-                                    <small class="text-muted">Select a future date. Only dates with available slots will allow you to proceed.</small>
-                                    <div class="text-danger small mt-1 d-none" id="dateError"></div>
-                                </div>
-
+                                <?php echo csrfField(); ?>
                                 <div class="mb-3">
                                     <label class="form-label">Branch <span class="text-danger">*</span></label>
-                                    <select class="form-select" name="branch_id" id="branch_id" required disabled>
-                                        <option value="">Select a date first</option>
+                                    <select class="form-select" name="branch_id" id="branch_id" required>
+                                        <option value="">Select a branch...</option>
                                         <?php foreach ($branches as $b): ?>
-                                            <option value="<?php echo (int)$b['branch_id']; ?>">
+                                            <option value="<?php echo (int)$b['branch_id']; ?>" <?php echo ((int)$prefill_branch_id === (int)$b['branch_id']) ? 'selected' : ''; ?>>
                                                 <?php echo htmlspecialchars($b['branch_name']); ?><?php if (!empty($b['address'])): ?> — <?php echo htmlspecialchars($b['address']); ?><?php endif; ?>
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
                                     <div class="text-danger small mt-1 d-none" id="branchError"></div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label class="form-label">Preferred Date <span class="text-danger">*</span></label>
+                                    <input type="hidden" name="appointment_date" id="appointment_date" required value="<?php echo htmlspecialchars($prefill_date); ?>">
+                                    <div class="d-flex align-items-center justify-content-between mb-2">
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="prevMonthBtn"><i class="bi bi-chevron-left"></i></button>
+                                        <strong id="monthLabel">Select a branch</strong>
+                                        <button type="button" class="btn btn-outline-primary btn-sm" id="nextMonthBtn"><i class="bi bi-chevron-right"></i></button>
+                                    </div>
+                                    <div class="table-responsive">
+                                        <table class="table table-bordered mb-0 text-center align-middle booking-mini-cal">
+                                            <thead>
+                                                <tr>
+                                                    <th>Sun</th><th>Mon</th><th>Tue</th><th>Wed</th><th>Thu</th><th>Fri</th><th>Sat</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bookingCalendarBody"></tbody>
+                                        </table>
+                                    </div>
+                                    <small class="text-muted d-block mt-2">Past, closed, blocked, and full days are greyed out. Booking is limited to the next 3 months, starting tomorrow.</small>
+                                    <div class="text-danger small mt-1 d-none" id="dateError"></div>
                                 </div>
 
                                 <div class="mb-3">
@@ -182,8 +154,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 </div>
 
                                 <div class="mb-3">
-                                    <label class="form-label">Dentist <span class="text-muted">(Required once service selected)</span></label>
-                                    <select class="form-select" name="dentist_id" id="dentist_id" disabled>
+                                    <label class="form-label">Dentist <span class="text-danger">*</span></label>
+                                    <select class="form-select" name="dentist_id" id="dentist_id" required disabled>
                                         <option value="">Select date, branch and service first</option>
                                     </select>
                                     <small class="text-muted">Only dentists with availability for the selected date, branch, and service are shown.</small>
@@ -240,7 +212,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </footer>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         const HAS_UPCOMING_APPOINTMENT = <?php echo isPatientLoggedIn() ? ($hasUpcomingAppointment ? 'true' : 'false') : 'false'; ?>;
 
@@ -262,10 +233,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             el.classList.toggle('d-none', !msg);
         }
 
+        let calYear = (window.Denthub && Denthub.todayParts) ? Denthub.todayParts().y : new Date().getFullYear();
+        let calMonth = (window.Denthub && Denthub.todayParts) ? Denthub.todayParts().m : (new Date().getMonth() + 1);
+        let calMinDate = '';
+        let calMaxDate = '';
+
         function resetBranch() {
-            branchSelect.value = '';
-            branchSelect.disabled = true;
-            branchSelect.innerHTML = '<option value="">Select a date first</option>';
             showError(branchError, '');
         }
 
@@ -304,65 +277,111 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             window.history.replaceState({}, '', newUrl);
         }
 
-        // Step 1: Date selection
+        function renderBookingCalendar(data) {
+            const body = document.getElementById('bookingCalendarBody');
+            body.innerHTML = '';
+            const year = data.year;
+            const month = data.month;
+            calYear = year;
+            calMonth = month;
+            const firstDay = new Date(year, month - 1, 1).getDay();
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const dayMap = {};
+            (data.days || []).forEach(d => { dayMap[d.date] = d; });
+            document.getElementById('monthLabel').textContent = new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' });
+            const selected = dateInput.value;
+            let day = 1;
+            for (let week = 0; week < 6; week++) {
+                const tr = document.createElement('tr');
+                for (let dow = 0; dow < 7; dow++) {
+                    const td = document.createElement('td');
+                    if (week === 0 && dow < firstDay || day > daysInMonth) {
+                        td.innerHTML = '&nbsp;';
+                    } else {
+                        const dateStr = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+                        const info = dayMap[dateStr] || { slots: 0, blocked: true, selectable: false, past: true };
+                        td.textContent = String(day);
+                        td.dataset.date = dateStr;
+                        td.className = 'booking-cal-day';
+                        if (info.past || info.outside_window) {
+                            td.classList.add('is-disabled');
+                            td.title = info.past ? 'Past date' : 'Outside 3-month window';
+                        } else if (info.blocked) {
+                            td.classList.add('is-disabled', 'is-blocked');
+                            td.title = info.reason || 'Blocked';
+                        } else if (!info.selectable) {
+                            td.classList.add('is-disabled');
+                            td.title = 'No available slots';
+                        } else {
+                            td.classList.add('is-open');
+                            td.title = info.slots + ' slots';
+                            td.addEventListener('click', () => selectBookingDate(dateStr));
+                        }
+                        if (selected === dateStr) td.classList.add('is-selected');
+                        day++;
+                    }
+                    tr.appendChild(td);
+                }
+                body.appendChild(tr);
+                if (day > daysInMonth) break;
+            }
+        }
+
+        async function loadBookingCalendar() {
+            const branchId = branchSelect.value;
+            const body = document.getElementById('bookingCalendarBody');
+            if (!branchId) {
+                document.getElementById('monthLabel').textContent = 'Select a branch';
+                body.innerHTML = '';
+                return;
+            }
+            try {
+                const res = await fetch(`api/get-calendar-availability.php?role=patient&branch_id=${encodeURIComponent(branchId)}&year=${calYear}&month=${calMonth}`);
+                const data = await res.json();
+                if (!data.success) {
+                    showError(dateError, data.message || 'Unable to load calendar.');
+                    return;
+                }
+                calMinDate = data.min_date || calMinDate;
+                calMaxDate = data.max_date || calMaxDate;
+                renderBookingCalendar(data);
+            } catch (e) {
+                showError(dateError, 'Error loading calendar.');
+            }
+        }
+
+        function selectBookingDate(dateStr) {
+            dateInput.value = dateStr;
+            document.querySelectorAll('.booking-cal-day').forEach(el => el.classList.toggle('is-selected', el.dataset.date === dateStr));
+            showError(dateError, '');
+            handleDateChange();
+        }
+
         async function handleDateChange() {
             const date = dateInput.value;
-            showError(dateError, '');
-            resetBranch();
             resetService();
             resetDentist();
             resetTime();
             updateUrlParams();
-
-            if (!date) {
-                return;
-            }
-
-            branchSelect.disabled = true;
-            branchSelect.innerHTML = '<option value="">Checking availability...</option>';
-
-            try {
-                const res = await fetch(`api/get-available-branches.php?date=${encodeURIComponent(date)}`);
-                const data = await res.json();
-                if (!data.success) {
-                    showError(dateError, data.message || 'Unable to check availability for this date.');
-                    resetBranch();
-                    return;
-                }
-                const branches = data.branches || [];
-                if (!branches.length) {
-                    showError(dateError, 'No branches have available slots on this date.');
-                    resetBranch();
-                    return;
-                }
-
-                branchSelect.innerHTML = '<option value="">Select a branch...</option>';
-                branches.forEach(b => {
-                    const opt = document.createElement('option');
-                    opt.value = b.branch_id;
-                    opt.textContent = b.branch_name + (b.address ? ' — ' + b.address : '');
-                    if (!b.has_slots) {
-                        opt.disabled = true;
-                        opt.classList.add('text-muted');
-                    }
-                    branchSelect.appendChild(opt);
-                });
-                branchSelect.disabled = false;
-            } catch (e) {
-                console.error(e);
-                showError(dateError, 'Error loading availability for this date.');
-                resetBranch();
-            }
+            if (!date || !branchSelect.value) return;
+            await loadServicesForDate();
         }
 
-        // Step 2: Branch selection
         async function handleBranchChange() {
+            dateInput.value = '';
             resetService();
             resetDentist();
             resetTime();
             showError(branchError, '');
+            showError(dateError, '');
             updateUrlParams();
+            const today = window.Denthub ? Denthub.todayParts() : { y: new Date().getFullYear(), m: new Date().getMonth() + 1 };
+            calYear = today.y;
+            calMonth = today.m;
+            await loadBookingCalendar();
+        }
 
+        async function loadServicesForDate() {
             const date = dateInput.value;
             const branchId = branchSelect.value;
             if (!date || !branchId) {
@@ -472,7 +491,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             showError(timeError, '');
 
             try {
-                const res = await fetch(`api/get-available-slots.php?date=${encodeURIComponent(date)}&dentist_id=${encodeURIComponent(dentistId)}&branch_id=${encodeURIComponent(branchId)}`);
+                const serviceId = serviceSelect.value;
+                const res = await fetch(`api/get-available-slots.php?date=${encodeURIComponent(date)}&dentist_id=${encodeURIComponent(dentistId)}&branch_id=${encodeURIComponent(branchId)}&service_id=${encodeURIComponent(serviceId)}`);
                 const data = await res.json();
                 timeSelect.innerHTML = '<option value="">Select time...</option>';
                 if (data.success && data.slots && data.slots.length > 0) {
@@ -501,8 +521,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         // Event wiring and initial prefill handling
-        dateInput.addEventListener('change', handleDateChange);
         branchSelect.addEventListener('change', handleBranchChange);
+        document.getElementById('prevMonthBtn').addEventListener('click', () => {
+            const next = window.Denthub ? Denthub.addMonths(calYear, calMonth, -1) : { y: calYear, m: calMonth - 1 };
+            if (calMinDate && window.Denthub && !Denthub.monthInRange(next.y, next.m, calMinDate, calMaxDate)) return;
+            calYear = next.y;
+            calMonth = next.m;
+            loadBookingCalendar();
+        });
+        document.getElementById('nextMonthBtn').addEventListener('click', () => {
+            const next = window.Denthub ? Denthub.addMonths(calYear, calMonth, 1) : { y: calYear, m: calMonth + 1 };
+            if (calMaxDate && window.Denthub && !Denthub.monthInRange(next.y, next.m, calMinDate, calMaxDate)) return;
+            calYear = next.y;
+            calMonth = next.m;
+            loadBookingCalendar();
+        });
         serviceSelect.addEventListener('change', handleServiceChange);
         dentistSelect.addEventListener('change', handleDentistChange);
 
@@ -518,31 +551,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             // Handle prefilled date/branch/service from URL (calendar / service links)
-            if (dateInput.value) {
-                handleDateChange().then(() => {
-                    const params = new URLSearchParams(window.location.search);
-                    const preBranch = params.get('branch_id');
-                    const preService = params.get('service');
-                    const preDentist = params.get('dentist_id');
-                    if (preBranch) {
-                        branchSelect.value = preBranch;
-                        if (!branchSelect.disabled) {
-                            handleBranchChange().then(() => {
-                                if (preService) {
-                                    serviceSelect.value = preService;
-                                    if (!serviceSelect.disabled) {
-                                        handleServiceChange().then(() => {
-                                            if (preDentist) {
-                                                dentistSelect.value = preDentist;
-                                                if (!dentistSelect.disabled) {
-                                                    handleDentistChange();
-                                                }
-                                            }
-                                        });
-                                    }
+            const params = new URLSearchParams(window.location.search);
+            const preBranch = params.get('branch_id');
+            const preService = params.get('service');
+            const preDentist = params.get('dentist_id');
+            const preDate = params.get('date') || dateInput.value;
+            if (preBranch) branchSelect.value = preBranch;
+            if (branchSelect.value) {
+                handleBranchChange().then(() => {
+                    if (preDate) {
+                        dateInput.value = preDate;
+                        handleDateChange().then(() => {
+                            if (preService) {
+                                serviceSelect.value = preService;
+                                if (!serviceSelect.disabled) {
+                                    handleServiceChange().then(() => {
+                                        if (preDentist) {
+                                            dentistSelect.value = preDentist;
+                                            if (!dentistSelect.disabled) handleDentistChange();
+                                        }
+                                    });
                                 }
-                            });
-                        }
+                            }
+                        });
                     }
                 });
             }

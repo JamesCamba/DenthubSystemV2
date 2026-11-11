@@ -14,21 +14,23 @@ header('Content-Type: application/json');
 $role = $_GET['role'] ?? '';
 $branch_id = isset($_GET['branch_id']) ? (int)$_GET['branch_id'] : 0;
 
-$today = date('Y-m-d');
-$tomorrow = date('Y-m-d', strtotime('+1 day'));
+$today = appTodayImmutable()->format('Y-m-d');
+$tomorrow = appTodayImmutable()->modify('+1 day')->format('Y-m-d');
 
 try {
     $db = getDB();
     $branches = [];
 
-    if ($role === 'admin' || ($role === '' && hasRole('admin'))) {
-        // Admin: see all active branches or a specific one
-        $sql = "SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE";
+    if ($role === 'admin' || $role === 'staff' || ($role === '' && (hasRole('admin') || hasRole('staff')))) {
+        requireStaff();
         if ($branch_id > 0) {
-            $sql .= " AND branch_id = " . intval($branch_id);
+            $stmt = $db->prepare("SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE AND branch_id = ? ORDER BY branch_name");
+            $stmt->bind_param("i", $branch_id);
+            $stmt->execute();
+            $res = $stmt->get_result();
+        } else {
+            $res = $db->query("SELECT branch_id, branch_name FROM branches WHERE is_active = TRUE ORDER BY branch_name");
         }
-        $sql .= " ORDER BY branch_name";
-        $res = $db->query($sql);
         while ($row = $res->fetch_assoc()) {
             $bid = (int)$row['branch_id'];
             $branches[] = [

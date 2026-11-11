@@ -4,6 +4,7 @@
  */
 
 require_once __DIR__ . '/database.php';
+require_once __DIR__ . '/booking.php';
 
 // Optional external libraries (loaded via Composer in config.php)
 use voku\helper\PhoneticAlgorithms;
@@ -224,8 +225,8 @@ function getDoctorWorkingWindow($date, $dentist_id, $branch_id) {
         return [null, null];
     }
 
-    // Weekly schedule (existing table) - used as a template
-    $day_of_week = date('w', strtotime($date));
+    // Weekly template: if the dentist has any weekly rows, only those days are bookable.
+    $day_of_week = (int)date('w', strtotime($date));
     $stmt = $db->prepare("
         SELECT start_time, end_time
         FROM dentist_schedules
@@ -247,7 +248,18 @@ function getDoctorWorkingWindow($date, $dentist_id, $branch_id) {
         return [null, null];
     }
 
-    // Level 1 - system default (Monday–Sunday 10:00–18:00), clamped to clinic hours
+    $anyWeekly = $db->prepare("
+        SELECT 1 FROM dentist_schedules
+        WHERE dentist_id = ? AND is_available = TRUE
+        LIMIT 1
+    ");
+    $anyWeekly->bind_param("i", $dentist_id);
+    $anyWeekly->execute();
+    if ($anyWeekly->get_result()->fetch_assoc()) {
+        return [null, null];
+    }
+
+    // Level 1 default only when the dentist has no weekly template at all.
     $defaultStart = '10:00:00';
     $defaultEnd = '18:00:00';
     $start = max($clinicOpen, $defaultStart);
@@ -261,76 +273,12 @@ function getDoctorWorkingWindow($date, $dentist_id, $branch_id) {
 
 // Get available time slots for a date using the hierarchical schedule model.
 // $exclude_appointment_id: when rescheduling, exclude this appointment so its current slot shows as available.
-function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $branch_id = 1, $exclude_appointment_id = null) {
-    $db = getDB();
-
-    if (isDateBlocked($date, $branch_id)) {
-        return [];
-    }
-
-    // If a specific dentist is selected, compute their working window first.
-    $windowStart = null;
-    $windowEnd = null;
-    if ($dentist_id !== null) {
-        [$windowStart, $windowEnd] = getDoctorWorkingWindow($date, $dentist_id, $branch_id);
-        if ($windowStart === null || $windowEnd === null) {
-            return [];
-        }
-    } else {
-        // No specific dentist: just use clinic operating hours as coarse filter.
-        [$windowStart, $windowEnd] = getClinicOperatingHours($branch_id);
-    }
-
-    $sql = "
-        SELECT ts.slot_id, ts.slot_time
-        FROM time_slots ts
-        WHERE ts.is_active = TRUE
-          AND ts.slot_time >= ?
-          AND ts.slot_time < ?
-          AND NOT EXISTS (
-              SELECT 1
-              FROM appointments a
-              WHERE a.appointment_date = ?
-                AND a.appointment_time = ts.slot_time
-                AND a.branch_id = ?
-                AND a.status IN ('pending', 'confirmed')
-    ";
-
-    $params = [$windowStart, $windowEnd, $date, $branch_id];
-    $types  = "sssi";
-
-    if ($dentist_id !== null) {
-        $sql .= " AND a.dentist_id = ?";
-        $params[] = $dentist_id;
-        $types   .= "i";
-    }
-
-    if ($exclude_appointment_id !== null) {
-        $sql .= " AND a.appointment_id != ?";
-        $params[] = $exclude_appointment_id;
-        $types   .= "i";
-    }
-
-    $sql .= "
-          )
-        ORDER BY ts.slot_time
-    ";
-
-    $stmt = $db->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $result = $stmt->get_result();
-
-    $availableSlots = [];
-    while ($row = $result->fetch_assoc()) {
-        $availableSlots[] = $row;
-    }
-
-    return $availableSlots;
+function getAvailableTimeSlots($date, $dentist_id = null, $service_id = null, $branch_id = 0, $exclude_appointment_id = null) {
+    return computeAvailableTimeSlots($date, $dentist_id, $service_id, $branch_id, $exclude_appointment_id);
 }
 
 // Check if date is blocked
-function isDateBlocked($date, $branch_id = 1) {
+function isDateBlocked($date, $branch_id = 0) {
     $db = getDB();
     // PostgreSQL: is_active is a boolean
     $stmt = $db->prepare("SELECT COUNT(*) as count FROM blocked_dates WHERE block_date = ? AND branch_id = ? AND is_active = TRUE");
@@ -343,7 +291,7 @@ function isDateBlocked($date, $branch_id = 1) {
 /**
  * Optional helper: get block reason for a date/branch (used for calendar tooltips).
  */
-function getBlockReason($date, $branch_id = 1) {
+function getBlockReason($date, $branch_id = 0) {
     $db = getDB();
     $stmt = $db->prepare("SELECT reason FROM blocked_dates WHERE block_date = ? AND branch_id = ? AND is_active = TRUE LIMIT 1");
     $stmt->bind_param("si", $date, $branch_id);
@@ -362,87 +310,18 @@ function getBlockReason($date, $branch_id = 1) {
  * When $dentist_id is provided, only that dentist's slots are counted.
  */
 function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = null) {
-    $db = getDB();
-
+    $branch_id = (int)$branch_id;
+    if ($branch_id <= 0 || !parseBookingDate($date)) {
+        return 0;
+    }
     if (isDateBlocked($date, $branch_id)) {
         return 0;
     }
-
-    // Resolve clinic operating hours once (with PHP fallback defaults).
-    [$open_time, $close_time] = getClinicOperatingHours($branch_id);
-
-    // Count distinct (dentist, slot_time) pairs that are inside each doctor's working window
-    // and not already booked. Let PostgreSQL handle the heavy lifting with a set-based query.
-    $sql = "
-        WITH active_dentists AS (
-            SELECT d.dentist_id
-            FROM dentists d
-            JOIN users u ON u.user_id = d.user_id
-            WHERE d.is_active = TRUE
-              AND u.is_active = TRUE
-    ";
-
-    $params = [];
-    $types  = "";
-
-    if ($dentist_id !== null) {
-        $sql .= " AND d.dentist_id = ? ";
-        $params[] = $dentist_id;
-        $types   .= "i";
+    $count = 0;
+    foreach (getDentistsWorkingAtBranchOnDate($branch_id, $date, $dentist_id) as $dent) {
+        $count += count(computeAvailableTimeSlots($date, (int)$dent['dentist_id'], null, $branch_id));
     }
-
-    $sql .= "
-        ),
-        windows AS (
-            SELECT
-                ad.dentist_id,
-                COALESCE(ms.start_time,
-                         ds.start_time,
-                         GREATEST(?::time, TIME '10:00:00')) AS start_time,
-                COALESCE(ms.end_time,
-                         ds.end_time,
-                         LEAST(?::time, TIME '18:00:00')) AS end_time
-            FROM active_dentists ad
-            LEFT JOIN doctor_monthly_schedules ms
-              ON ms.doctor_id = ad.dentist_id
-             AND ms.schedule_date = ?
-             AND ms.branch_id = ?
-            LEFT JOIN dentist_schedules ds
-              ON ds.dentist_id = ad.dentist_id
-             AND ds.day_of_week = EXTRACT(DOW FROM ?::date)
-             AND ds.is_available = TRUE
-        )
-        SELECT COUNT(*) AS slots_count
-        FROM time_slots ts
-        JOIN windows w
-          ON ts.slot_time >= w.start_time
-         AND ts.slot_time <  w.end_time
-        WHERE ts.is_active = TRUE
-          AND NOT EXISTS (
-                SELECT 1
-                FROM appointments a
-                WHERE a.appointment_date = ?
-                  AND a.appointment_time = ts.slot_time
-                  AND a.branch_id = ?
-                  AND a.status IN ('pending', 'confirmed')
-                  AND a.dentist_id = w.dentist_id
-          )
-    ";
-
-    $params[] = $open_time;   // for GREATEST(open_time, '10:00')
-    $params[] = $close_time;  // for LEAST(close_time, '18:00')
-    $params[] = $date;
-    $params[] = $branch_id;
-    $params[] = $date;
-    $params[] = $branch_id;
-    $types   .= "ssisi";
-
-    $stmt = $db->prepare($sql);
-    $stmt->bind_param($types, ...$params);
-    $stmt->execute();
-    $row = $stmt->get_result()->fetch_assoc();
-
-    return (int)($row['slots_count'] ?? 0);
+    return $count;
 }
 
 // Get services list
@@ -463,25 +342,33 @@ function getDentists($active_only = true, $service_id = null, $branch_id = null)
     $sql = "SELECT DISTINCT d.*, u.full_name, u.email, u.phone 
             FROM dentists d 
             JOIN users u ON d.user_id = u.user_id";
-    
     $where = [];
+    $params = [];
+    $types = '';
     if ($active_only) {
         $where[] = "d.is_active = TRUE AND u.is_active = TRUE";
     }
     if ($branch_id !== null && $branch_id > 0) {
-        $where[] = "d.branch_id = " . intval($branch_id);
+        $where[] = "d.branch_id = ?";
+        $params[] = (int)$branch_id;
+        $types .= 'i';
     }
     if ($service_id) {
         $sql .= " JOIN dentist_service_mastery dsm ON d.dentist_id = dsm.dentist_id";
-        $where[] = "dsm.service_id = " . intval($service_id);
+        $where[] = "dsm.service_id = ?";
+        $params[] = (int)$service_id;
+        $types .= 'i';
     }
-    
     if (!empty($where)) {
         $sql .= " WHERE " . implode(" AND ", $where);
     }
-    
     $sql .= " ORDER BY u.full_name";
-    return $db->query($sql);
+    $stmt = $db->prepare($sql);
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
+    $stmt->execute();
+    return $stmt->get_result();
 }
 
 // Get appointment status badge class
@@ -626,7 +513,7 @@ function updateAppointmentStatus($appointment_id, $new_status, $notes = null, $c
     // Handle no-show tracking when transitioning to no_show
     if ($new_status === 'no_show' && $apt['patient_id']) {
         $patient_id = (int)$apt['patient_id'];
-        $date = $apt['appointment_date'] ?: date('Y-m-d');
+        $date = $apt['appointment_date'] ?: appTodayImmutable()->format('Y-m-d');
 
         // Increment no_show_count and set last_no_show_date
         $nsStmt = $db->prepare("
@@ -667,27 +554,56 @@ function rescheduleAppointment($appointment_id, $new_date, $new_time, $reschedul
         return false;
     }
 
-    // Normalize time to H:i:s (e.g. "09:00" -> "09:00:00")
-    $new_time_str = is_string($new_time) ? $new_time : date('H:i:s', strtotime($new_time));
-    if (strlen($new_time_str) <= 5) {
-        $new_time_str .= ':00';
-    }
-    $new_time_str = substr($new_time_str, 0, 8);
+    $new_time_str = normalizeTimeString($new_time);
+    $allowToday = !empty($rescheduled_by_user_id);
+    $started = false;
+    ensureAppointmentSlotIndex();
+    try {
+        $db->begin_transaction();
+        $started = true;
+        $db->query("SELECT pg_advisory_xact_lock(87234101)");
+        $dentistId = (int)$apt['dentist_id'];
+        $lockStmt = $db->prepare("SELECT dentist_id FROM dentists WHERE dentist_id = ? FOR UPDATE");
+        $lockStmt->bind_param("i", $dentistId);
+        $lockStmt->execute();
+        if (!$lockStmt->get_result()->fetch_assoc()) {
+            $db->rollback();
+            return false;
+        }
+        $lockAppts = $db->prepare("
+            SELECT appointment_id FROM appointments
+            WHERE dentist_id = ? AND appointment_date IN (?, ?) AND status IN ('pending', 'confirmed')
+            FOR UPDATE
+        ");
+        $lockAppts->bind_param("iss", $dentistId, $apt['appointment_date'], $new_date);
+        $lockAppts->execute();
+        $lockAppts->get_result();
 
-    // Validate new slot is available
-    $slots = getAvailableTimeSlots($new_date, $apt['dentist_id'], null, $apt['branch_id'], $appointment_id);
-    $valid_times = array_map(function ($s) {
-        $t = $s['slot_time'];
-        return strlen($t) <= 5 ? $t . ':00' : substr($t, 0, 8);
-    }, $slots);
-    if (!in_array($new_time_str, $valid_times)) {
-        return false;
-    }
+        $check = validateBookableSlot(
+            $new_date,
+            $new_time_str,
+            $apt['dentist_id'],
+            $apt['service_id'],
+            $apt['branch_id'],
+            ['allow_today' => $allowToday, 'exclude_appointment_id' => $appointment_id]
+        );
+        if (!$check['ok']) {
+            $db->rollback();
+            return false;
+        }
 
-    // Set status back to pending so it can be changed again if needed; email still sends below
-    $stmt = $db->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ?, status = 'pending', updated_at = NOW() WHERE appointment_id = ?");
-    $stmt->bind_param("ssi", $new_date, $new_time_str, $appointment_id);
-    if (!$stmt->execute()) {
+        $stmt = $db->prepare("UPDATE appointments SET appointment_date = ?, appointment_time = ?, status = 'pending', updated_at = NOW() WHERE appointment_id = ?");
+        $stmt->bind_param("ssi", $new_date, $new_time_str, $appointment_id);
+        if (!$stmt->execute()) {
+            $db->rollback();
+            return false;
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($started) {
+            try { $db->rollback(); } catch (Throwable $ignored) {}
+        }
+        error_log('rescheduleAppointment: ' . $e->getMessage());
         return false;
     }
 
@@ -720,7 +636,7 @@ function rescheduleAppointment($appointment_id, $new_date, $new_time, $reschedul
  */
 function autoUpdateOverdueAppointments() {
     $db = getDB();
-    $today = date('Y-m-d');
+    $today = appTodayImmutable()->format('Y-m-d');
 
     // Find affected appointments first so we can update patients individually.
     $stmt = $db->prepare("
@@ -781,7 +697,7 @@ function formatBytes($bytes) {
 // Get available status options based on current status and appointment date
 function getAvailableStatusOptions($current_status, $appointment_date = null) {
     $options = [];
-    $today = date('Y-m-d');
+    $today = appTodayImmutable()->format('Y-m-d');
     
     // Determine if appointment is today, past, or future
     $is_today = false;
@@ -892,12 +808,17 @@ function getAvailableStatusOptions($current_status, $appointment_date = null) {
     return $options;
 }
 
-// Sanitize input
+function e($value) {
+    return htmlspecialchars((string)$value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
 function sanitize($data) {
+    if (!is_string($data)) {
+        $data = (string)$data;
+    }
     $data = trim($data);
     $data = stripslashes($data);
-    $data = htmlspecialchars($data);
-    return $data;
+    return htmlspecialchars($data, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
 // Validate email
@@ -958,9 +879,10 @@ function canBookOnline($patient_id) {
         FROM patients
         WHERE patient_id = ?
           AND no_show_count >= 2
-          AND last_no_show_date >= (CURRENT_DATE - INTERVAL '30 days')
+          AND last_no_show_date >= (?::date - INTERVAL '30 days')
     ");
-    $stmt->bind_param("i", $patient_id);
+    $today = appTodayImmutable()->format('Y-m-d');
+    $stmt->bind_param("is", $patient_id, $today);
     $stmt->execute();
     $res = $stmt->get_result();
     return $res->num_rows === 0;
@@ -972,19 +894,21 @@ function canBookOnline($patient_id) {
  */
 function hasUpcomingAppointment($patient_id) {
     $db = getDB();
+    $today = appTodayImmutable()->format('Y-m-d');
+    $nowTime = appNowImmutable()->format('H:i:s');
     $sql = "
         SELECT 1
         FROM appointments
         WHERE patient_id = ?
           AND status IN ('pending', 'confirmed')
           AND (
-                appointment_date > CURRENT_DATE
-             OR (appointment_date = CURRENT_DATE AND appointment_time >= CURRENT_TIME)
+                appointment_date > ?
+             OR (appointment_date = ? AND appointment_time >= ?::time)
           )
         LIMIT 1
     ";
     $stmt = $db->prepare($sql);
-    $stmt->bind_param("i", $patient_id);
+    $stmt->bind_param("isss", $patient_id, $today, $today, $nowTime);
     $stmt->execute();
     $res = $stmt->get_result();
     return $res->num_rows > 0;

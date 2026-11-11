@@ -30,10 +30,11 @@ $stmt = $db->prepare("SELECT a.*, s.service_name, u.full_name as dentist_name, b
                       LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
                       LEFT JOIN users u ON d.user_id = u.user_id
                       JOIN branches b ON a.branch_id = b.branch_id
-                      WHERE a.patient_id = ? AND a.appointment_date >= CURRENT_DATE
+                      WHERE a.patient_id = ? AND a.appointment_date >= ?
                       ORDER BY a.appointment_date ASC, a.appointment_time ASC
                       LIMIT 10");
-$stmt->bind_param("i", $patient_id);
+$todayManila = appTodayImmutable()->format('Y-m-d');
+$stmt->bind_param("is", $patient_id, $todayManila);
 $stmt->execute();
 $upcoming_appointments = $stmt->get_result();
 
@@ -44,12 +45,23 @@ $stmt = $db->prepare("SELECT a.*, s.service_name, u.full_name as dentist_name, b
                       LEFT JOIN dentists d ON a.dentist_id = d.dentist_id
                       LEFT JOIN users u ON d.user_id = u.user_id
                       JOIN branches b ON a.branch_id = b.branch_id
-                      WHERE a.patient_id = ? AND a.appointment_date < CURRENT_DATE
+                      WHERE a.patient_id = ? AND a.appointment_date < ?
                       ORDER BY a.appointment_date DESC, a.appointment_time DESC
                       LIMIT 10");
-$stmt->bind_param("i", $patient_id);
+$stmt->bind_param("is", $patient_id, $todayManila);
 $stmt->execute();
 $appointment_history = $stmt->get_result();
+
+$stmt = $db->prepare("SELECT status, COUNT(*) AS c FROM appointments WHERE patient_id = ? GROUP BY status");
+$stmt->bind_param("i", $patient_id);
+$stmt->execute();
+$patientStatusLabels = [];
+$patientStatusValues = [];
+$stRes = $stmt->get_result();
+while ($row = $stRes->fetch_assoc()) {
+    $patientStatusLabels[] = ucfirst(str_replace('_', ' ', $row['status']));
+    $patientStatusValues[] = (int)$row['c'];
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -57,9 +69,7 @@ $appointment_history = $stmt->get_result();
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Dashboard - <?php echo APP_NAME; ?></title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="../assets/css/style.css">
+    <?php $asset_base = '../'; $include_charts = true; require __DIR__ . '/../includes/head-assets.php'; ?>
 </head>
 <body>
     <?php require_once '../includes/patient-sidebar.php'; ?>
@@ -147,6 +157,13 @@ $appointment_history = $stmt->get_result();
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+
+        <div class="card chart-card mb-4 shadow-sm">
+            <div class="denthub-card-header">My appointment status</div>
+            <div class="card-body" style="max-width: 420px;">
+                <canvas id="patientStatusChart"></canvas>
             </div>
         </div>
 
@@ -248,7 +265,6 @@ $appointment_history = $stmt->get_result();
     </div>
     </main>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function loadSlotSummaryPatient() {
             const select = document.getElementById('patientDashboardBranch');
@@ -273,6 +289,15 @@ $appointment_history = $stmt->get_result();
             branchSelect.addEventListener('change', loadSlotSummaryPatient);
         }
 
+        const statusLabels = <?php echo json_encode($patientStatusLabels); ?>;
+        const statusValues = <?php echo json_encode($patientStatusValues); ?>;
+        if (window.Chart && statusValues.length) {
+            new Chart(document.getElementById('patientStatusChart'), {
+                type: 'doughnut',
+                data: { labels: statusLabels, datasets: [{ data: statusValues, backgroundColor: ['#f59e0b', '#0ea5e9', '#198754', '#DC3545', '#64748b'] }] },
+                options: { plugins: { legend: { position: 'bottom' } } }
+            });
+        }
         loadSlotSummaryPatient();
     </script>
 </body>

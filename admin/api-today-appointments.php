@@ -7,13 +7,13 @@ require_once '../includes/database.php';
 require_once '../includes/functions.php';
 require_once '../includes/auth.php';
 
-requireLogin();
+requireStaff();
 
 header('Content-Type: text/html; charset=utf-8');
 
 try {
     $db = getDB();
-    $today = date('Y-m-d');
+    $today = appTodayImmutable()->format('Y-m-d');
 
     $stmt = $db->prepare("SELECT a.*, p.first_name, p.last_name, p.phone, s.service_name, u.full_name as dentist_name
                           FROM appointments a
