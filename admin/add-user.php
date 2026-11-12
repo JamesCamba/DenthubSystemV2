@@ -105,17 +105,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     }
                                 }
 
-                                $mailer = getMailer();
-                                if ($mailer->sendDentistAccountEmail($email, $full_name, $username, $temp_password, $email)) {
-                                    $success = "Dentist account created successfully! Credentials have been sent to {$email}";
-                                } else {
-                                    $success = "Dentist account created successfully! Username: {$username}, Temporary Password: {$temp_password} (Email sending failed)";
-                                }
+                                $success = true;
                             } else {
                                 $error = 'Error creating dentist record.';
                             }
                         } else {
-                            $success = "User account created successfully! Username: {$username}, Temporary Password: {$temp_password}";
+                            $success = true;
+                        }
+
+                        if ($success === true) {
+                            $roleTitle = $role === 'dentist' ? 'Dentist' : 'Admin';
+                            $mailed = false;
+                            try {
+                                $mailed = getMailer()->sendUserAccountEmail($email, $full_name, $username, $temp_password, $email, $role);
+                            } catch (Throwable $mailError) {
+                                error_log('add-user mail failed: ' . $mailError->getMessage());
+                            }
+                            if ($mailed) {
+                                $success = "{$roleTitle} account created successfully! Login credentials have been sent to {$email}.";
+                            } else {
+                                $success = "{$roleTitle} account created successfully! Username: {$username}, Temporary Password: {$temp_password} (Email sending failed)";
+                            }
                         }
 
                         if ($success && $user_id > 0) {

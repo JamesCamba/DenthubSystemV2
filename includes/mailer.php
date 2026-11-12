@@ -156,9 +156,17 @@ class Mailer {
      * Send dentist account creation email
      */
     public function sendDentistAccountEmail($to, $name, $username, $tempPassword, $email) {
-        $subject = 'Your Denthub Dental Clinic Account - Welcome!';
-        $html    = $this->getDentistAccountTemplate($name, $username, $tempPassword, $email);
-        $text    = "Welcome to Denthub Dental Clinic!\n\nYour account has been created.\nUsername: $username\nTemporary Password: $tempPassword\n\nPlease login and change your password immediately.\n\nContact: dentalclinicdenthub@gmail.com";
+        return $this->sendUserAccountEmail($to, $name, $username, $tempPassword, $email, 'dentist');
+    }
+
+    /**
+     * Send staff account credentials (admin or dentist) after an admin creates the user.
+     */
+    public function sendUserAccountEmail($to, $name, $username, $tempPassword, $email, $role = 'admin') {
+        $roleLabel = strtolower((string)$role) === 'dentist' ? 'Dentist' : 'Admin';
+        $subject = 'Your Denthub Dental Clinic ' . $roleLabel . ' Account - Welcome!';
+        $html    = $this->getUserAccountTemplate($name, $username, $tempPassword, $email, $roleLabel);
+        $text    = "Welcome to Denthub Dental Clinic!\n\nYour {$roleLabel} account has been created.\nUsername: $username\nTemporary Password: $tempPassword\nEmail: $email\n\nPlease login and change your password immediately.\n\nContact: dentalclinicdenthub@gmail.com";
 
         if ($this->driver === 'maileroo' && $this->apiKey) {
             return $this->sendViaMaileroo($to, $subject, $html, $text, $name);
@@ -384,22 +392,35 @@ class Mailer {
     }
     
     /**
-     * Get dentist account creation email template
+     * Staff account email. Prefers user_account.html, then the older dentist template.
      */
-    private function getDentistAccountTemplate($name, $username, $tempPassword, $email) {
+    private function getUserAccountTemplate($name, $username, $tempPassword, $email, $roleLabel) {
         $loginUrl = APP_URL . '/login.php';
-        $templatePath = __DIR__ . '/../templates/dentist_account.html';
+        $templatePath = __DIR__ . '/../templates/user_account.html';
         if (!file_exists($templatePath)) {
-            // Fallback to simple text template
-            return "Hello $name,\n\nYour account has been created.\nUsername: $username\nPassword: $tempPassword\n\nLogin at: $loginUrl";
+            $templatePath = __DIR__ . '/../templates/dentist_account.html';
+        }
+        if (!file_exists($templatePath)) {
+            return "Hello $name,\n\nYour {$roleLabel} account has been created.\nUsername: $username\nPassword: $tempPassword\n\nLogin at: $loginUrl";
         }
         $template = file_get_contents($templatePath);
         $template = str_replace('{{NAME}}', htmlspecialchars($name), $template);
         $template = str_replace('{{USERNAME}}', htmlspecialchars($username), $template);
         $template = str_replace('{{PASSWORD}}', htmlspecialchars($tempPassword), $template);
         $template = str_replace('{{EMAIL}}', htmlspecialchars($email), $template);
-        $template = str_replace('{{LOGIN_URL}}', $loginUrl, $template);
+        $template = str_replace('{{LOGIN_URL}}', htmlspecialchars($loginUrl), $template);
+        $template = str_replace('{{ROLE_LABEL}}', htmlspecialchars($roleLabel), $template);
+        $template = str_replace('{{ROLE_BADGE}}', htmlspecialchars(strtoupper($roleLabel)), $template);
+        $template = str_replace('{{YEAR}}', date('Y'), $template);
+        $template = str_replace('<?php echo date(\'Y\'); ?>', date('Y'), $template);
         return $template;
+    }
+
+    /**
+     * Get dentist account creation email template
+     */
+    private function getDentistAccountTemplate($name, $username, $tempPassword, $email) {
+        return $this->getUserAccountTemplate($name, $username, $tempPassword, $email, 'Dentist');
     }
     
     /**
