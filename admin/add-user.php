@@ -3,6 +3,7 @@
  * Denthub Dental Clinic - Add User (Admin Only)
  * Specifically for creating dentist accounts with service mastery
  */
+ob_start();
 require_once '../includes/config.php';
 require_once '../includes/database.php';
 require_once '../includes/functions.php';
@@ -14,9 +15,12 @@ requireRole('admin');
 $db = getDB();
 $error = '';
 $success = '';
+$createdUser = null;
+$isAjax = $_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['ajax'] ?? '') === '1');
 
-// Get services for mastery selection
+// Get services for mastery selection and branches for the form / new-row payload.
 $services = getServices();
+$branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = trim($_POST['username'] ?? '');
@@ -62,11 +66,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     // RETURNING avoids a second LASTVAL() query, which fails on the pooled connection.
                     $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, full_name, role, branch_id, phone, phone_hash, is_active, must_change_password)
                                           VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE)
-                                          RETURNING user_id");
+                                          RETURNING user_id, created_at");
                     $stmt->bind_param("sssssiss", $username, $email, $password_hash, $full_name, $role, $branch_id, $phone_value, $phone_hash);
 
                     if ($stmt->execute()) {
-                        $created = $stmt->get_result()->fetch_assoc();
+                        $created = $stmt->get_result()->fetch_assoc() ?: [];
                         $user_id = (int)($created['user_id'] ?? 0);
 
                         if ($user_id <= 0) {
@@ -114,7 +118,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $success = "User account created successfully! Username: {$username}, Temporary Password: {$temp_password}";
                         }
 
-                        if ($success) {
+                        if ($success && $user_id > 0) {
+                            $branchName = 'N/A';
+                            if ($branches) {
+                                $branches->data_seek(0);
+                                while ($branch = $branches->fetch_assoc()) {
+                                    if ((int)$branch['branch_id'] === (int)$branch_id) {
+                                        $branchName = $branch['branch_name'];
+                                        break;
+                                    }
+                                }
+                            }
+                            $createdUser = [
+                                'user_id' => $user_id,
+                                'full_name' => $full_name,
+                                'email' => $email,
+                                'email_masked' => maskEmail($email),
+                                'role' => $role,
+                                'branch_name' => $branchName,
+                                'is_active' => true,
+                                'created_at' => formatDate($created['created_at'] ?? date('Y-m-d H:i:s')),
+                            ];
                             $_POST = [];
                         }
                     } else {
@@ -131,23 +155,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Please choose a valid branch.';
             } else {
                 $error = 'Could not create the user. Please try again.';
+                if (getenv('APP_DEBUG') === '1' || getenv('APP_DEBUG') === 'true') {
+                    $error .= ' ' . $e->getMessage();
+                }
             }
         }
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['ajax'] ?? '') === '1')) {
+if ($isAjax) {
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
     header('Content-Type: application/json; charset=utf-8');
+    $jsonFlags = JSON_UNESCAPED_UNICODE;
+    if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+        $jsonFlags |= JSON_INVALID_UTF8_SUBSTITUTE;
+    }
     if ($error !== '') {
-        echo json_encode(['success' => false, 'message' => $error]);
+        echo json_encode(['success' => false, 'message' => $error], $jsonFlags);
     } else {
-        echo json_encode(['success' => true, 'message' => $success !== '' ? $success : 'User account created successfully.']);
+        echo json_encode([
+            'success' => true,
+            'message' => $success !== '' ? $success : 'User account created successfully.',
+            'user' => $createdUser,
+        ], $jsonFlags);
     }
     exit;
 }
 
-// Get branches (PostgreSQL boolean is_active)
-$branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
 $embed = isset($_GET['embed']) && $_GET['embed'] === '1';
 if ($embed) {
     header('Content-Type: text/html; charset=utf-8');

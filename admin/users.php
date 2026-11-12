@@ -38,6 +38,7 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
                 <i class="bi bi-plus-circle"></i> Add New User
             </button>
         </div>
+        <div id="userPageAlert"></div>
 
         <!-- Users Table -->
         <div class="card">
@@ -126,6 +127,110 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
             box.appendChild(div);
         }
 
+        function parseAddUserResponse(text) {
+            const raw = String(text || '').trim();
+            try {
+                return JSON.parse(raw);
+            } catch (err) {
+                const start = raw.indexOf('{');
+                const end = raw.lastIndexOf('}');
+                if (start === -1 || end <= start) throw err;
+                return JSON.parse(raw.slice(start, end + 1));
+            }
+        }
+
+        function roleBadgeClass(role) {
+            if (role === 'admin') return 'danger';
+            if (role === 'dentist') return 'info';
+            return 'secondary';
+        }
+
+        function prependCreatedUser(user) {
+            const tbody = document.querySelector('.users-table tbody');
+            if (!tbody || !user) return;
+            const empty = tbody.querySelector('td[colspan]');
+            if (empty) empty.closest('tr').remove();
+
+            const tr = document.createElement('tr');
+
+            const nameCell = document.createElement('td');
+            nameCell.textContent = user.full_name || '';
+            tr.appendChild(nameCell);
+
+            const emailCell = document.createElement('td');
+            const sensitive = document.createElement('span');
+            sensitive.className = 'sensitive-value';
+            const masked = document.createElement('span');
+            masked.className = 'sensitive-masked';
+            masked.textContent = user.email_masked || user.email || '';
+            const full = document.createElement('span');
+            full.className = 'sensitive-full d-none';
+            full.textContent = user.email || '';
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'btn btn-sm btn-outline-secondary sensitive-toggle ms-1';
+            toggle.setAttribute('aria-label', 'Show email');
+            const eye = document.createElement('i');
+            eye.className = 'bi bi-eye';
+            toggle.appendChild(eye);
+            sensitive.appendChild(masked);
+            sensitive.appendChild(full);
+            sensitive.appendChild(toggle);
+            emailCell.appendChild(sensitive);
+            tr.appendChild(emailCell);
+
+            const roleCell = document.createElement('td');
+            const roleBadge = document.createElement('span');
+            const role = user.role || '';
+            roleBadge.className = 'badge bg-' + roleBadgeClass(role);
+            roleBadge.textContent = role ? role.charAt(0).toUpperCase() + role.slice(1) : '';
+            roleCell.appendChild(roleBadge);
+            tr.appendChild(roleCell);
+
+            const branchCell = document.createElement('td');
+            branchCell.textContent = user.branch_name || 'N/A';
+            tr.appendChild(branchCell);
+
+            const statusCell = document.createElement('td');
+            const statusBadge = document.createElement('span');
+            statusBadge.className = 'badge bg-success';
+            statusBadge.textContent = 'Active';
+            statusCell.appendChild(statusBadge);
+            tr.appendChild(statusCell);
+
+            const createdCell = document.createElement('td');
+            createdCell.className = 'text-nowrap';
+            createdCell.textContent = user.created_at || '';
+            tr.appendChild(createdCell);
+
+            const actionCell = document.createElement('td');
+            const edit = document.createElement('a');
+            edit.className = 'btn btn-sm btn-outline-primary';
+            edit.href = 'edit-user.php?id=' + encodeURIComponent(user.user_id);
+            edit.textContent = 'Edit';
+            actionCell.appendChild(edit);
+            tr.appendChild(actionCell);
+
+            tbody.insertBefore(tr, tbody.firstChild);
+        }
+
+        function showCreatedUserNotice(message) {
+            const box = document.getElementById('userPageAlert');
+            if (!box) return;
+            box.replaceChildren();
+            const div = document.createElement('div');
+            div.className = 'alert alert-success alert-dismissible fade show';
+            div.setAttribute('role', 'alert');
+            div.textContent = message || 'User account created successfully.';
+            const close = document.createElement('button');
+            close.type = 'button';
+            close.className = 'btn-close';
+            close.setAttribute('data-bs-dismiss', 'alert');
+            close.setAttribute('aria-label', 'Close');
+            div.appendChild(close);
+            box.appendChild(div);
+        }
+
         function bindAddUserForm(root) {
             const form = root.querySelector('#addUserForm');
             const role = root.querySelector('#role');
@@ -153,25 +258,17 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json' }
                 }).then(function (response) {
-                    return response.json().then(function (payload) {
-                        return { ok: response.ok, payload: payload };
+                    return response.text().then(function (text) {
+                        return parseAddUserResponse(text);
                     });
-                }).then(function (result) {
-                    const payload = result.payload || {};
+                }).then(function (payload) {
+                    payload = payload || {};
                     if (payload.success) {
-                        const body = document.getElementById('addUserModalBody');
-                        body.replaceChildren();
-                        const wrap = document.createElement('div');
-                        wrap.className = 'alert alert-success';
-                        wrap.textContent = payload.message || 'User account created successfully.';
-                        const done = document.createElement('button');
-                        done.type = 'button';
-                        done.className = 'btn btn-primary';
-                        done.textContent = 'Done';
-                        done.addEventListener('click', function () { window.location.reload(); });
-                        body.appendChild(wrap);
-                        body.appendChild(done);
-                        body.dataset.created = '1';
+                        if (payload.user) prependCreatedUser(payload.user);
+                        showCreatedUserNotice(payload.message || 'User account created successfully.');
+                        const modalEl = document.getElementById('addUserModal');
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
                         return;
                     }
                     showAddUserAlert(alertBox, 'danger', payload.message || 'Could not create the user.');
@@ -235,10 +332,6 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
         document.getElementById('addUserModal').addEventListener('show.bs.modal', loadAddUserForm);
         document.getElementById('addUserModal').addEventListener('hidden.bs.modal', function () {
             const body = document.getElementById('addUserModalBody');
-            if (body && body.dataset.created === '1') {
-                window.location.reload();
-                return;
-            }
             if (body) {
                 body.dataset.loaded = '';
                 body.innerHTML = '<div class="text-center text-muted py-5">Loading form…</div>';
