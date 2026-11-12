@@ -34,36 +34,8 @@ try {
     ");
 
     $backupName = 'backup_' . appNow() . '.sql';
-    $content = '';
-
-    // Try pg_dump first (available in Docker with postgresql-client)
-    $host = DB_HOST;
-    $port = DB_PORT;
-    $dbname = DB_NAME;
-    $user = DB_USER;
-    $pass = DB_PASS;
-
-    $env = getenv('PGPASSWORD');
-    putenv('PGPASSWORD=' . $pass);
-    $content = @shell_exec(buildPgDumpCommand($host, $port, $user, $dbname));
-    if ($env !== false) {
-        putenv('PGPASSWORD=' . $env);
-    } else {
-        putenv('PGPASSWORD');
-    }
-
-    // Fallback: PHP-based export if pg_dump fails. Skips database_backups.
-    if (empty($content) || strlen($content) < 100) {
-        $pdo = new PDO(
-            sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=%s', $host, $port, $dbname, DB_SSLMODE ?? 'require'),
-            $user,
-            $pass,
-            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-        );
-        $content = buildPhpDatabaseBackup($pdo);
-    }
-
-    $content = $content ?: '-- Empty backup';
+    // Current clinic data only. database_backups is left out so older archives are not copied.
+    $content = generateDatabaseBackupContent();
     $size = strlen($content);
 
     $stmt = $db->prepare("INSERT INTO database_backups (backup_name, backup_size, content) VALUES (?, ?, ?)");

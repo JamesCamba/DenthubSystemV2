@@ -91,27 +91,111 @@ function databaseBackupExcludedTables() {
 }
 
 function buildPgDumpCommand($host, $port, $user, $dbname) {
-    $exclude = '';
+    $parts = [
+        'pg_dump',
+        '-h', escapeshellarg($host),
+        '-p', (string)(int)$port,
+        '-U', escapeshellarg($user),
+        '-d', escapeshellarg($dbname),
+        '--no-owner',
+        '--no-acl',
+    ];
     foreach (databaseBackupExcludedTables() as $table) {
-        $exclude .= ' --exclude-table=' . escapeshellarg($table);
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
+            continue;
+        }
+        // Schema-qualified and plain names, both the table and its rows.
+        // Leaving this table in the dump copies every older dump into the new one.
+        foreach (['public.' . $table, $table] as $pattern) {
+            $quoted = escapeshellarg($pattern);
+            $parts[] = '--exclude-table=' . $quoted;
+            $parts[] = '--exclude-table-data=' . $quoted;
+        }
     }
-    return sprintf(
-        'pg_dump -h %s -p %d -U %s -d %s --no-owner --no-acl%s 2>/dev/null',
-        escapeshellarg($host),
-        (int)$port,
-        escapeshellarg($user),
-        escapeshellarg($dbname),
-        $exclude
-    );
+    return implode(' ', $parts) . ' 2>/dev/null';
+}
+
+/**
+ * True when a dump still contains the backup archive table.
+ * Line-anchored so text stored in other tables is not treated as a match.
+ */
+function backupDumpIncludesExcludedTables($sql) {
+    if (!is_string($sql) || $sql === '') {
+        return false;
+    }
+    foreach (databaseBackupExcludedTables() as $table) {
+        if (!preg_match('/^[A-Za-z_][A-Za-z0-9_]*$/', $table)) {
+            continue;
+        }
+        $q = preg_quote($table, '/');
+        $name = '(?:(?:"public"|public)\s*\.\s*)?(?:"' . $q . '"|' . $q . ')';
+        $patterns = [
+            '/^CREATE TABLE\s+(?:ONLY\s+)?' . $name . '\b/mi',
+            '/^COPY\s+' . $name . '\b/mi',
+            '/^INSERT INTO\s+' . $name . '\b/mi',
+            '/^-- Data for Name:\s+' . $q . ';/mi',
+            '/^-- Name:\s+' . $q . '; Type: TABLE;/mi',
+        ];
+        foreach ($patterns as $pattern) {
+            if (preg_match($pattern, $sql)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+/**
+ * Full backup of current clinic data. The database_backups table is omitted
+ * so stored archives are not copied into the new archive.
+ */
+function generateDatabaseBackupContent() {
+    $host = DB_HOST;
+    $port = (int)DB_PORT;
+    $dbname = DB_NAME;
+    $user = DB_USER;
+    $pass = DB_PASS;
+    $ssl = defined('DB_SSLMODE') ? DB_SSLMODE : 'require';
+
+    $previousPassword = getenv('PGPASSWORD');
+    $previousSsl = getenv('PGSSLMODE');
+    putenv('PGPASSWORD=' . $pass);
+    putenv('PGSSLMODE=' . $ssl);
+    $content = @shell_exec(buildPgDumpCommand($host, $port, $user, $dbname));
+    if ($previousPassword === false) {
+        putenv('PGPASSWORD');
+    } else {
+        putenv('PGPASSWORD=' . $previousPassword);
+    }
+    if ($previousSsl === false) {
+        putenv('PGSSLMODE');
+    } else {
+        putenv('PGSSLMODE=' . $previousSsl);
+    }
+
+    if (!is_string($content) || strlen($content) < 100 || backupDumpIncludesExcludedTables($content)) {
+        $pdo = new PDO(
+            sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=%s', $host, $port, $dbname, $ssl),
+            $user,
+            $pass,
+            [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
+        );
+        $content = buildPhpDatabaseBackup($pdo);
+        if (backupDumpIncludesExcludedTables($content)) {
+            throw new RuntimeException('Backup still includes the database backup table.');
+        }
+    }
+
+    return $content;
 }
 
 function buildPhpDatabaseBackup($pdo) {
-    $excluded = array_fill_keys(databaseBackupExcludedTables(), true);
+    $excluded = array_fill_keys(array_map('strtolower', databaseBackupExcludedTables()), true);
     $content = "-- Denthub Backup (PHP fallback)\n-- " . appNow('Y-m-d H:i:s') . " (" . (defined('TIMEZONE') ? TIMEZONE : 'Asia/Manila') . ")\n";
     $content .= "-- Excluded tables: " . implode(', ', databaseBackupExcludedTables()) . "\n\n";
     $tables = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN);
     foreach ($tables as $table) {
-        if (isset($excluded[$table])) {
+        if (isset($excluded[strtolower($table)])) {
             continue;
         }
         $content .= "\n-- Table: $table\n";

@@ -407,6 +407,30 @@ footer.denthub-footer .text-white {
     border-radius: 0 0 12px 12px;
 }
 
+.modal-header.denthub-modal-header {
+    background-color: var(--denthub-primary);
+    color: #fff;
+    border-bottom: none;
+}
+.modal-header.denthub-modal-header .modal-title {
+    font-weight: 600;
+}
+.users-table {
+    width: 100%;
+}
+.users-table th,
+.users-table td {
+    vertical-align: middle;
+}
+.add-user-services {
+    max-height: 240px;
+    overflow: auto;
+    border: 1px solid #e1eaf8;
+    border-radius: 8px;
+    padding: 0.75rem 0.5rem 0.25rem;
+    margin: 0;
+}
+
 /* ========== Dashboard stat cards: blue, yellow, green ========== */
 .denthub-stat-card {
     border: none;

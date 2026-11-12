@@ -43,27 +43,10 @@ if (isset($_GET['download']) && isset($_GET['id'])) {
 // Create backup now
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
     $backupName = 'backup_' . appNow() . '.sql';
-    $content = '';
-    $host = DB_HOST;
-    $port = DB_PORT;
-    $dbname = DB_NAME;
-    $user = DB_USER;
-    $pass = DB_PASS;
 
     try {
-        putenv('PGPASSWORD=' . $pass);
-        $content = @shell_exec(buildPgDumpCommand($host, $port, $user, $dbname));
-        putenv('PGPASSWORD');
-
-        if (empty($content) || strlen($content) < 100) {
-            $pdo = new PDO(
-                sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=%s', $host, $port, $dbname, DB_SSLMODE ?? 'require'),
-                $user,
-                $pass,
-                [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
-            );
-            $content = buildPhpDatabaseBackup($pdo);
-        }
+        // Current clinic data only. database_backups is left out so older archives are not copied.
+        $content = generateDatabaseBackupContent();
 
         if (!empty($content)) {
             $size = strlen($content);
@@ -174,6 +157,7 @@ $hasCronKey = !empty(getenv('BACKUP_CRON_KEY'));
                         <i class="bi bi-plus-circle me-2"></i> Create Backup
                     </div>
                     <div class="card-body">
+                        <p class="small text-muted">Saves the current clinic data. The backup archive table itself is left out, so each new backup does not copy every previous backup.</p>
                         <form method="POST">
                             <input type="hidden" name="create_backup" value="1">
                             <button type="submit" class="btn btn-primary"><i class="bi bi-plus-circle"></i> Create Backup Now</button>
