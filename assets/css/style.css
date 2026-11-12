@@ -214,26 +214,22 @@ footer.denthub-footer .text-white {
     box-sizing: border-box;
 }
 
-/* Page panel: white sheet on the tinted canvas, title locked above a scrolling body */
+/* Page panel: white sheet that grows with the page. The window scrolls; the title stays pinned. */
 .denthub-main:has(.denthub-page-shell) {
-    height: 100vh;
-    max-height: 100vh;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
+    min-height: 100vh;
 }
 .denthub-page-shell {
-    flex: 1 1 auto;
-    min-height: 0;
+    min-height: calc(100vh - 2.75rem);
     display: flex;
     flex-direction: column;
     background: #fff;
     border: 1px solid #d5e2f5;
     border-radius: 16px;
     box-shadow: 0 10px 28px rgba(0, 74, 173, 0.08);
-    overflow: hidden;
 }
 .denthub-page-head {
+    position: sticky;
+    top: 0;
     flex: 0 0 auto;
     display: flex;
     align-items: center;
@@ -241,7 +237,8 @@ footer.denthub-footer .text-white {
     padding: 0.85rem 1.25rem;
     background: #fff;
     border-bottom: 1px solid #e1eaf8;
-    z-index: 5;
+    border-radius: 16px 16px 0 0;
+    z-index: 20;
 }
 .denthub-page-mark {
     width: 42px;
@@ -277,10 +274,8 @@ footer.denthub-footer .text-white {
 }
 .denthub-page-body {
     flex: 1 1 auto;
-    min-height: 0;
-    overflow: auto;
+    overflow: visible;
     padding: 1.25rem 1.35rem 2rem;
-    -webkit-overflow-scrolling: touch;
 }
 
 .denthub-page-title {
@@ -555,6 +550,12 @@ footer.denthub-footer .text-white {
         margin-left: 0 !important;
         padding-top: 4.25rem;
     }
+    .denthub-page-shell {
+        min-height: calc(100vh - 5.75rem);
+    }
+    .denthub-page-head {
+        top: 56px;
+    }
     .table-responsive {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
@@ -713,6 +714,9 @@ td .form-select.form-select-sm option {
     .denthub-main:has(.denthub-page-shell) {
         padding: 4.25rem 0.75rem 0.75rem;
     }
+    .denthub-page-shell {
+        min-height: calc(100vh - 5rem);
+    }
     .denthub-page-head {
         padding: 0.75rem 0.9rem;
         gap: 0.65rem;
@@ -725,9 +729,7 @@ td .form-select.form-select-sm option {
 @media print {
     .denthub-main,
     .denthub-main:has(.denthub-page-shell) {
-        height: auto;
-        max-height: none;
-        overflow: visible;
+        min-height: 0;
         display: block;
         background: #fff;
         margin: 0;
@@ -735,10 +737,13 @@ td .form-select.form-select-sm option {
     }
     .denthub-page-shell,
     .denthub-page-body {
+        min-height: 0;
         overflow: visible;
-        height: auto;
         box-shadow: none;
         border: none;
+    }
+    .denthub-page-head {
+        position: static;
     }
     .denthub-page-mark {
         display: none;

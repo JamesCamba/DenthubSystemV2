@@ -1,6 +1,6 @@
 /**
- * Wraps each account page in a panel and pins that page's logo + title
- * above a scrolling content area so the title stays put and never covers the body.
+ * Wraps each account page in a panel. The panel grows with the page so the
+ * window scrolls, and the logo + title stay pinned at the top of the screen.
  */
 (function () {
     var scriptSrc = document.currentScript && document.currentScript.src;
