@@ -52,14 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
 
     try {
         putenv('PGPASSWORD=' . $pass);
-        $cmd = sprintf(
-            'pg_dump -h %s -p %d -U %s -d %s --no-owner --no-acl 2>/dev/null',
-            escapeshellarg($host),
-            $port,
-            escapeshellarg($user),
-            escapeshellarg($dbname)
-        );
-        $content = @shell_exec($cmd);
+        $content = @shell_exec(buildPgDumpCommand($host, $port, $user, $dbname));
         putenv('PGPASSWORD');
 
         if (empty($content) || strlen($content) < 100) {
@@ -69,19 +62,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['create_backup'])) {
                 $pass,
                 [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
             );
-            $content = "-- Denthub Backup (PHP fallback)\n-- " . date('Y-m-d H:i:s', strtotime('now')) . " (" . (defined('TIMEZONE') ? TIMEZONE : 'Asia/Manila') . ")\n\n";
-            $tables = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN);
-            foreach ($tables as $table) {
-                $content .= "\n-- Table: $table\n";
-                $rows = $pdo->query("SELECT * FROM \"$table\"")->fetchAll(PDO::FETCH_ASSOC);
-                foreach ($rows as $row) {
-                    $cols = array_keys($row);
-                    $vals = array_map(function ($v) use ($pdo) {
-                        return $v === null ? 'NULL' : $pdo->quote($v);
-                    }, array_values($row));
-                    $content .= 'INSERT INTO "' . $table . '" ("' . implode('","', $cols) . '") VALUES (' . implode(',', $vals) . ");\n";
-                }
-            }
+            $content = buildPhpDatabaseBackup($pdo);
         }
 
         if (!empty($content)) {

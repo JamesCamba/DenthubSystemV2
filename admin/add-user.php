@@ -111,8 +111,24 @@ $role = sanitize($_POST['role'] ?? 'admin');
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && (($_POST['ajax'] ?? '') === '1')) {
+    header('Content-Type: application/json; charset=utf-8');
+    if ($error !== '') {
+        echo json_encode(['success' => false, 'message' => $error]);
+    } else {
+        echo json_encode(['success' => true, 'message' => $success !== '' ? $success : 'User account created successfully.']);
+    }
+    exit;
+}
+
 // Get branches (PostgreSQL boolean is_active)
 $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
+$embed = isset($_GET['embed']) && $_GET['embed'] === '1';
+if ($embed) {
+    header('Content-Type: text/html; charset=utf-8');
+    include __DIR__ . '/partials/add-user-form.php';
+    exit;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -150,94 +166,7 @@ $branches = $db->query("SELECT * FROM branches WHERE is_active = TRUE");
                 <h5 class="mb-0">Add New User</h5>
             </div>
             <div class="card-body">
-                <form method="POST" action="">
-                    <div class="row">
-                        <div class="col-lg-6">
-                            <h6 class="text-primary border-bottom pb-2 mb-3">User Details</h6>
-                            <div class="mb-3">
-                                <label class="form-label">Username <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="username" required 
-                                       value="<?php echo htmlspecialchars($_POST['username'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Email <span class="text-danger">*</span></label>
-                                <input type="email" class="form-control" name="email" required 
-                                       value="<?php echo htmlspecialchars($_POST['email'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Full Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" name="full_name" required 
-                                       value="<?php echo htmlspecialchars($_POST['full_name'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Role <span class="text-danger">*</span></label>
-                                <select class="form-select" name="role" id="role" required>
-                                    <option value="admin" <?php echo (($_POST['role'] ?? '') === 'admin') ? 'selected' : ''; ?>>Admin</option>
-                                    <option value="dentist" <?php echo (($_POST['role'] ?? '') === 'dentist') ? 'selected' : ''; ?>>Dentist</option>
-                                </select>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Phone</label>
-                                <input type="tel" class="form-control" name="phone" maxlength="11" pattern="09[0-9]{9}" placeholder="09XXXXXXXXX"
-                                       value="<?php echo htmlspecialchars($_POST['phone'] ?? ''); ?>">
-                                <small class="text-muted">Philippines: 11 digits</small>
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Initial Branch (dentists can change later)</label>
-                                <select class="form-select" name="branch_id">
-                                    <?php $branches->data_seek(0); while ($branch = $branches->fetch_assoc()): ?>
-                                        <option value="<?php echo $branch['branch_id']; ?>" <?php echo (($_POST['branch_id'] ?? 1) == $branch['branch_id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($branch['branch_name']); ?>
-                                        </option>
-                                    <?php endwhile; ?>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="col-lg-6" id="dentistFields" style="display: none;">
-                            <h6 class="text-primary border-bottom pb-2 mb-3">Dentist Information</h6>
-                            <div class="mb-3">
-                                <label class="form-label">License Number</label>
-                                <input type="text" class="form-control" name="license_number" 
-                                       value="<?php echo htmlspecialchars($_POST['license_number'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Specialization</label>
-                                <input type="text" class="form-control" name="specialization" 
-                                       placeholder="e.g., General Dentistry, Orthodontics"
-                                       value="<?php echo htmlspecialchars($_POST['specialization'] ?? ''); ?>">
-                            </div>
-                            <div class="mb-3">
-                                <label class="form-label">Service Mastery</label>
-                                <p class="small text-primary">(Select services this dentist can perform)</p>
-                                <div class="row">
-                                    <?php $services->data_seek(0); while ($service = $services->fetch_assoc()): ?>
-                                        <div class="col-md-6 mb-2">
-                                            <div class="form-check">
-                                                <input class="form-check-input" type="checkbox" name="service_mastery[]" 
-                                                       value="<?php echo $service['service_id']; ?>"
-                                                       id="service_<?php echo $service['service_id']; ?>"
-                                                       <?php echo (in_array($service['service_id'], $_POST['service_mastery'] ?? [])) ? 'checked' : ''; ?>>
-                                                <label class="form-check-label" for="service_<?php echo $service['service_id']; ?>">
-                                                    <?php echo htmlspecialchars($service['service_name']); ?>
-                                                </label>
-                                            </div>
-                                        </div>
-                                    <?php endwhile; ?>
-                                </div>
-                                <small class="text-muted">A default schedule (Monday-Friday, 9 AM - 5 PM) will be created automatically.</small>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="alert alert-info mt-3">
-                        <i class="bi bi-info-circle"></i> A temporary password will be generated and sent to the user's email. They should change it on first login.
-                    </div>
-
-                    <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-3">
-                        <a href="users.php" class="btn btn-secondary">Cancel</a>
-                        <button type="submit" class="btn btn-primary">Create User</button>
-                    </div>
-                </form>
+                <?php $embed = false; include __DIR__ . '/partials/add-user-form.php'; ?>
             </div>
         </div>
     </div>

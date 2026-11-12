@@ -83,6 +83,51 @@ function appNow($format = 'Y-m-d_H-i-s') {
 }
 
 /**
+ * Tables that store backups. They must not be included in a backup,
+ * or each new dump copies every previous dump and the size doubles.
+ */
+function databaseBackupExcludedTables() {
+    return ['database_backups'];
+}
+
+function buildPgDumpCommand($host, $port, $user, $dbname) {
+    $exclude = '';
+    foreach (databaseBackupExcludedTables() as $table) {
+        $exclude .= ' --exclude-table=' . escapeshellarg($table);
+    }
+    return sprintf(
+        'pg_dump -h %s -p %d -U %s -d %s --no-owner --no-acl%s 2>/dev/null',
+        escapeshellarg($host),
+        (int)$port,
+        escapeshellarg($user),
+        escapeshellarg($dbname),
+        $exclude
+    );
+}
+
+function buildPhpDatabaseBackup($pdo) {
+    $excluded = array_fill_keys(databaseBackupExcludedTables(), true);
+    $content = "-- Denthub Backup (PHP fallback)\n-- " . appNow('Y-m-d H:i:s') . " (" . (defined('TIMEZONE') ? TIMEZONE : 'Asia/Manila') . ")\n";
+    $content .= "-- Excluded tables: " . implode(', ', databaseBackupExcludedTables()) . "\n\n";
+    $tables = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN);
+    foreach ($tables as $table) {
+        if (isset($excluded[$table])) {
+            continue;
+        }
+        $content .= "\n-- Table: $table\n";
+        $rows = $pdo->query('SELECT * FROM "' . str_replace('"', '""', $table) . '"')->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($rows as $row) {
+            $cols = array_keys($row);
+            $vals = array_map(function ($v) use ($pdo) {
+                return $v === null ? 'NULL' : $pdo->quote($v);
+            }, array_values($row));
+            $content .= 'INSERT INTO "' . $table . '" ("' . implode('","', $cols) . '") VALUES (' . implode(',', $vals) . ");\n";
+        }
+    }
+    return $content;
+}
+
+/**
  * Mask email for display: first char + *** + last char of local + @domain (e.g. j***n@example.com)
  */
 function maskEmail($email) {

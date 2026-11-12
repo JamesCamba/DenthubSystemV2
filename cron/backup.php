@@ -45,21 +45,14 @@ try {
 
     $env = getenv('PGPASSWORD');
     putenv('PGPASSWORD=' . $pass);
-    $cmd = sprintf(
-        'pg_dump -h %s -p %d -U %s -d %s --no-owner --no-acl 2>/dev/null',
-        escapeshellarg($host),
-        $port,
-        escapeshellarg($user),
-        escapeshellarg($dbname)
-    );
-    $content = @shell_exec($cmd);
+    $content = @shell_exec(buildPgDumpCommand($host, $port, $user, $dbname));
     if ($env !== false) {
         putenv('PGPASSWORD=' . $env);
     } else {
         putenv('PGPASSWORD');
     }
 
-    // Fallback: PHP-based export if pg_dump fails
+    // Fallback: PHP-based export if pg_dump fails. Skips database_backups.
     if (empty($content) || strlen($content) < 100) {
         $pdo = new PDO(
             sprintf('pgsql:host=%s;port=%d;dbname=%s;sslmode=%s', $host, $port, $dbname, DB_SSLMODE ?? 'require'),
@@ -67,19 +60,7 @@ try {
             $pass,
             [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
         );
-        $content = "-- Denthub Backup (PHP fallback)\n-- " . date('Y-m-d H:i:s') . "\n\n";
-        $tables = $pdo->query("SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename")->fetchAll(PDO::FETCH_COLUMN);
-        foreach ($tables as $table) {
-            $content .= "\n-- Table: $table\n";
-            $rows = $pdo->query("SELECT * FROM \"$table\"")->fetchAll(PDO::FETCH_ASSOC);
-            foreach ($rows as $row) {
-                $cols = array_keys($row);
-                $vals = array_map(function ($v) use ($pdo) {
-                    return $v === null ? 'NULL' : $pdo->quote($v);
-                }, array_values($row));
-                $content .= 'INSERT INTO "' . $table . '" ("' . implode('","', $cols) . '") VALUES (' . implode(',', $vals) . ");\n";
-            }
-        }
+        $content = buildPhpDatabaseBackup($pdo);
     }
 
     $content = $content ?: '-- Empty backup';

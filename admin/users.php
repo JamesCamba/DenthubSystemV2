@@ -11,10 +11,10 @@ requireRole('admin');
 
 $db = getDB();
 
-// Get all users
-$users = $db->query("SELECT u.*, b.branch_name 
-                     FROM users u 
-                     LEFT JOIN branches b ON u.branch_id = b.branch_id 
+// List columns only. Username and phone are not loaded here.
+$users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active, u.created_at, b.branch_name
+                     FROM users u
+                     LEFT JOIN branches b ON u.branch_id = b.branch_id
                      ORDER BY u.created_at DESC");
 ?>
 <!DOCTYPE html>
@@ -34,9 +34,9 @@ $users = $db->query("SELECT u.*, b.branch_name
     <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="denthub-page-title"><i class="bi bi-person-gear me-2"></i> User Management</h1>
-            <a href="add-user.php" class="btn btn-primary">
+            <button type="button" class="btn btn-primary" id="openAddUser" data-bs-toggle="modal" data-bs-target="#addUserModal">
                 <i class="bi bi-plus-circle"></i> Add New User
-            </a>
+            </button>
         </div>
 
         <!-- Users Table -->
@@ -46,10 +46,8 @@ $users = $db->query("SELECT u.*, b.branch_name
                     <table class="table table-hover">
                         <thead>
                             <tr>
-                                <th>Username</th>
                                 <th>Full Name</th>
                                 <th>Email</th>
-                                <th>Phone</th>
                                 <th>Role</th>
                                 <th>Branch</th>
                                 <th>Status</th>
