@@ -91,3 +91,4 @@ $current = basename($_SERVER['PHP_SELF']);
         </ul>
     </div>
 </aside>
+<script src="../assets/js/page-shell.js" defer></script>

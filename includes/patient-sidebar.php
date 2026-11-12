@@ -71,3 +71,4 @@ $asset_img = '../assets/images';
         </ul>
     </div>
 </aside>
+<script src="../assets/js/page-shell.js" defer></script>
