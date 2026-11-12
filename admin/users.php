@@ -34,7 +34,7 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
     <div class="container-fluid py-4">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="denthub-page-title"><i class="bi bi-person-gear me-2"></i> User Management</h1>
-            <button type="button" class="btn btn-primary" id="openAddUser">
+            <button type="button" class="btn btn-primary" id="openAddUser" data-bs-toggle="modal" data-bs-target="#addUserModal">
                 <i class="bi bi-plus-circle"></i> Add New User
             </button>
         </div>
@@ -102,7 +102,7 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
     </main>
 
     <div class="modal fade" id="addUserModal" tabindex="-1" aria-labelledby="addUserModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable add-user-modal">
             <div class="modal-content">
                 <div class="modal-header denthub-modal-header">
                     <h5 class="modal-title" id="addUserModalLabel"><i class="bi bi-person-plus me-2"></i>Add New User</h5>
@@ -205,15 +205,6 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
         }
 
         document.addEventListener('click', function (e) {
-            const openBtn = e.target.closest('#openAddUser');
-            if (openBtn) {
-                e.preventDefault();
-                const modalEl = document.getElementById('addUserModal');
-                if (modalEl && window.bootstrap) {
-                    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-                }
-                return;
-            }
             const btn = e.target.closest('.sensitive-toggle');
             if (!btn) return;
             const container = btn.closest('.sensitive-value');

@@ -19,93 +19,118 @@ $success = '';
 $services = getServices();
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = sanitize($_POST['username'] ?? '');
-    $email = sanitize($_POST['email'] ?? '');
-    $full_name = sanitize($_POST['full_name'] ?? '');
-$role = sanitize($_POST['role'] ?? 'admin');
-    $phone = sanitize($_POST['phone'] ?? '');
-    $branch_id = intval($_POST['branch_id'] ?? 1);
-    $license_number = sanitize($_POST['license_number'] ?? '');
-    $specialization = sanitize($_POST['specialization'] ?? '');
+    $username = trim($_POST['username'] ?? '');
+    $email = trim($_POST['email'] ?? '');
+    $full_name = trim($_POST['full_name'] ?? '');
+    $role = trim($_POST['role'] ?? 'admin');
+    $phone = trim($_POST['phone'] ?? '');
+    $branch_id = intval($_POST['branch_id'] ?? 0);
+    $license_number = trim($_POST['license_number'] ?? '');
+    $specialization = trim($_POST['specialization'] ?? '');
     $service_mastery = $_POST['service_mastery'] ?? [];
-    
+    if (!in_array($role, ['admin', 'dentist'], true)) {
+        $role = 'admin';
+    }
+
     // Validation
-    if (empty($username) || empty($email) || empty($full_name)) {
+    if ($username === '' || $email === '' || $full_name === '') {
         $error = 'Please fill in all required fields.';
     } elseif (!validateEmail($email)) {
         $error = 'Invalid email address.';
+    } elseif ($phone !== '' && !preg_match('/^09[0-9]{9}$/', $phone)) {
+        $error = 'Phone must be 11 digits starting with 09.';
     } else {
-        // Check if username or email already exists
-        $stmt = $db->prepare("SELECT user_id FROM users WHERE username = ? OR email = ?");
-        $stmt->bind_param("ss", $username, $email);
-        $stmt->execute();
-        if ($stmt->get_result()->num_rows > 0) {
-            $error = 'Username or email already exists.';
-        } else {
-            // Generate temporary password
-            $temp_password = bin2hex(random_bytes(4)); // 8 character password
-            $password_hash = password_hash($temp_password, PASSWORD_DEFAULT);
-            $phone_hash = $phone ? hash('sha256', $phone) : null;
-            
-            // Create user account with must_change_password flag and phone_hash
-            $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, full_name, role, branch_id, phone, phone_hash, is_active, must_change_password) 
-                                  VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE)");
-            $stmt->bind_param("sssssiss", $username, $email, $password_hash, $full_name, $role, $branch_id, $phone, $phone_hash);
-            
-            if ($stmt->execute()) {
-                $user_id = $db->insert_id;
-                
-                // If dentist, create dentist record
-                if ($role === 'dentist') {
-                    // PostgreSQL: is_active is a boolean, use TRUE
-                    $dentistStmt = $db->prepare("INSERT INTO dentists (user_id, license_number, specialization, branch_id, is_active) 
-                                                  VALUES (?, ?, ?, ?, TRUE)");
-                    $dentistStmt->bind_param("issi", $user_id, $license_number, $specialization, $branch_id);
-                    
-                    if ($dentistStmt->execute()) {
-                        $dentist_id = $db->insert_id;
-                        
-                        // Add service mastery
-                        if (!empty($service_mastery)) {
-                            $masteryStmt = $db->prepare("INSERT INTO dentist_service_mastery (dentist_id, service_id) VALUES (?, ?)");
-                            foreach ($service_mastery as $service_id) {
-                                $service_id = intval($service_id);
-                                if ($service_id > 0) {
-                                    $masteryStmt->bind_param("ii", $dentist_id, $service_id);
-                                    $masteryStmt->execute();
+        try {
+            if ($branch_id <= 0) {
+                $branchRow = $db->query("SELECT branch_id FROM branches WHERE is_active = TRUE ORDER BY branch_id LIMIT 1")->fetch_assoc();
+                $branch_id = (int)($branchRow['branch_id'] ?? 0);
+            }
+            if ($branch_id <= 0) {
+                $error = 'No active branch is available.';
+            } else {
+                $stmt = $db->prepare("SELECT user_id FROM users WHERE username = ? OR email = ?");
+                $stmt->bind_param("ss", $username, $email);
+                $stmt->execute();
+                if ($stmt->get_result()->num_rows > 0) {
+                    $error = 'Username or email already exists.';
+                } else {
+                    $temp_password = bin2hex(random_bytes(4));
+                    $password_hash = password_hash($temp_password, PASSWORD_DEFAULT);
+                    $phone_value = $phone !== '' ? $phone : null;
+                    $phone_hash = $phone_value ? hash('sha256', $phone_value) : null;
+
+                    // RETURNING avoids a second LASTVAL() query, which fails on the pooled connection.
+                    $stmt = $db->prepare("INSERT INTO users (username, email, password_hash, full_name, role, branch_id, phone, phone_hash, is_active, must_change_password)
+                                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, TRUE, TRUE)
+                                          RETURNING user_id");
+                    $stmt->bind_param("sssssiss", $username, $email, $password_hash, $full_name, $role, $branch_id, $phone_value, $phone_hash);
+
+                    if ($stmt->execute()) {
+                        $created = $stmt->get_result()->fetch_assoc();
+                        $user_id = (int)($created['user_id'] ?? 0);
+
+                        if ($user_id <= 0) {
+                            $error = 'Error creating user account. Please try again.';
+                        } elseif ($role === 'dentist') {
+                            $dentistStmt = $db->prepare("INSERT INTO dentists (user_id, license_number, specialization, branch_id, is_active)
+                                                          VALUES (?, ?, ?, ?, TRUE)
+                                                          RETURNING dentist_id");
+                            $dentistStmt->bind_param("issi", $user_id, $license_number, $specialization, $branch_id);
+
+                            if ($dentistStmt->execute()) {
+                                $dentistRow = $dentistStmt->get_result()->fetch_assoc();
+                                $dentist_id = (int)($dentistRow['dentist_id'] ?? 0);
+
+                                if (!empty($service_mastery) && $dentist_id > 0) {
+                                    $masteryStmt = $db->prepare("INSERT INTO dentist_service_mastery (dentist_id, service_id) VALUES (?, ?)");
+                                    foreach ($service_mastery as $service_id) {
+                                        $service_id = intval($service_id);
+                                        if ($service_id > 0) {
+                                            $masteryStmt->bind_param("ii", $dentist_id, $service_id);
+                                            $masteryStmt->execute();
+                                        }
+                                    }
                                 }
+
+                                if ($dentist_id > 0) {
+                                    $scheduleStmt = $db->prepare("INSERT INTO dentist_schedules (dentist_id, day_of_week, start_time, end_time, is_available)
+                                                                  VALUES (?, ?, '09:00:00', '17:00:00', TRUE)");
+                                    for ($day = 1; $day <= 5; $day++) {
+                                        $scheduleStmt->bind_param("ii", $dentist_id, $day);
+                                        $scheduleStmt->execute();
+                                    }
+                                }
+
+                                $mailer = getMailer();
+                                if ($mailer->sendDentistAccountEmail($email, $full_name, $username, $temp_password, $email)) {
+                                    $success = "Dentist account created successfully! Credentials have been sent to {$email}";
+                                } else {
+                                    $success = "Dentist account created successfully! Username: {$username}, Temporary Password: {$temp_password} (Email sending failed)";
+                                }
+                            } else {
+                                $error = 'Error creating dentist record.';
                             }
-                        }
-                        
-                        // Add default schedule (Monday to Friday, 9 AM to 5 PM)
-                        // PostgreSQL: is_available is a boolean, use TRUE
-                        $scheduleStmt = $db->prepare("INSERT INTO dentist_schedules (dentist_id, day_of_week, start_time, end_time, is_available) 
-                                                      VALUES (?, ?, '09:00:00', '17:00:00', TRUE)");
-                        for ($day = 1; $day <= 5; $day++) { // Monday to Friday
-                            $scheduleStmt->bind_param("ii", $dentist_id, $day);
-                            $scheduleStmt->execute();
-                        }
-                        
-                        // Send email to dentist
-                        $mailer = getMailer();
-                        if ($mailer->sendDentistAccountEmail($email, $full_name, $username, $temp_password, $email)) {
-                            $success = "Dentist account created successfully! Credentials have been sent to {$email}";
                         } else {
-                            $success = "Dentist account created successfully! Username: {$username}, Temporary Password: {$temp_password} (Email sending failed)";
+                            $success = "User account created successfully! Username: {$username}, Temporary Password: {$temp_password}";
+                        }
+
+                        if ($success) {
+                            $_POST = [];
                         }
                     } else {
-                        $error = 'Error creating dentist record.';
+                        $error = 'Error creating user account. Please try again.';
                     }
-                } else {
-                    $success = "User account created successfully! Username: {$username}, Temporary Password: {$temp_password}";
                 }
-                
-                // Clear form on success
-                if ($success) {
-                    $_POST = [];
-                }
+            }
+        } catch (Throwable $e) {
+            error_log('add-user failed: ' . $e->getMessage());
+            $message = $e->getMessage();
+            if (stripos($message, 'duplicate key') !== false || stripos($message, 'unique') !== false) {
+                $error = 'Username or email already exists.';
+            } elseif (stripos($message, 'branch_id') !== false) {
+                $error = 'Please choose a valid branch.';
             } else {
-                $error = 'Error creating user account. Please try again.';
+                $error = 'Could not create the user. Please try again.';
             }
         }
     }

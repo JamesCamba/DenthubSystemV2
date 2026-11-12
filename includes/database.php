@@ -29,9 +29,16 @@ class MySQLiCompatibleStatement {
         if (!empty($this->params)) {
             // Bind parameters by position (PDO uses 1-based indexing)
             for ($i = 0; $i < count($this->params); $i++) {
+                $value = $this->params[$i];
+                // PostgreSQL rejects NULL bound as a string or integer.
+                if ($value === null) {
+                    $this->pdoStatement->bindValue($i + 1, null, PDO::PARAM_NULL);
+                    continue;
+                }
+
                 $type = isset($this->types[$i]) ? $this->types[$i] : 's';
                 $pdoType = PDO::PARAM_STR;
-                
+
                 if ($type === 'i') {
                     $pdoType = PDO::PARAM_INT;
                 } elseif ($type === 'd') {
@@ -39,8 +46,8 @@ class MySQLiCompatibleStatement {
                 } elseif ($type === 'b') {
                     $pdoType = PDO::PARAM_LOB;
                 }
-                
-                $this->pdoStatement->bindValue($i + 1, $this->params[$i], $pdoType);
+
+                $this->pdoStatement->bindValue($i + 1, $value, $pdoType);
             }
         }
         return $this->pdoStatement->execute();
