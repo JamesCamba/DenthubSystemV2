@@ -17,7 +17,7 @@ $asset_img = '../assets/images';
 </div>
 
 <div class="offcanvas offcanvas-start denthub-sidebar-offcanvas d-lg-none" tabindex="-1" id="sidebarOffcanvas">
-    <div class="offcanvas-header border-bottom border-white border-opacity-25">
+    <div class="offcanvas-header">
         <div class="sidebar-brand d-flex align-items-center brand-img-wrap">
             <img src="<?php echo $asset_img; ?>/logowblue.png" alt="Logo" onerror="this.style.display='none'">
             <img src="<?php echo $asset_img; ?>/denthubtxt.png" alt="DENTHUB" onerror="this.style.display='none'">
@@ -26,16 +26,24 @@ $asset_img = '../assets/images';
         </div>
         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas" aria-label="Close"></button>
     </div>
-    <div class="offcanvas-body d-flex flex-column p-0">
-        <nav class="nav flex-column py-2">
-            <a class="nav-link <?php echo $current_page === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
-            <a class="nav-link <?php echo $current_page === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3 me-2"></i> Calendar</a>
-            <a class="nav-link" href="../book-appointment.php"><i class="bi bi-calendar-plus me-2"></i> Book Appointment</a>
+    <div class="sidebar-rule" role="separator"></div>
+    <div class="offcanvas-body">
+        <nav class="sidebar-nav nav flex-column">
+            <div class="sidebar-group">
+                <span class="sidebar-group-label">Overview</span>
+                <a class="nav-link <?php echo $current_page === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2"></i> Dashboard</a>
+            </div>
+            <div class="sidebar-group">
+                <span class="sidebar-group-label">Appointments</span>
+                <a class="nav-link <?php echo $current_page === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3"></i> Calendar</a>
+                <a class="nav-link" href="../book-appointment.php"><i class="bi bi-calendar-plus"></i> Book Appointment</a>
+            </div>
         </nav>
-        <div class="sidebar-user dropdown p-3 mt-auto">
-            <a class="d-flex align-items-center text-decoration-none text-white dropdown-toggle" href="#" data-bs-toggle="dropdown">
-                <i class="bi bi-person-circle me-2" style="font-size: 1.5rem;"></i>
-                <span><?php echo $patient_name; ?></span>
+        <div class="sidebar-rule" role="separator"></div>
+        <div class="sidebar-user dropup">
+            <a class="d-flex align-items-center text-decoration-none text-white dropdown-toggle" href="#" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-person-circle"></i>
+                <span class="sidebar-user-name"><?php echo $patient_name; ?></span>
             </a>
             <ul class="dropdown-menu dropdown-menu-dark">
                 <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i> My Profile</a></li>
@@ -54,17 +62,25 @@ $asset_img = '../assets/images';
         </div>
         <!-- <small>Center for Smile<br>DENTAL CLINIC</small> -->
     </div>
-    <nav class="nav flex-column py-2">
-        <a class="nav-link <?php echo $current_page === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2 me-2"></i> Dashboard</a>
-        <a class="nav-link <?php echo $current_page === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3 me-2"></i> Calendar</a>
-        <a class="nav-link" href="../book-appointment.php"><i class="bi bi-calendar-plus me-2"></i> Book Appointment</a>
+    <div class="sidebar-rule" role="separator"></div>
+    <nav class="sidebar-nav nav flex-column">
+        <div class="sidebar-group">
+            <span class="sidebar-group-label">Overview</span>
+            <a class="nav-link <?php echo $current_page === 'dashboard.php' ? 'active' : ''; ?>" href="dashboard.php"><i class="bi bi-grid-1x2"></i> Dashboard</a>
+        </div>
+        <div class="sidebar-group">
+            <span class="sidebar-group-label">Appointments</span>
+            <a class="nav-link <?php echo $current_page === 'calendar.php' ? 'active' : ''; ?>" href="calendar.php"><i class="bi bi-calendar3"></i> Calendar</a>
+            <a class="nav-link" href="../book-appointment.php"><i class="bi bi-calendar-plus"></i> Book Appointment</a>
+        </div>
     </nav>
-    <div class="sidebar-user dropdown">
-        <a class="d-flex align-items-center text-decoration-none text-white dropdown-toggle w-100" href="#" id="sidebarUserDropdown" role="button" data-bs-toggle="dropdown">
-            <i class="bi bi-person-circle me-2" style="font-size: 1.5rem;"></i>
-            <span><?php echo $patient_name; ?></span>
+    <div class="sidebar-rule" role="separator"></div>
+    <div class="sidebar-user dropup">
+        <a class="d-flex align-items-center text-decoration-none text-white dropdown-toggle w-100" href="#" id="sidebarUserDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+            <i class="bi bi-person-circle"></i>
+            <span class="sidebar-user-name"><?php echo $patient_name; ?></span>
         </a>
-        <ul class="dropdown-menu dropdown-menu-end dropdown-menu-dark">
+        <ul class="dropdown-menu dropdown-menu-dark">
             <li><a class="dropdown-item" href="profile.php"><i class="bi bi-person me-2"></i> My Profile</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="../logout.php"><i class="bi bi-box-arrow-right me-2"></i> Logout</a></li>

@@ -17,6 +17,8 @@
     --danger-color: var(--denthub-danger);
     --warning-color: #ffc107;
     --info-color: #0dcaf0;
+    /* Sidebar tracks the viewport so the main page keeps the leftover width */
+    --denthub-sidebar-width: clamp(188px, 14vw, 214px);
 }
 
 body {
@@ -144,70 +146,147 @@ footer.denthub-footer .text-white {
 /* ========== Sidebar (accounts): #004AAD, profile at BOTTOM ========== */
 .denthub-sidebar {
     background-color: var(--denthub-primary);
-    min-height: 100vh;
-    width: 260px;
+    width: var(--denthub-sidebar-width);
+    height: 100vh;
+    height: 100dvh;
     position: fixed;
     left: 0;
     top: 0;
     z-index: 1030;
     display: flex;
     flex-direction: column;
+    /* Visible so the account menu can open upward; only the link list scrolls. */
+    overflow: visible;
 }
 .denthub-sidebar .sidebar-brand {
-    padding: 1.25rem;
+    padding: 0.7rem 0.75rem;
     color: #fff;
     font-weight: 700;
-    font-size: 1.25rem;
-    border-bottom: 1px solid rgba(255,255,255,0.15);
+    font-size: 1rem;
+    flex-shrink: 0;
 }
 .denthub-sidebar .sidebar-brand small {
     display: block;
-    font-size: 0.7rem;
+    font-size: 0.65rem;
     font-weight: 400;
     opacity: 0.95;
 }
 .denthub-sidebar .sidebar-brand i {
     color: #fff;
 }
-.denthub-sidebar nav {
-    flex: 1;
+.sidebar-rule {
+    height: 1px;
+    margin: 0 0.7rem;
+    background: rgba(255, 255, 255, 0.22);
+    flex-shrink: 0;
+}
+.denthub-sidebar nav,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-nav {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-x: hidden;
     overflow-y: auto;
-    padding: 0.5rem 0;
+    overscroll-behavior: contain;
+    padding: 0.35rem 0 0.55rem;
 }
-.denthub-sidebar .nav-link {
+.sidebar-group-label {
+    display: block;
+    margin: 0.7rem 0.85rem 0.2rem;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    line-height: 1.25;
+}
+.sidebar-group:first-child .sidebar-group-label {
+    margin-top: 0.35rem;
+}
+.denthub-sidebar .nav-link,
+.offcanvas.denthub-sidebar-offcanvas .nav-link {
     color: rgba(255,255,255,0.9);
-    padding: 0.75rem 1.25rem;
-    border-left: 3px solid transparent;
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 1px 0.45rem;
+    padding: 0.34rem 0.5rem;
+    border-radius: 6px;
+    border-left: 0;
     font-weight: 500;
+    font-size: 0.8rem;
+    line-height: 1.25;
 }
-.denthub-sidebar .nav-link:hover {
+.denthub-sidebar .nav-link i,
+.offcanvas.denthub-sidebar-offcanvas .nav-link i {
+    font-size: 0.92rem;
+    width: 1rem;
+    text-align: center;
+    flex-shrink: 0;
+}
+.denthub-sidebar .nav-link:hover,
+.offcanvas.denthub-sidebar-offcanvas .nav-link:hover {
     color: #fff;
     background-color: rgba(255,255,255,0.1);
 }
-.denthub-sidebar .nav-link.active {
+.denthub-sidebar .nav-link.active,
+.offcanvas.denthub-sidebar-offcanvas .nav-link.active {
     color: #fff;
-    background-color: rgba(255,255,255,0.2);
-    border-left-color: #fff;
+    background-color: rgba(255,255,255,0.18);
 }
-/* Profile block at BOTTOM of sidebar - margin-top: auto pushes it down */
-.denthub-sidebar .sidebar-user {
-    margin-top: auto;
-    padding: 1rem 1.25rem;
-    border-top: 1px solid rgba(255,255,255,0.15);
+/* Account control stays pinned; only the link list scrolls */
+.denthub-sidebar .sidebar-user,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-user {
+    margin-top: 0;
+    padding: 0.55rem 0.5rem 0.65rem;
+    border-top: 0;
     color: #fff;
-    font-size: 0.9rem;
+    font-size: 0.78rem;
     flex-shrink: 0;
 }
-.denthub-sidebar .sidebar-user a {
+.denthub-sidebar .sidebar-user > a,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-user > a {
     color: #fff;
+    min-width: 0;
+    gap: 0.4rem;
+    padding: 0.35rem 0.4rem;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.08);
 }
-.denthub-sidebar .sidebar-user .dropdown-menu {
+.denthub-sidebar .sidebar-user > a:hover,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-user > a:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+.denthub-sidebar .sidebar-user > a i,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-user > a i {
+    font-size: 1.15rem;
+    flex-shrink: 0;
+}
+.sidebar-user-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.denthub-sidebar .sidebar-user .dropdown-menu,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-user .dropdown-menu {
     background-color: var(--denthub-primary);
     border: 1px solid rgba(255,255,255,0.2);
+    font-size: 0.8rem;
+    width: calc(var(--denthub-sidebar-width) - 1rem);
+    min-width: 9.5rem;
+}
+.denthub-sidebar nav::-webkit-scrollbar,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-nav::-webkit-scrollbar {
+    width: 6px;
+}
+.denthub-sidebar nav::-webkit-scrollbar-thumb,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-nav::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.35);
+    border-radius: 4px;
 }
 
 .denthub-main {
-    margin-left: 260px;
+    margin-left: var(--denthub-sidebar-width);
     padding: 1.25rem 1.5rem 1.5rem;
     min-height: 100vh;
     background-color: #e7eef8;
@@ -486,15 +565,24 @@ footer.denthub-footer .text-white {
     width: auto;
     object-fit: contain;
 }
+.denthub-sidebar .sidebar-brand .brand-img-wrap img,
+.offcanvas.denthub-sidebar-offcanvas .sidebar-brand img {
+    height: 26px;
+    max-height: 28px;
+}
 @media (max-width: 576px) {
-    .denthub-sidebar .sidebar-brand .brand-img-wrap,
     .navbar-public .brand-img-wrap {
         flex-direction: column;
         align-items: flex-start;
     }
-    .denthub-sidebar .sidebar-brand .brand-img-wrap img,
     .navbar-public .brand-img-wrap img {
         height: 32px;
+    }
+    .denthub-sidebar .sidebar-brand .brand-img-wrap,
+    .offcanvas.denthub-sidebar-offcanvas .sidebar-brand {
+        flex-direction: row;
+        align-items: center;
+        flex-wrap: nowrap;
     }
 }
 
@@ -523,21 +611,28 @@ footer.denthub-footer .text-white {
     border-color: rgba(255,255,255,0.5);
 }
 .offcanvas.denthub-sidebar-offcanvas {
+    --denthub-sidebar-width: min(220px, 86vw);
     background-color: var(--denthub-primary);
-    width: 280px;
-    max-width: 85vw;
+    width: var(--denthub-sidebar-width);
+    max-width: 86vw;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
-.offcanvas.denthub-sidebar-offcanvas .nav-link {
-    color: rgba(255,255,255,0.9);
+.offcanvas.denthub-sidebar-offcanvas .offcanvas-header {
+    padding: 0.65rem 0.7rem;
+    border-bottom: 0;
+    flex-shrink: 0;
 }
-.offcanvas.denthub-sidebar-offcanvas .nav-link.active {
-    color: #fff;
-    background-color: rgba(255,255,255,0.2);
-}
-.offcanvas.denthub-sidebar-offcanvas .sidebar-user {
-    border-top: 1px solid rgba(255,255,255,0.15);
-    margin-top: auto;
-    padding: 1rem;
+.offcanvas.denthub-sidebar-offcanvas .offcanvas-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
 }
 @media (max-width: 991.98px) {
     .denthub-mobile-topbar {
