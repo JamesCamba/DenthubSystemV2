@@ -441,6 +441,128 @@ footer.denthub-footer .text-white {
     min-height: 1.15em;
 }
 
+/* Admin dashboard: equal stat cards and chart panels */
+.denthub-dash-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+.denthub-dash-grid .denthub-stat-card {
+    min-height: 128px;
+    height: 100%;
+    margin: 0;
+    box-shadow: 0 1px 3px rgba(54, 56, 72, 0.08);
+}
+.denthub-dash-grid .card-body {
+    height: 100%;
+    padding: 1rem 1.05rem;
+}
+.denthub-dash-grid .denthub-stat-icon {
+    font-size: 2rem;
+    line-height: 1;
+    opacity: 0.45;
+    flex-shrink: 0;
+}
+.denthub-dash-grid h6 {
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    line-height: 1.25;
+    min-height: 2.5em;
+    margin-bottom: 0.2rem;
+}
+.denthub-dash-grid h3 {
+    font-size: 1.75rem;
+    font-weight: 700;
+    line-height: 1.1;
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+}
+.denthub-dash-grid .denthub-stat-meta {
+    display: block;
+    min-height: 1.15em;
+    margin-top: 0.2rem;
+    font-size: 0.75rem;
+    line-height: 1.15;
+    opacity: 0.85;
+}
+.denthub-branch-widget {
+    background: #fff;
+    color: #212529;
+    border: 1px solid #e6e8ee;
+}
+.denthub-branch-widget h6 {
+    color: var(--denthub-primary);
+}
+.denthub-branch-widget .form-select {
+    font-size: 0.85rem;
+}
+.denthub-dash-charts {
+    display: grid;
+    grid-template-columns: minmax(240px, 0.9fr) minmax(0, 1.15fr) minmax(0, 1.35fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    align-items: stretch;
+}
+.denthub-dash-chart-card {
+    border: 1px solid #e6e8ee;
+    border-radius: 12px;
+    box-shadow: 0 1px 3px rgba(54, 56, 72, 0.08);
+    background: #fff;
+    min-height: 360px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.denthub-dash-chart-card .denthub-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    font-size: 0.95rem;
+    min-height: 52px;
+}
+.denthub-dash-chart-card .denthub-chart-range {
+    font-size: 0.75rem;
+    font-weight: 600;
+    opacity: 0.9;
+    white-space: nowrap;
+}
+.denthub-dash-chart-card .card-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    padding: 0.9rem 1rem 1rem;
+    min-height: 0;
+}
+.denthub-dash-chart-card .denthub-chart-canvas {
+    position: relative;
+    flex: 1;
+    min-height: 260px;
+}
+.denthub-dash-chart-card canvas {
+    width: 100% !important;
+    height: 100% !important;
+}
+@media (max-width: 1200px) {
+    .denthub-dash-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .denthub-dash-charts {
+        grid-template-columns: 1fr;
+    }
+    .denthub-dash-chart-card {
+        min-height: 340px;
+    }
+}
+@media (max-width: 576px) {
+    .denthub-dash-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
 /* ========== Tables: thead #004AAD ========== */
 .table thead {
     background-color: var(--denthub-primary);
