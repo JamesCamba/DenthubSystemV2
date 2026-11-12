@@ -428,6 +428,18 @@ footer.denthub-footer .text-white {
     background-color: #0dcaf0;
     color: #212529;
 }
+.denthub-stat-card.danger {
+    background-color: var(--denthub-danger);
+    color: #fff;
+}
+.denthub-stat-card .report-stat-value {
+    color: inherit;
+    font-weight: 700;
+    font-size: 1.85rem;
+    line-height: 1.15;
+    font-variant-numeric: tabular-nums;
+    min-height: 1.15em;
+}
 
 /* ========== Tables: thead #004AAD ========== */
 .table thead {
@@ -866,12 +878,21 @@ td .form-select.form-select-sm option {
 }
 
 @media print {
+    .denthub-sidebar,
+    .denthub-sidebar-desktop,
+    .denthub-mobile-topbar,
+    .denthub-sidebar-offcanvas,
+    .offcanvas-backdrop,
+    .no-print {
+        display: none !important;
+    }
     .denthub-main,
     .denthub-main:has(.denthub-page-shell) {
         min-height: 0;
         display: block;
         background: #fff;
-        margin: 0;
+        margin: 0 !important;
+        width: auto !important;
         padding: 0;
     }
     .denthub-page-shell,
