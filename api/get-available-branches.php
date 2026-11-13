@@ -19,6 +19,7 @@ if (empty($date) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
 // Past dates and blocked dates are handled at branch-level below.
 
 try {
+    ensureClinicBookingWindow();
     $db = getDB();
 
     $sql = "
@@ -41,10 +42,12 @@ try {
                 dent.branch_id,
                 dent.dentist_id,
                 GREATEST(
+                    TIME '10:00:00',
                     COALESCE(coh.open_time, TIME '10:00:00'),
                     COALESCE(ms.start_time, ds.start_time, TIME '10:00:00')
                 ) AS start_time,
                 LEAST(
+                    TIME '18:00:00',
                     COALESCE(coh.close_time, TIME '18:00:00'),
                     COALESCE(ms.end_time, ds.end_time, TIME '18:00:00')
                 ) AS end_time

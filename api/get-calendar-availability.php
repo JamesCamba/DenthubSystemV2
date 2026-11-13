@@ -78,12 +78,14 @@ try {
             SELECT
                 ad.dentist_id,
                 dd.d AS date,
-                COALESCE(ms.start_time,
-                         ds.start_time,
-                         GREATEST(?::time, TIME '10:00:00')) AS start_time,
-                COALESCE(ms.end_time,
-                         ds.end_time,
-                         LEAST(?::time, TIME '18:00:00')) AS end_time
+                GREATEST(
+                    COALESCE(ms.start_time, ds.start_time, TIME '10:00:00'),
+                    GREATEST(?::time, TIME '10:00:00')
+                ) AS start_time,
+                LEAST(
+                    COALESCE(ms.end_time, ds.end_time, TIME '18:00:00'),
+                    LEAST(?::time, TIME '18:00:00')
+                ) AS end_time
             FROM active_dentists ad
             CROSS JOIN days dd
             LEFT JOIN doctor_monthly_schedules ms

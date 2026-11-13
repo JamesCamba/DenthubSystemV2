@@ -221,11 +221,11 @@ INSERT INTO services (service_name, service_code, description, duration_minutes,
 ('Orthodontic Treatment', 'ORT001', 'Braces and orthodontic correction', 60, 3000.00),
 ('Gum Treatment', 'GT001', 'Treatment for gum diseases', 60, 4000.00);
 
--- Insert Default Time Slots (9 AM to 5 PM, 30-minute intervals)
+-- Insert Default Time Slots (10:00 AM to 5:30 PM, 30-minute intervals; clinic closes at 6:00 PM)
 INSERT INTO time_slots (slot_time) VALUES
-('09:00:00'), ('09:30:00'), ('10:00:00'), ('10:30:00'), ('11:00:00'), ('11:30:00'),
+('10:00:00'), ('10:30:00'), ('11:00:00'), ('11:30:00'),
 ('12:00:00'), ('12:30:00'), ('13:00:00'), ('13:30:00'), ('14:00:00'), ('14:30:00'),
-('15:00:00'), ('15:30:00'), ('16:00:00'), ('16:30:00'), ('17:00:00');
+('15:00:00'), ('15:30:00'), ('16:00:00'), ('16:30:00'), ('17:00:00'), ('17:30:00');
 
 -- ============================================
 -- HELPER FUNCTIONS / PROCEDURES (Optional)

@@ -297,8 +297,69 @@ function logActivity($action_type, $details = '', $actor_user_id = null, $actor_
     }
 }
 
+// Clinic bookable window: Monday–Sunday 10:00–18:00, 30-minute starts, last slot 17:30.
+function ensureClinicBookingWindow() {
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $done = true;
+
+    $db = getDB();
+
+    // Slot rows are start times. 18:00 is closing time, so the last bookable start is 17:30.
+    $db->query("
+        INSERT INTO time_slots (slot_time, is_active)
+        SELECT gs::time, TRUE
+        FROM generate_series(
+            TIMESTAMP '2000-01-01 10:00:00',
+            TIMESTAMP '2000-01-01 17:30:00',
+            INTERVAL '30 minutes'
+        ) AS gs
+        ON CONFLICT (slot_time) DO UPDATE SET is_active = TRUE
+    ");
+    $db->query("
+        UPDATE time_slots
+        SET is_active = FALSE
+        WHERE slot_time < TIME '10:00:00'
+           OR slot_time > TIME '17:30:00'
+    ");
+    $db->query("
+        INSERT INTO clinic_operating_hours (branch_id, open_time, close_time)
+        SELECT b.branch_id, TIME '10:00:00', TIME '18:00:00'
+        FROM branches b
+        ON CONFLICT (branch_id) DO UPDATE
+        SET open_time = EXCLUDED.open_time,
+            close_time = EXCLUDED.close_time,
+            updated_at = CURRENT_TIMESTAMP
+    ");
+    // Legacy weekday template was 09:00–17:00 (last slot 16:30). Align it to 10:00–18:00.
+    $db->query("
+        UPDATE dentist_schedules
+        SET start_time = TIME '10:00:00',
+            end_time = TIME '18:00:00',
+            is_available = TRUE
+        WHERE start_time = TIME '09:00:00'
+          AND end_time = TIME '17:00:00'
+    ");
+    $db->query("
+        INSERT INTO dentist_schedules (dentist_id, day_of_week, start_time, end_time, is_available)
+        SELECT d.dentist_id, dow.day_of_week, TIME '10:00:00', TIME '18:00:00', TRUE
+        FROM dentists d
+        CROSS JOIN (SELECT generate_series(0, 6) AS day_of_week) dow
+        WHERE d.is_active = TRUE
+          AND NOT EXISTS (
+              SELECT 1
+              FROM dentist_schedules ds
+              WHERE ds.dentist_id = d.dentist_id
+                AND ds.day_of_week = dow.day_of_week
+          )
+    ");
+}
+
 // Fetch clinic operating hours for a branch (falls back to system defaults if not configured)
 function getClinicOperatingHours($branch_id) {
+    ensureClinicBookingWindow();
     $db = getDB();
     $stmt = $db->prepare("SELECT open_time, close_time FROM clinic_operating_hours WHERE branch_id = ?");
     $stmt->bind_param("i", $branch_id);
@@ -570,12 +631,14 @@ function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = 
         windows AS (
             SELECT
                 ad.dentist_id,
-                COALESCE(ms.start_time,
-                         ds.start_time,
-                         GREATEST(?::time, TIME '10:00:00')) AS start_time,
-                COALESCE(ms.end_time,
-                         ds.end_time,
-                         LEAST(?::time, TIME '18:00:00')) AS end_time
+                GREATEST(
+                    COALESCE(ms.start_time, ds.start_time, TIME '10:00:00'),
+                    GREATEST(?::time, TIME '10:00:00')
+                ) AS start_time,
+                LEAST(
+                    COALESCE(ms.end_time, ds.end_time, TIME '18:00:00'),
+                    LEAST(?::time, TIME '18:00:00')
+                ) AS end_time
             FROM active_dentists ad
             LEFT JOIN doctor_monthly_schedules ms
               ON ms.doctor_id = ad.dentist_id

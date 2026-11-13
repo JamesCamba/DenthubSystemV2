@@ -51,6 +51,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'End time must be later than start time for ' . $dayNames[$day] . '.';
             break;
         }
+        if ($start && $end && ($start < '10:00' || $end > '18:00')) {
+            $error = 'Schedule must stay within clinic hours, 10:00 AM to 6:00 PM, for ' . $dayNames[$day] . '.';
+            break;
+        }
     }
 
     if (!$error) {
@@ -119,7 +123,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card-body">
                 <form method="POST" action="">
                     <p class="text-muted">
-                        Configure the days and times you are available for appointments. Patients will only see time slots that match your schedule.
+                        Configure the days and times you are available for appointments. Clinic hours are Monday to Sunday, 10:00 AM to 6:00 PM. The last bookable slot is 5:30 PM.
                     </p>
                     <div class="table-responsive">
                         <table class="table table-bordered align-middle">
@@ -145,10 +149,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     </td>
                                     <td>
                                         <input type="time" class="form-control" name="start_time[<?php echo $day; ?>]"
+                                               min="10:00" max="17:30" step="1800"
                                                value="<?php echo substr($startValue, 0, 5); ?>">
                                     </td>
                                     <td>
                                         <input type="time" class="form-control" name="end_time[<?php echo $day; ?>]"
+                                               min="10:30" max="18:00" step="1800"
                                                value="<?php echo substr($endValue, 0, 5); ?>">
                                     </td>
                                 </tr>
