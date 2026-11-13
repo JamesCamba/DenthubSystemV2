@@ -89,10 +89,34 @@ set_exception_handler(function (Throwable $e) {
     }
     header('Content-Type: text/html; charset=utf-8');
     header('HTTP/1.1 500 Internal Server Error');
-    echo '<!DOCTYPE html><html><head><meta charset="utf-8"><title>Error</title></head><body>';
+    echo '<!DOCTYPE html><html><head><meta charset="utf-8">' . denthubFaviconTags() . '<title>Error</title></head><body>';
     echo '<h1>Something went wrong</h1>';
     echo '<p>We\'re sorry. Please try again later or contact support.</p>';
     echo '</body></html>';
     exit(1);
 });
+
+function denthubFaviconHref() {
+    $file = 'Framework/logo/6df13f7b-dc67-4a19-98ad-df197ab9d416-removebg-preview.png';
+    $root = realpath(__DIR__ . '/..');
+    $script = $_SERVER['SCRIPT_FILENAME'] ?? '';
+    $scriptDir = $script !== '' ? realpath(dirname($script)) : false;
+    if ($root && $scriptDir) {
+        $rootNorm = rtrim(str_replace('\\', '/', $root), '/');
+        $dirNorm = rtrim(str_replace('\\', '/', $scriptDir), '/');
+        if (stripos($dirNorm, $rootNorm) === 0) {
+            $rel = trim(substr($dirNorm, strlen($rootNorm)), '/');
+            if ($rel !== '') {
+                return str_repeat('../', substr_count($rel, '/') + 1) . $file;
+            }
+        }
+    }
+    return $file;
+}
+
+function denthubFaviconTags() {
+    $href = htmlspecialchars(denthubFaviconHref(), ENT_QUOTES, 'UTF-8');
+    return '<link rel="icon" type="image/png" href="' . $href . '">' . "\n"
+        . '    <link rel="apple-touch-icon" href="' . $href . '">';
+}
 

@@ -21,6 +21,7 @@ $users = $db->query("SELECT u.user_id, u.full_name, u.email, u.role, u.is_active
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <?php echo denthubFaviconTags(); ?>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management - <?php echo APP_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
