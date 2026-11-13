@@ -84,8 +84,7 @@ if (!empty($branches)) {
                     <div class="contact-card h-100 shadow-sm">
                         <h5 class="contact-card-title">Business Hours</h5>
                         <div class="contact-card-body">
-                            <p><span class="text-primary fw-semibold">Monday - Saturday:</span><br><span class="ms-3">9:00 AM - 5:00 PM</span></p>
-                            <p><span class="text-primary fw-semibold">Sunday:</span><br><span class="ms-3">Closed</span></p>
+                            <p><span class="text-primary fw-semibold">Monday - Sunday:</span><br><span class="ms-3">10:00 AM - 6:00 PM</span></p>
                         </div>
                     </div>
                 </div>

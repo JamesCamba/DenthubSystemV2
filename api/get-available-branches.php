@@ -36,43 +36,62 @@ try {
             JOIN day ON bd.block_date = day.d
             WHERE bd.is_active = TRUE
         ),
-        available AS (
+        windows AS (
             SELECT
-                ab.branch_id,
-                COUNT(*) AS slots_count
-            FROM active_branches ab
-            JOIN day ON TRUE
-            JOIN time_slots ts
-              ON ts.is_active = TRUE
-            JOIN dentist_schedules ds
-              ON ds.day_of_week = EXTRACT(DOW FROM day.d)
-             AND ds.is_available = TRUE
-             AND ds.start_time <= ts.slot_time
-             AND ds.end_time   > ts.slot_time
-            JOIN dentists dent
-              ON dent.dentist_id = ds.dentist_id
+                dent.branch_id,
+                dent.dentist_id,
+                GREATEST(
+                    COALESCE(coh.open_time, TIME '10:00:00'),
+                    COALESCE(ms.start_time, ds.start_time, TIME '10:00:00')
+                ) AS start_time,
+                LEAST(
+                    COALESCE(coh.close_time, TIME '18:00:00'),
+                    COALESCE(ms.end_time, ds.end_time, TIME '18:00:00')
+                ) AS end_time
+            FROM dentists dent
             JOIN users u
               ON u.user_id = dent.user_id
-            WHERE dent.branch_id = ab.branch_id
-              AND dent.is_active = TRUE
+            JOIN day ON TRUE
+            LEFT JOIN clinic_operating_hours coh
+              ON coh.branch_id = dent.branch_id
+            LEFT JOIN doctor_monthly_schedules ms
+              ON ms.doctor_id = dent.dentist_id
+             AND ms.schedule_date = day.d
+             AND ms.branch_id = dent.branch_id
+            LEFT JOIN dentist_schedules ds
+              ON ds.dentist_id = dent.dentist_id
+             AND ds.day_of_week = EXTRACT(DOW FROM day.d)
+             AND ds.is_available = TRUE
+            WHERE dent.is_active = TRUE
               AND u.is_active = TRUE
+        ),
+        available AS (
+            SELECT
+                w.branch_id,
+                COUNT(*) AS slots_count
+            FROM windows w
+            JOIN time_slots ts
+              ON ts.is_active = TRUE
+             AND ts.slot_time >= w.start_time
+             AND ts.slot_time <  w.end_time
+            WHERE w.start_time < w.end_time
               AND NOT EXISTS (
                     SELECT 1
                     FROM blocked_dates bd2
-                    WHERE bd2.block_date = day.d
-                      AND bd2.branch_id = ab.branch_id
+                    WHERE bd2.block_date = (SELECT d FROM day)
+                      AND bd2.branch_id = w.branch_id
                       AND bd2.is_active = TRUE
                 )
               AND NOT EXISTS (
                     SELECT 1
                     FROM appointments a
-                    WHERE a.appointment_date = day.d
+                    WHERE a.appointment_date = (SELECT d FROM day)
                       AND a.appointment_time = ts.slot_time
-                      AND a.branch_id = ab.branch_id
+                      AND a.branch_id = w.branch_id
                       AND a.status IN ('pending','confirmed')
-                      AND a.dentist_id = dent.dentist_id
+                      AND a.dentist_id = w.dentist_id
                 )
-            GROUP BY ab.branch_id
+            GROUP BY w.branch_id
         )
         SELECT
             ab.branch_id,

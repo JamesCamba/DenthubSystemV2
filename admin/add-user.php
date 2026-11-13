@@ -98,8 +98,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                                 if ($dentist_id > 0) {
                                     $scheduleStmt = $db->prepare("INSERT INTO dentist_schedules (dentist_id, day_of_week, start_time, end_time, is_available)
-                                                                  VALUES (?, ?, '09:00:00', '17:00:00', TRUE)");
-                                    for ($day = 1; $day <= 5; $day++) {
+                                                                  VALUES (?, ?, '10:00:00', '18:00:00', TRUE)");
+                                    for ($day = 0; $day <= 6; $day++) {
                                         $scheduleStmt->bind_param("ii", $dentist_id, $day);
                                         $scheduleStmt->execute();
                                     }

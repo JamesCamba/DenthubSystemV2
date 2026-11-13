@@ -134,8 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             <tbody>
                                 <?php for ($day = 0; $day <= 6; $day++): 
                                     $hasSchedule = isset($schedules[$day]);
-                                    $startValue = $hasSchedule ? $schedules[$day]['start_time'] : '09:00:00';
-                                    $endValue = $hasSchedule ? $schedules[$day]['end_time'] : '17:00:00';
+                                    $startValue = $hasSchedule ? $schedules[$day]['start_time'] : '10:00:00';
+                                    $endValue = $hasSchedule ? $schedules[$day]['end_time'] : '18:00:00';
                                 ?>
                                 <tr>
                                     <td><strong><?php echo $dayNames[$day]; ?></strong></td>
