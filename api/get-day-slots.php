@@ -68,10 +68,11 @@ try {
             JOIN users u ON u.user_id = d.user_id
             WHERE d.is_active = TRUE
               AND u.is_active = TRUE
+              AND d.branch_id = ?
     ";
 
-    $params = [];
-    $types  = "";
+    $params = [$branch_id];
+    $types  = "i";
 
     if ($dentist_id_filter !== null) {
         $sql .= " AND d.dentist_id = ? ";
@@ -130,7 +131,7 @@ try {
     $params[] = $date;
     $params[] = $date;
     $params[] = $branch_id;
-    $types   .= "ssisss";
+    $types   .= "sssissi";
 
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);

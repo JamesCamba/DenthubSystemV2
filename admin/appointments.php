@@ -68,7 +68,7 @@ if ($search) {
 $where_clause = !empty($where) ? 'WHERE ' . implode(' AND ', $where) : '';
 
 $page = max(1, (int)($_GET['page'] ?? 1));
-$per_page = 20;
+$per_page = 10;
 $offset = ($page - 1) * $per_page;
 
 $count_sql = "SELECT COUNT(*) as total FROM appointments a JOIN patients p ON a.patient_id = p.patient_id $where_clause";
@@ -170,16 +170,7 @@ $appointments = $stmt->get_result();
         <!-- Appointments Table -->
         <div class="card denthub-card-rounded">
             <div class="card-body">
-                <div class="denthub-table-pagination flex-wrap">
-                    <span class="page-info">Page <?php echo $page; ?> of <?php echo $total_pages; ?></span>
-                    <?php
-                    $q = $_GET;
-                    if ($total_pages > 1):
-                        if ($page > 1) { $q['page'] = $page - 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Previous</a>'; }
-                        if ($page < $total_pages) { $q['page'] = $page + 1; echo '<a href="?' . http_build_query($q) . '" class="btn btn-sm btn-outline-primary">Next</a>'; }
-                    endif;
-                    ?>
-                </div>
+                <?php echo denthubPagination($page, $total_pages, $_GET, 'page', 'appointmentsPagination'); ?>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>

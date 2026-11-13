@@ -68,18 +68,35 @@ if ($date_filter) {
 
 $where_clause = 'WHERE ' . implode(' AND ', $where);
 
+$page = max(1, (int)($_GET['page'] ?? 1));
+$per_page = 10;
+
+$count_sql = "SELECT COUNT(*) as total
+        FROM appointments a
+        JOIN patients p ON a.patient_id = p.patient_id
+        JOIN services s ON a.service_id = s.service_id
+        $where_clause";
+$count_stmt = $db->prepare($count_sql);
+$count_stmt->bind_param($types, ...$params);
+$count_stmt->execute();
+$total_rows = (int)$count_stmt->get_result()->fetch_assoc()['total'];
+$total_pages = max(1, (int)ceil($total_rows / $per_page));
+$page = min($page, $total_pages);
+$offset = ($page - 1) * $per_page;
+
 $sql = "SELECT a.*, p.first_name, p.last_name, p.phone, p.email, s.service_name
         FROM appointments a
         JOIN patients p ON a.patient_id = p.patient_id
         JOIN services s ON a.service_id = s.service_id
         $where_clause
         ORDER BY $sort_col $order_sql, a.appointment_id DESC
-        LIMIT 100";
+        LIMIT $per_page OFFSET $offset";
 
 $stmt = $db->prepare($sql);
 $stmt->bind_param($types, ...$params);
 $stmt->execute();
 $appointments = $stmt->get_result();
+$pagination_html = denthubPagination($page, $total_pages, $_GET, 'page', 'appointmentsPagination');
 
 // If this is an AJAX request, return only the table body HTML
 if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
@@ -128,7 +145,11 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
         </tr>
     <?php endif;
     $html = ob_get_clean();
-    echo $html;
+    header('Content-Type: application/json');
+    echo json_encode([
+        'html' => $html,
+        'pagination' => $pagination_html,
+    ]);
     exit;
 }
 ?>
@@ -193,6 +214,7 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
         <!-- Appointments Table -->
         <div class="card">
             <div class="card-body">
+                <?php echo $pagination_html; ?>
                 <div class="table-responsive">
                     <table class="table table-hover">
                         <thead>
@@ -278,17 +300,23 @@ if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
             let searchTimeout;
 
             function fetchAppointmentsRealtime() {
-                const params = new URLSearchParams();
-                if (statusInput.value) params.append('status', statusInput.value);
-                if (dateInput.value) params.append('date', dateInput.value);
-                params.append('ajax', '1');
+                const params = new URLSearchParams(window.location.search);
+                params.delete('page');
+                params.set('page', '1');
+                if (statusInput.value) params.set('status', statusInput.value); else params.delete('status');
+                if (dateInput.value) params.set('date', dateInput.value); else params.delete('date');
+                params.set('ajax', '1');
 
                 fetch('appointments.php?' + params.toString(), {
                     headers: { 'X-Requested-With': 'XMLHttpRequest' }
                 })
-                    .then(res => res.text())
-                    .then(html => {
-                        tableBody.innerHTML = html;
+                    .then(res => res.json())
+                    .then(data => {
+                        tableBody.innerHTML = data.html;
+                        const pag = document.getElementById('appointmentsPagination');
+                        if (pag && data.pagination) {
+                            pag.outerHTML = data.pagination;
+                        }
                     })
                     .catch(err => console.error('Error loading appointments:', err));
             }

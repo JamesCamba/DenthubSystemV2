@@ -34,6 +34,12 @@ if ($date < $today) {
     exit;
 }
 
+$maxDate = (new DateTimeImmutable('first day of this month'))->modify('+3 months')->modify('last day of this month')->format('Y-m-d');
+if ($date > $maxDate) {
+    echo json_encode(['success' => false, 'message' => 'You can only plan up to 3 months ahead.']);
+    exit;
+}
+
 if ($branch_id <= 0) {
     echo json_encode(['success' => false, 'message' => 'Branch is required']);
     exit;
@@ -68,7 +74,7 @@ if ($start_time_norm >= $end_time_norm) {
 $db = getDB();
 
 // Get dentist id
-$stmt = $db->prepare("SELECT dentist_id FROM dentists WHERE user_id = ?");
+$stmt = $db->prepare("SELECT dentist_id, branch_id FROM dentists WHERE user_id = ?");
 $stmt->bind_param("i", $_SESSION['user_id']);
 $stmt->execute();
 $dent = $stmt->get_result()->fetch_assoc();
@@ -77,6 +83,10 @@ if (!$dent) {
     exit;
 }
 $dentist_id = (int)$dent['dentist_id'];
+if ((int)$dent['branch_id'] !== $branch_id) {
+    echo json_encode(['success' => false, 'message' => 'You are not assigned to this branch.']);
+    exit;
+}
 
 // Enforce clinic operating hours
 [$open_time, $close_time] = getClinicOperatingHours($branch_id);

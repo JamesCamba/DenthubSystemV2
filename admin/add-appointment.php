@@ -13,9 +13,10 @@ $db = getDB();
 $error = '';
 $success = '';
 
-// Get services and dentists
+// Get services and dentists assigned to this user's branch
 $services = getServices();
-$dentists = getDentists();
+$branch_id = (int)($_SESSION['branch_id'] ?? 1);
+$dentists = getDentists(true, null, $branch_id);
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $patient_id = intval($_POST['patient_id']);
@@ -24,10 +25,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $appointment_date = $_POST['appointment_date'];
     $appointment_time = $_POST['appointment_time'];
     $reason_for_visit = sanitize($_POST['reason_for_visit'] ?? '');
-    $branch_id = $_SESSION['branch_id'] ?? 1;
 
     if (empty($patient_id) || empty($service_id) || empty($appointment_date) || empty($appointment_time)) {
         $error = 'Please fill in all required fields.';
+    } elseif ($dentist_id && !dentistIsAssignedToBranch($dentist_id, $branch_id)) {
+        $error = 'That dentist is not assigned to your branch.';
     } else {
         // Check if slot is available
         if ($dentist_id === null) {

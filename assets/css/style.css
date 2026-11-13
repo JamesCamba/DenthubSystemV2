@@ -1017,6 +1017,19 @@ footer.denthub-footer .text-white {
     color: var(--denthub-primary);
     font-weight: 600;
 }
+.denthub-page-arrow {
+    width: 1.75rem;
+    height: 1.75rem;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+.denthub-page-arrow.disabled {
+    pointer-events: none;
+    opacity: 0.45;
+}
 
 /* ========== Status change dropdown smaller so not cut ========== */
 td .form-select.form-select-sm {

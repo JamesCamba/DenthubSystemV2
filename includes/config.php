@@ -97,7 +97,7 @@ set_exception_handler(function (Throwable $e) {
 });
 
 function denthubFaviconHref() {
-    $file = 'Framework/logo/6df13f7b-dc67-4a19-98ad-df197ab9d416-removebg-preview.png';
+    $file = 'Framework/logo/' . rawurlencode('9B1F1799-B63E-4F53-9021-BCBFBFED35CE_L0_001-1_11_2026, 1_59_38 PM.png');
     $root = realpath(__DIR__ . '/..');
     $script = $_SERVER['SCRIPT_FILENAME'] ?? '';
     $scriptDir = $script !== '' ? realpath(dirname($script)) : false;

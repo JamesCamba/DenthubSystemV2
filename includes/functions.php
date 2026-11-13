@@ -323,10 +323,54 @@ function getClinicOperatingHours($branch_id) {
     return [$defaultOpen, $defaultClose];
 }
 
+function dentistIsAssignedToBranch($dentist_id, $branch_id) {
+    $dentist_id = (int)$dentist_id;
+    $branch_id = (int)$branch_id;
+    if ($dentist_id <= 0 || $branch_id <= 0) {
+        return false;
+    }
+    $db = getDB();
+    $stmt = $db->prepare("SELECT 1 FROM dentists WHERE dentist_id = ? AND branch_id = ? AND is_active = TRUE LIMIT 1");
+    $stmt->bind_param("ii", $dentist_id, $branch_id);
+    $stmt->execute();
+    return $stmt->get_result()->num_rows > 0;
+}
+
+function denthubPagination($page, $totalPages, array $query = [], $pageParam = 'page', $id = '') {
+    $page = max(1, (int)$page);
+    $totalPages = max(1, (int)$totalPages);
+    $page = min($page, $totalPages);
+    unset($query['ajax']);
+
+    $prev = $query;
+    $prev[$pageParam] = $page - 1;
+    $next = $query;
+    $next[$pageParam] = $page + 1;
+
+    $idAttr = $id !== '' ? ' id="' . htmlspecialchars($id, ENT_QUOTES, 'UTF-8') . '"' : '';
+    $html = '<div class="denthub-table-pagination"' . $idAttr . '>';
+    $html .= '<span class="page-info">Page ' . $page . ' of ' . $totalPages . '</span>';
+    if ($page <= 1) {
+        $html .= '<span class="btn btn-sm btn-outline-primary denthub-page-arrow disabled" aria-disabled="true" aria-label="Previous page"><i class="bi bi-chevron-left"></i></span>';
+    } else {
+        $html .= '<a class="btn btn-sm btn-outline-primary denthub-page-arrow" href="?' . htmlspecialchars(http_build_query($prev), ENT_QUOTES, 'UTF-8') . '" aria-label="Previous page"><i class="bi bi-chevron-left"></i></a>';
+    }
+    if ($page >= $totalPages) {
+        $html .= '<span class="btn btn-sm btn-outline-primary denthub-page-arrow disabled" aria-disabled="true" aria-label="Next page"><i class="bi bi-chevron-right"></i></span>';
+    } else {
+        $html .= '<a class="btn btn-sm btn-outline-primary denthub-page-arrow" href="?' . htmlspecialchars(http_build_query($next), ENT_QUOTES, 'UTF-8') . '" aria-label="Next page"><i class="bi bi-chevron-right"></i></a>';
+    }
+    $html .= '</div>';
+    return $html;
+}
+
 // Compute the effective working window for a doctor on a given date and branch,
 // respecting Level 2 (monthly schedule), weekly schedule, and Level 1 defaults,
 // all clamped inside clinic operating hours.
 function getDoctorWorkingWindow($date, $dentist_id, $branch_id) {
+    if (!dentistIsAssignedToBranch($dentist_id, $branch_id)) {
+        return [null, null];
+    }
     $db = getDB();
     [$clinicOpen, $clinicClose] = getClinicOperatingHours($branch_id);
 
@@ -509,10 +553,11 @@ function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = 
             JOIN users u ON u.user_id = d.user_id
             WHERE d.is_active = TRUE
               AND u.is_active = TRUE
+              AND d.branch_id = ?
     ";
 
-    $params = [];
-    $types  = "";
+    $params = [$branch_id];
+    $types  = "i";
 
     if ($dentist_id !== null) {
         $sql .= " AND d.dentist_id = ? ";
@@ -558,13 +603,14 @@ function getAvailableSlotCountForDateAndBranch($date, $branch_id, $dentist_id = 
           )
     ";
 
-    $params[] = $open_time;   // for GREATEST(open_time, '10:00')
-    $params[] = $close_time;  // for LEAST(close_time, '18:00')
-    $params[] = $date;
-    $params[] = $branch_id;
-    $params[] = $date;
-    $params[] = $branch_id;
-    $types   .= "ssisi";
+    $params[] = $open_time;   // GREATEST(open_time, '10:00')
+    $params[] = $close_time;  // LEAST(close_time, '18:00')
+    $params[] = $date;        // monthly schedule date
+    $params[] = $branch_id;   // monthly schedule branch
+    $params[] = $date;        // day of week
+    $params[] = $date;        // appointment date
+    $params[] = $branch_id;   // appointment branch
+    $types   .= "sssissi";
 
     $stmt = $db->prepare($sql);
     $stmt->bind_param($types, ...$params);

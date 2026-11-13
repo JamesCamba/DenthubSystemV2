@@ -60,10 +60,11 @@ try {
             JOIN users u ON u.user_id = d.user_id
             WHERE d.is_active = TRUE
               AND u.is_active = TRUE
+              AND d.branch_id = ?
     ";
 
-    $params = [$start, $end];
-    $types  = "ss";
+    $params = [$start, $end, $branch_id];
+    $types  = "ssi";
 
     if ($dentist_id !== null) {
         $sql .= " AND d.dentist_id = ? ";

@@ -64,6 +64,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = 'You have multiple recent no-shows. Please call the clinic to book a new appointment.';
         } elseif (empty($error) && isDateBlocked($appointment_date, $branch_id)) {
             $error = 'Selected date is not available.';
+        } elseif (empty($error) && !dentistIsAssignedToBranch($dentist_id, $branch_id)) {
+            $error = 'That dentist is not assigned to the selected branch.';
         } elseif (empty($error)) {
             // Check if slot is available
             $db = getDB();
